@@ -1,0 +1,45 @@
+# Build outputs
+bin/
+obj/
+
+# IDE and editor files
+.vs/
+*.swp
+*.swo
+*~
+.vscode/
+.idea/
+*.suo
+*.user
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# NuGet packages
+packages/
+
+# Test results
+TestResults/
+*.trx
+
+# Logs
+*.log
+
+# Local user settings
+*.userprefs
+
+# Rider
+*.sln.iml
+
+# dotnet tool manifest
+config.json
+
+# Fakes assemblies
+FakesAssemblies/
+
+# BenchmarkDotNet artifacts
+BenchmarkDotNet.Artifacts/
+
+# Publish output
+publish/
