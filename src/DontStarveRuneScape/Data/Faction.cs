@@ -53,7 +53,7 @@ public sealed class FactionRegistry
     {
         return GetFaction(id) is { Color.Length: >= 3 } f
             ? ((byte)f.Color[0], (byte)f.Color[1], (byte)f.Color[2])
-            : (255, 255, 255);
+            : ((byte)255, (byte)255, (byte)255);
     }
 
     public IEnumerable<FactionDef> GetFactionsForBiome(string biomeId)

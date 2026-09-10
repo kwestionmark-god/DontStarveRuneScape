@@ -45,6 +45,9 @@ public sealed class ResourceDef : DataRecord
 
     [JsonPropertyName("rarity")]
     public string Rarity { get; init; } = "common";
+
+    /// <summary>Whether this resource requires a tool to harvest.</summary>
+    public bool RequiresTool => !string.IsNullOrEmpty(ToolRequirement);
 }
 
 /// <summary>

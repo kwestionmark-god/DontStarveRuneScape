@@ -1,6 +1,7 @@
 namespace DontStarveRuneScape.Data;
 
 using System.Text.Json.Serialization;
+using DontStarveRuneScape.Core;
 
 /// <summary>
 /// Gear item definition (weapons/armor).
@@ -189,5 +190,36 @@ public sealed class PlayerGear
     public float GetWeaponDamage()
     {
         return Weapon?.Damage ?? 1.0f; // Unarmed = 1 damage
+    }
+
+    /// <summary>Get snapshot for saving.</summary>
+    public GearSnapshot GetSnapshot()
+    {
+        return new GearSnapshot
+        {
+            Weapon = Weapon?.Id,
+            Head = Head?.Id,
+            Chest = Chest?.Id,
+            Legs = Legs?.Id,
+            Boots = Boots?.Id,
+            Gloves = Gloves?.Id,
+            Cape = Cape?.Id,
+            Ammo = Ammo?.Id,
+            Shield = Shield?.Id,
+        };
+    }
+
+    /// <summary>Restore from snapshot.</summary>
+    public void RestoreSnapshot(GearSnapshot snapshot, Dictionary<string, GearItem> gearRegistry)
+    {
+        if (!string.IsNullOrEmpty(snapshot.Weapon) && gearRegistry.TryGetValue(snapshot.Weapon, out var w)) Weapon = w;
+        if (!string.IsNullOrEmpty(snapshot.Head) && gearRegistry.TryGetValue(snapshot.Head, out var h)) Head = h;
+        if (!string.IsNullOrEmpty(snapshot.Chest) && gearRegistry.TryGetValue(snapshot.Chest, out var c)) Chest = c;
+        if (!string.IsNullOrEmpty(snapshot.Legs) && gearRegistry.TryGetValue(snapshot.Legs, out var l)) Legs = l;
+        if (!string.IsNullOrEmpty(snapshot.Boots) && gearRegistry.TryGetValue(snapshot.Boots, out var b)) Boots = b;
+        if (!string.IsNullOrEmpty(snapshot.Gloves) && gearRegistry.TryGetValue(snapshot.Gloves, out var g)) Gloves = g;
+        if (!string.IsNullOrEmpty(snapshot.Cape) && gearRegistry.TryGetValue(snapshot.Cape, out var ca)) Cape = ca;
+        if (!string.IsNullOrEmpty(snapshot.Ammo) && gearRegistry.TryGetValue(snapshot.Ammo, out var a)) Ammo = a;
+        if (!string.IsNullOrEmpty(snapshot.Shield) && gearRegistry.TryGetValue(snapshot.Shield, out var s)) Shield = s;
     }
 }

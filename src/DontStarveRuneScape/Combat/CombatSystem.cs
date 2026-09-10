@@ -40,7 +40,7 @@ public sealed class Monster
     public float WorldX { get; set; }
     public float WorldY { get; set; }
     public int Health { get; set; } = 100;
-    public int MaxHealth { get; set; } = 100
+    public int MaxHealth { get; set; } = 100;
     public bool IsActive { get; set; } = true;
     public MonsterState State { get; set; } = MonsterState.Idle;
     public float AttackCooldown { get; set; } = 0f;

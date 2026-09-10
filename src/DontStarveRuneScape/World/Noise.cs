@@ -105,12 +105,12 @@ public static class Noise
     private static float Perlin2D(float x, float y)
     {
         // Skew the input space to determine which simplex cell we're in
-        const float F2 = 0.5f * (MathF.Sqrt(3.0f) - 1.0f);
+        const float F2 = 0.366025403f; // 0.5 * (sqrt(3) - 1)
         float s = (x + y) * F2;
         int i = FastFloor(x + s);
         int j = FastFloor(y + s);
 
-        const float G2 = (3.0f - MathF.Sqrt(3.0f)) / 6.0f;
+        const float G2 = 0.211324865f; // (3 - sqrt(3)) / 6
         float t = (i + j) * G2;
         float X0 = i - t;
         float Y0 = j - t;

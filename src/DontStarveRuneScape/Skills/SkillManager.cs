@@ -1,6 +1,8 @@
 namespace DontStarveRuneScape.Skills;
 
 using System.Collections.Generic;
+using DontStarveRuneScape.Config;
+using DontStarveRuneScape.Core;
 
 /// <summary>
 /// SkillManager — Manages all 8 skills with OSRS XP formula and sub-stats.
@@ -30,6 +32,16 @@ public sealed class SkillManager
         if (_skills.TryGetValue(skillId, out var skill))
             return skill.Level;
         return 1;
+    }
+
+    /// <summary>Alias for GetSkillLevel.</summary>
+    public int GetLevel(string skillId) => GetSkillLevel(skillId);
+
+    /// <summary>Check if a quest is completed (placeholder - would check quest system).</summary>
+    public bool IsQuestCompleted(string questId)
+    {
+        // TODO: Integrate with QuestSystem
+        return false;
     }
 
     /// <summary>Get effective stat value (base + level bonuses + gear).</summary>
@@ -101,6 +113,42 @@ public sealed class SkillManager
     public SkillData GetSkill(string skillId)
     {
         return _skills.GetValueOrDefault(skillId, new SkillData { Id = skillId });
+    }
+
+    /// <summary>Get snapshot for saving.</summary>
+    public SkillSnapshot GetSnapshot()
+    {
+        var snapshot = new SkillSnapshot();
+        foreach (var kvp in _skills)
+        {
+            snapshot.Skills[kvp.Key] = new SkillDataSnapshot
+            {
+                Level = kvp.Value.Level,
+                Xp = kvp.Value.Xp,
+                StatPoints = kvp.Value.UnallocatedPoints,
+                SubStats = kvp.Value.SubStats.ToDictionary(k => k.Key, v => (int)v.Value)
+            };
+        }
+        return snapshot;
+    }
+
+    /// <summary>Restore from snapshot.</summary>
+    public void RestoreSnapshot(SkillSnapshot snapshot)
+    {
+        foreach (var kvp in snapshot.Skills)
+        {
+            if (_skills.TryGetValue(kvp.Key, out var skill))
+            {
+                skill.Level = kvp.Value.Level;
+                skill.Xp = kvp.Value.Xp;
+                skill.UnallocatedPoints = kvp.Value.StatPoints;
+                foreach (var statKvp in kvp.Value.SubStats)
+                {
+                    if (skill.SubStats.ContainsKey(statKvp.Key))
+                        skill.SubStats[statKvp.Key] = statKvp.Value;
+                }
+            }
+        }
     }
 }
 

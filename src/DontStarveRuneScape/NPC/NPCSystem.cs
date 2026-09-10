@@ -2,13 +2,14 @@ namespace DontStarveRuneScape.NPC;
 
 using System.Collections.Generic;
 using DontStarveRuneScape.Core;
+using DontStarveRuneScape.Data;
 
 /// <summary>
 /// NPCSystem — Manages all NPCs in the world.
 /// </summary>
 public sealed class NPCSystem
 {
-    public List<NPC> NPCs { get; } = [];
+    public List<Npc> NPCs { get; } = [];
 
     public void Tick(float dt)
     {
@@ -21,7 +22,7 @@ public sealed class NPCSystem
     }
 
     /// <summary>Check if there's an NPC near the player.</summary>
-    public NPC? CheckProximity(Player player)
+    public Npc? CheckProximity(Player player)
     {
         foreach (var npc in NPCs)
         {
@@ -43,5 +44,50 @@ public sealed class NPCSystem
 
         // Structure assignment logic would go here
         return (true, $"Assigned {npc.Name} to {structureId}.");
+    }
+
+    /// <summary>Get snapshot for saving.</summary>
+    public NPCSnapshot GetSnapshot()
+    {
+        var snapshot = new NPCSnapshot();
+        snapshot.NPCs = NPCs
+            .Where(n => n.IsActive)
+            .Select(n => new NPCDataSnapshot
+            {
+                NpcId = n.NpcId,
+                Type = n.NpcType,
+                WorldX = n.WorldX,
+                WorldY = n.WorldY,
+                Health = n.Health,
+                IsActive = n.IsActive,
+                RecruitedBy = n.RecruitedBy,
+            })
+            .ToArray();
+        return snapshot;
+    }
+
+    /// <summary>Restore from snapshot.</summary>
+    public void RestoreSnapshot(NPCSnapshot snapshot, DataLoader dataLoader)
+    {
+        NPCs.Clear();
+        if (snapshot.NPCs != null)
+        {
+            foreach (var n in snapshot.NPCs)
+            {
+                string? foundId = null;
+                var npcDef = dataLoader.NPCsData?
+                    .FirstOrDefault(d => d.TryGetValue("id", out var id) && id is string idStr && (foundId = idStr) == n.NpcId);
+                if (npcDef != null && foundId != null)
+                {
+                    var npc = Npc.CreateFromDef(npcDef);
+                    npc.WorldX = n.WorldX;
+                    npc.WorldY = n.WorldY;
+                    npc.Health = (int)n.Health;
+                    npc.IsActive = n.IsActive;
+                    npc.RecruitedBy = n.RecruitedBy;
+                    NPCs.Add(npc);
+                }
+            }
+        }
     }
 }

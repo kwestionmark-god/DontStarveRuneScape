@@ -5,6 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.1] - 2026-09-10
+
+### Fixed
+- **Compilation Errors**: Fixed all remaining build errors (~20) across core systems
+  - SurvivalSystem: Added setter to MaxHunger property for snapshot restoration
+  - Program.cs: Resolved ambiguous Version/Window references with alias imports
+  - WorldGen.cs: Fixed float-to-int conversions for corner elevations
+  - NPCFlows.cs: Fixed duplicate variable `qty`, unassigned variable, and static `Game.ErrorColor` access
+  - Bootstrap.cs: Replaced `JsonElement.Deserialize` with `JsonSerializer.Deserialize`; made `BiomeRegistry.DefaultBiome` setter public
+  - Game.cs: Fixed tuple conversion errors in render drawables with named tuple syntax; added `HandleEvent` methods to TitleScreen/CharacterSelectPanel/LoadingScreen; removed unused InputRouter.Handle call with SDL Event
+  - TileMap.cs: Fixed `RegrowTimer` → `RegrowTime` references; replaced read-only `IsDepleted` assignments with `Density = 0f` pattern
+  - Program.cs: Removed non-existent `Initialize()` calls from renderers and UI panels
+
+### Changed
+- Simplified Program.cs Load event handler - renderers/panels now initialize on first use
+
 ## [0.1.0] - 2026-09-09
 
 ### Added

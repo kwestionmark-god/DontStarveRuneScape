@@ -1,6 +1,7 @@
 namespace DontStarveRuneScape.NPC;
 
 using DontStarveRuneScape.Core;
+using DontStarveRuneScape.Data;
 
 /// <summary>
 /// FactionSystem — Handles faction relationships and diplomacy.
@@ -15,6 +16,21 @@ public sealed class FactionSystem
             Success = true,
             Message = $"Negotiation with {factionId} successful."
         };
+    }
+
+    /// <summary>Get snapshot for saving.</summary>
+    public FactionSnapshot GetSnapshot()
+    {
+        var snapshot = new FactionSnapshot();
+        // TODO: Track faction standings
+        snapshot.Factions = [];
+        return snapshot;
+    }
+
+    /// <summary>Restore from snapshot.</summary>
+    public void RestoreSnapshot(FactionSnapshot snapshot, DataLoader dataLoader)
+    {
+        // TODO: Restore faction standings
     }
 }
 

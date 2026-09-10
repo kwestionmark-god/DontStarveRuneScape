@@ -2,6 +2,7 @@ namespace DontStarveRuneScape.Camera;
 
 using DontStarveRuneScape.Config;
 using DontStarveRuneScape.Core;
+using DontStarveRuneScape.Input;
 using Silk.NET.Maths;
 
 /// <summary>

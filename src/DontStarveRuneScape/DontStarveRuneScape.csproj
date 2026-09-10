@@ -18,11 +18,12 @@
 
   <ItemGroup>
     <!-- SDL2 and OpenGL bindings via Silk.NET -->
-    <PackageReference Include="Silk.NET.SDL2" Version="2.22.0" />
+    <PackageReference Include="Silk.NET.SDL" Version="2.22.0" />
     <PackageReference Include="Silk.NET.OpenGL" Version="2.22.0" />
     <PackageReference Include="Silk.NET.Maths" Version="2.22.0" />
     <PackageReference Include="Silk.NET.Windowing.Sdl" Version="2.22.0" />
     <PackageReference Include="Silk.NET.Windowing" Version="2.22.0" />
+    <PackageReference Include="Silk.NET.Input" Version="2.22.0" />
     <!-- JSON serialization -->
     <PackageReference Include="System.Text.Json" Version="9.0.0" />
     <!-- Math utilities -->

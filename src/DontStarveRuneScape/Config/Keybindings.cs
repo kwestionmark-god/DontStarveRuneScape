@@ -1,10 +1,11 @@
 namespace DontStarveRuneScape.Config;
 
-using Silk.NET.SDL;
+using DontStarveRuneScape.Core;
+using Silk.NET.Input;
 
 /// <summary>
 /// Single source of truth for all keybindings.
-/// Maps action names to SDL key constants.
+/// Maps action names to Silk.NET Input key constants.
 /// Used by InputManager, InputRouter, and UI panels for hints.
 /// </summary>
 public static class Keybindings
@@ -38,7 +39,7 @@ public static class Keybindings
 
         // Interaction
         ["interact"] = Key.E,
-        ["confirm"] = Key.Return,
+        ["confirm"] = Key.Enter,
         ["confirm_alt"] = Key.Space,
         ["light_fire"] = Key.F,
         ["attack"] = Key.J,
@@ -52,22 +53,22 @@ public static class Keybindings
         ["orbit_tilt_down_alt"] = Key.PageDown,
 
         // Hotbar (1-8)
-        ["hotbar_1"] = Key.N1,
-        ["hotbar_2"] = Key.N2,
-        ["hotbar_3"] = Key.N3,
-        ["hotbar_4"] = Key.N4,
-        ["hotbar_5"] = Key.N5,
-        ["hotbar_6"] = Key.N6,
-        ["hotbar_7"] = Key.N7,
-        ["hotbar_8"] = Key.N8,
+        ["hotbar_1"] = Key.Number1,
+        ["hotbar_2"] = Key.Number2,
+        ["hotbar_3"] = Key.Number3,
+        ["hotbar_4"] = Key.Number4,
+        ["hotbar_5"] = Key.Number5,
+        ["hotbar_6"] = Key.Number6,
+        ["hotbar_7"] = Key.Number7,
+        ["hotbar_8"] = Key.Number8,
 
         // Save
         ["save_game"] = Key.F5,
 
         // Quest-specific (one-shot)
-        ["quest_accept"] = Key.Return,
-        ["faction_negotiate"] = Key.Return,
-        ["trade_accept"] = Key.Return,
+        ["quest_accept"] = Key.Enter,
+        ["faction_negotiate"] = Key.Enter,
+        ["trade_accept"] = Key.Enter,
     };
 
     /// <summary>
@@ -181,7 +182,7 @@ public static class Keybindings
     };
 
     /// <summary>
-    /// Get the SDL key constant for a given action name.
+    /// Get the Silk.NET Input key constant for a given action name.
     /// </summary>
     public static Key GetKeyForAction(string action)
     {

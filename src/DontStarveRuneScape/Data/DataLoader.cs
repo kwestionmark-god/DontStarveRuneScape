@@ -2,6 +2,8 @@ namespace DontStarveRuneScape.Data;
 
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using System.IO;
+using DontStarveRuneScape.Config;
 
 /// <summary>
 /// Shared data loading utilities.
@@ -123,7 +125,7 @@ public sealed class DataLoader
 /// <summary>
 /// Base class for data records with an ID.
 /// </summary>
-public abstract record DataRecord
+public abstract class DataRecord
 {
     [JsonPropertyName("id")]
     public string Id { get; init; } = string.Empty;

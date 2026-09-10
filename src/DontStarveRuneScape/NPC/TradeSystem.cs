@@ -11,7 +11,7 @@ public sealed class TradeSystem
     public void Tick(float dt) { }
 
     /// <summary>Get trade items for a merchant.</summary>
-    public List<TradeItem> GetTradeItemsForMerchant(MerchantNPC merchant)
+    public List<TradeItem> GetTradeItemsForMerchant(MerchantNpc merchant)
     {
         return new List<TradeItem>();
     }

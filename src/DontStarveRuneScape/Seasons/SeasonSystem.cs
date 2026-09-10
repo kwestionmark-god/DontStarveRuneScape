@@ -65,4 +65,25 @@ public sealed class SeasonSystem
 
     /// <summary>Get resource multiplier for a category.</summary>
     public float GetResourceMultiplier(string category) => 1.0f;
+
+    /// <summary>Get snapshot for saving.</summary>
+    public SeasonSnapshot GetSnapshot()
+    {
+        return new SeasonSnapshot
+        {
+            CurrentSeason = CurrentSeason,
+            SeasonProgress = SeasonProgress,
+            TimeUntilTransition = _inTransition ? 30f * (1f - TransitionProgress) : (_seasonTimer + 600f * (1f - SeasonProgress)),
+        };
+    }
+
+    /// <summary>Restore from snapshot.</summary>
+    public void RestoreSnapshot(SeasonSnapshot snapshot)
+    {
+        CurrentSeason = snapshot.CurrentSeason;
+        SeasonProgress = snapshot.SeasonProgress;
+        // Approximate restoration
+        _seasonTimer = SeasonProgress * 600f;
+        PreviousSeason = "spring"; // Would need more data to restore perfectly
+    }
 }

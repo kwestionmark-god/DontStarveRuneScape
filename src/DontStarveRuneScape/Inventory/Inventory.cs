@@ -2,6 +2,7 @@ namespace DontStarveRuneScape.Inventory;
 
 using System.Collections.Generic;
 using DontStarveRuneScape.Survival;
+using DontStarveRuneScape.Core;
 
 /// <summary>
 /// InventorySlot — A single slot in the inventory grid.
@@ -9,7 +10,7 @@ using DontStarveRuneScape.Survival;
 public sealed class InventorySlot
 {
     public string? ItemId { get; set; }
-    public int Quantity { get; set; } = 0
+    public int Quantity { get; set; } = 0;
     public float SpoilageTimer { get; set; } = 0f;
     public float MaxSpoilageTime { get; set; } = 0f;
     public bool IsEquipped { get; set; } = false;
@@ -196,5 +197,39 @@ public sealed class Inventory
             }
         }
         return messages;
+    }
+
+    /// <summary>Get snapshot for saving.</summary>
+    public InventorySnapshot GetSnapshot()
+    {
+        var snapshot = new InventorySnapshot();
+        snapshot.Slots = new InventorySlotSnapshot[SlotCount];
+        for (int i = 0; i < SlotCount; i++)
+        {
+            var slot = Slots[i];
+            snapshot.Slots[i] = new InventorySlotSnapshot
+            {
+                ItemId = slot.ItemId ?? string.Empty,
+                Quantity = slot.Quantity,
+                SpoilageRemaining = slot.MaxSpoilageTime > 0 ? Math.Max(0, slot.MaxSpoilageTime - slot.SpoilageTimer) : 0f,
+                IsEquipped = slot.IsEquipped
+            };
+        }
+        return snapshot;
+    }
+
+    /// <summary>Restore from snapshot.</summary>
+    public void RestoreSnapshot(InventorySnapshot snapshot)
+    {
+        for (int i = 0; i < SlotCount && i < snapshot.Slots.Length; i++)
+        {
+            var slotData = snapshot.Slots[i];
+            var slot = Slots[i];
+            slot.ItemId = string.IsNullOrEmpty(slotData.ItemId) ? null : slotData.ItemId;
+            slot.Quantity = slotData.Quantity;
+            slot.SpoilageTimer = 0f;
+            slot.MaxSpoilageTime = slotData.SpoilageRemaining;
+            slot.IsEquipped = slotData.IsEquipped;
+        }
     }
 }

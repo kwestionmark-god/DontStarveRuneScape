@@ -4,7 +4,16 @@ using System.Text.Json;
 using DontStarveRuneScape.Data;
 using DontStarveRuneScape.World;
 using DontStarveRuneScape.Skills;
+using DontStarveRuneScape.Skills.Firemaking;
+using DontStarveRuneScape.Skills.Metallurgy;
+using DontStarveRuneScape.Skills.Intelligence;
+using DontStarveRuneScape.Skills.Cooking;
+using DontStarveRuneScape.Skills.Construction;
+using DontStarveRuneScape.Skills.Woodcutting;
+using DontStarveRuneScape.Skills.Mining;
+using DontStarveRuneScape.Skills.Foraging;
 using DontStarveRuneScape.Inventory;
+using Inv = DontStarveRuneScape.Inventory.Inventory;
 using DontStarveRuneScape.Survival;
 using DontStarveRuneScape.Combat;
 using DontStarveRuneScape.NPC;
@@ -15,8 +24,13 @@ using DontStarveRuneScape.Actions;
 using DontStarveRuneScape.Input;
 using DontStarveRuneScape.Render;
 using DontStarveRuneScape.Camera;
+using Cam = DontStarveRuneScape.Camera.Camera;
 using DontStarveRuneScape.Config;
 using DontStarveRuneScape.UI;
+using DontStarveRuneScape.Interactions;
+using Silk.NET.Input;
+using Silk.NET.SDL;
+using SurvCharDef = DontStarveRuneScape.Survival.CharacterDefinition;
 
 /// <summary>
 /// Central game state. Single instance, aggregates all subsystems.
@@ -43,9 +57,10 @@ public sealed class Game
     public SurvivalSystem? Survival { get; set; }
     public FoodRegistry? FoodRegistry { get; set; }
     public SkillManager? SkillManager { get; set; }
+    public DataLoader? DataLoader { get; set; }
     public CraftingSystem? Crafting { get; set; }
-    public Inventory.Inventory? Inventory { get; set; }
-    public Camera.Camera? Camera { get; set; }
+    public Inv? Inventory { get; set; }
+    public Cam? Camera { get; set; }
     public HUD? HUD { get; set; }
     public SaveSystem? SaveSystem { get; set; }
     public InputManager? InputManager { get; set; }
@@ -55,12 +70,12 @@ public sealed class Game
 
     // Phase 2+ systems
     public CombatSystem? CombatSystem { get; set; }
-    public Firemaking.FiremakingSkill? Firemaking { get; set; }
-    public Metallurgy.MetallurgySkill? Metallurgy { get; set; }
-    public Intelligence.IntelligenceSkill? Intelligence { get; set; }
-    public Cooking.CookingSkill? Cooking { get; set; }
+    public FiremakingSkill? Firemaking { get; set; }
+    public MetallurgySkill? Metallurgy { get; set; }
+    public IntelligenceSkill? Intelligence { get; set; }
+    public CookingSkill? Cooking { get; set; }
     public BuildingSystem? BuildingSystem { get; set; }
-    public Construction.ConstructionSkill? Construction { get; set; }
+    public ConstructionSkill? Construction { get; set; }
     public NPCSystem? NPCSystem { get; set; }
     public TradeSystem? TradeSystem { get; set; }
     public RecruitmentSystem? RecruitmentSystem { get; set; }
@@ -103,13 +118,13 @@ public sealed class Game
     public (int X, int Y)? BuildCursor { get; set; }
 
     // Character selection
-    public CharacterDefinition? PendingCharacterDef { get; set; }
+    public SurvCharDef? PendingCharacterDef { get; set; }
 
     // Bootstrap
     private Bootstrap? _bootstrap;
 
     // World generation thread
-    private Thread? _worldGenThread;
+    private System.Threading.Thread? _worldGenThread;
     private string? _worldGenResult;
     private string? _worldGenError;
 
@@ -120,9 +135,9 @@ public sealed class Game
     private string _flavorText = "";
 
     // Gathering skills (wired to action system)
-    public Woodcutting.WoodcuttingSkill? Woodcutting { get; set; }
-    public Mining.MiningSkill? Mining { get; set; }
-    public Foraging.ForagingSkill? Foraging { get; set; }
+    public WoodcuttingSkill? Woodcutting { get; set; }
+    public MiningSkill? Mining { get; set; }
+    public ForagingSkill? Foraging { get; set; }
 
     public Game(int seed = 42)
     {
@@ -470,8 +485,8 @@ public sealed class Game
                     if (tile?.ResourceNode != null)
                     {
                         float sortY = GetDepthSort(x + 0.5f, y + 0.5f, tile.Elevation * Constants.ZScale);
-                        drawables.Add((sortY, () => SpriteRenderer.RenderResource(
-                            tile.ResourceNode!, Camera!, tile.Elevation, x, y)));
+                        drawables.Add((Depth: sortY, Draw: new Action(() => SpriteRenderer.RenderResource(
+                            tile.ResourceNode!, Camera!, (int)tile.Elevation, x, y))));
                     }
                 }
             }
@@ -483,7 +498,7 @@ public sealed class Game
                 var tile = World.GetTile(ptx, pty);
                 float elev = (tile?.Elevation ?? 0) * Constants.ZScale;
                 float sortY = GetDepthSort(Player.WorldX, Player.WorldY, elev);
-                drawables.Add((sortY, () => SpriteRenderer.RenderPlayer(
+                drawables.Add((Depth: sortY, Draw: () => SpriteRenderer.RenderPlayer(
                     Player, Camera!, elev, Dt)));
             }
 
@@ -495,7 +510,7 @@ public sealed class Game
                     if (monster.IsAlive())
                     {
                         float sortY = GetDepthSort(monster.WorldX, monster.WorldY, 0);
-                        drawables.Add((sortY, () => SpriteRenderer.RenderMonster(monster, Camera!)));
+                        drawables.Add((Depth: sortY, Draw: () => SpriteRenderer.RenderMonster(monster, Camera!)));
                     }
                 }
             }
@@ -508,11 +523,11 @@ public sealed class Game
                 {
                     if (!npc.IsActive) continue;
                     float sortY = GetDepthSort(npc.WorldX, npc.WorldY, 0);
-                    drawables.Add((sortY, () => SpriteRenderer.RenderNPC(npc, Camera!, 0)));
+                    drawables.Add((Depth: sortY, Draw: () => SpriteRenderer.RenderNPC(npc, Camera!, 0)));
 
                     if (npc == nearbyNpc)
                     {
-                        drawables.Add((sortY, () => SpriteRenderer.RenderProximityPrompt(npc, Camera!)));
+                        drawables.Add((Depth: sortY, Draw: () => SpriteRenderer.RenderProximityPrompt(npc, Camera!)));
                     }
                 }
             }
@@ -525,7 +540,7 @@ public sealed class Game
                     if (structure.IsActive)
                     {
                         float sortY = GetDepthSort(structure.WorldX, structure.WorldY, 0);
-                        drawables.Add((sortY, () => SpriteRenderer.RenderStructure(structure, Camera!)));
+                        drawables.Add((Depth: sortY, Draw: () => SpriteRenderer.RenderStructure(structure, Camera!)));
                     }
                 }
             }
@@ -533,7 +548,7 @@ public sealed class Game
             // Build mode ghost preview
             if (BuildMode && Camera != null && World != null && BuildCursor.HasValue)
             {
-                drawables.Add((float.MaxValue, () => RenderBuildGhost(gl)));
+                drawables.Add((Depth: float.MaxValue, Draw: () => RenderBuildGhost(gl)));
             }
 
             // Fires
@@ -542,7 +557,7 @@ public sealed class Game
                 foreach (var fire in Firemaking.GetActiveFires())
                 {
                     float sortY = GetDepthSort(fire.WorldX, fire.WorldY, 0);
-                    drawables.Add((sortY, () => SpriteRenderer.RenderFire(fire, Camera!)));
+                    drawables.Add((Depth: sortY, Draw: () => SpriteRenderer.RenderFire(fire, Camera!)));
                 }
             }
         }
@@ -634,7 +649,8 @@ public sealed class Game
     }
 
     /// <summary>
-    /// Handle input event.
+    /// Handle input event (SDL event - for future use with raw SDL input).
+    /// Currently input is handled via InputManager's high-level Silk.NET API.
     /// </summary>
     public void HandleEvent(Event evt)
     {
@@ -652,13 +668,14 @@ public sealed class Game
                 LoadingScreen?.HandleEvent(this, evt);
                 break;
             default:
-                InputRouter?.Handle(evt);
+                // InputRouter.Handle expects Silk.NET Key, not SDL Event.
+                // Input is currently routed through InputManager -> InputState -> Player/Camera.
                 break;
         }
     }
 
     // Internal methods for bootstrap
-    internal void SetWorldGenThread(Thread thread) => _worldGenThread = thread;
+    internal void SetWorldGenThread(System.Threading.Thread thread) => _worldGenThread = thread;
     internal void SetWorldGenResult(string result) => _worldGenResult = result;
     internal void SetWorldGenError(string error) => _worldGenError = error;
     internal string? GetWorldGenError() => _worldGenError;

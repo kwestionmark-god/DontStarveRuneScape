@@ -1,6 +1,7 @@
 namespace DontStarveRuneScape.Core;
 
 using System.Text.Json;
+using System.IO;
 using DontStarveRuneScape.Data;
 using DontStarveRuneScape.World;
 using DontStarveRuneScape.Skills;
@@ -10,6 +11,7 @@ using DontStarveRuneScape.Combat;
 using DontStarveRuneScape.NPC;
 using DontStarveRuneScape.Seasons;
 using DontStarveRuneScape.Building;
+using DontStarveRuneScape.Config;
 
 /// <summary>
 /// Save/load system for game state.
@@ -160,7 +162,19 @@ public sealed class SaveSystem
 
     private void RestoreGear(SaveData data, Game game)
     {
-        game.Player?.Gear?.RestoreSnapshot(data.Gear);
+        if (game.DataLoader != null)
+        {
+            var gearRegistry = GearItem.LoadAll();
+            // Merge with data loader if needed
+            foreach (var item in game.DataLoader.GearData)
+            {
+                if (item.TryGetValue("id", out var id) && id is string idStr && !gearRegistry.ContainsKey(idStr))
+                {
+                    // Could deserialize GearItem from dict, but for now just use LoadAll
+                }
+            }
+            game.Player?.Gear?.RestoreSnapshot(data.Gear, gearRegistry);
+        }
     }
 
     private void RestorePosition(SaveData data, Game game)
@@ -177,7 +191,10 @@ public sealed class SaveSystem
 
     private void RestoreStructures(SaveData data, Game game)
     {
-        game.BuildingSystem?.RestoreSnapshot(data.Structures);
+        if (game.DataLoader != null)
+        {
+            game.BuildingSystem?.RestoreSnapshot(data.Structures, game.World!, game.DataLoader);
+        }
     }
 
     private void RestoreFires(SaveData data, Game game)
@@ -187,17 +204,26 @@ public sealed class SaveSystem
 
     private void RestoreNPCs(SaveData data, Game game)
     {
-        game.NPCSystem?.RestoreSnapshot(data.NPCs);
+        if (game.DataLoader != null)
+        {
+            game.NPCSystem?.RestoreSnapshot(data.NPCs, game.DataLoader);
+        }
     }
 
     private void RestoreQuests(SaveData data, Game game)
     {
-        game.QuestSystem?.RestoreSnapshot(data.Quests);
+        if (game.DataLoader != null)
+        {
+            game.QuestSystem?.RestoreSnapshot(data.Quests, game.DataLoader);
+        }
     }
 
     private void RestoreFactions(SaveData data, Game game)
     {
-        game.FactionSystem?.RestoreSnapshot(data.Factions);
+        if (game.DataLoader != null)
+        {
+            game.FactionSystem?.RestoreSnapshot(data.Factions, game.DataLoader);
+        }
     }
 
     private void RestoreWorld(SaveData data, Game game)

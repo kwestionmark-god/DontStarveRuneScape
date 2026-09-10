@@ -16,10 +16,10 @@ public sealed class TradePanel
     public int SelectedPlayerIndex { get; set; } = -1;
     public int BuyQuantity { get; set; } = 1;
     public int SellQuantity { get; set; } = 1;
-    public MerchantNPC? TradeSession { get; set; }
+    public MerchantNpc? TradeSession { get; set; }
     public TradeSystem TradeSystem { get; } = new();
 
-    public bool OpenSession(MerchantNPC merchant)
+    public bool OpenSession(MerchantNpc merchant)
     {
         TradeSession = merchant;
         Visible = true;
@@ -51,7 +51,7 @@ public sealed class QuestPanel
 
     public void SetPlayer(Player player) => Player = player;
 
-    public bool OpenSession(NPC npc)
+    public bool OpenSession(Npc npc)
     {
         Visible = true;
         return true;
@@ -70,7 +70,7 @@ public sealed class RecruitPanel
     public bool Visible { get; set; } = false;
     public Player? Player { get; set; }
 
-    public bool OpenSession(RecruitNPC npc)
+    public bool OpenSession(RecruitNpc npc)
     {
         Visible = true;
         return true;
@@ -90,7 +90,7 @@ public sealed class DiplomacyPanel
     public Player? Player { get; set; }
     public FactionInfo? FactionInfo { get; set; }
 
-    public bool OpenSession(FactionLeaderNPC npc)
+    public bool OpenSession(FactionLeaderNpc npc)
     {
         FactionInfo = new FactionInfo { FactionId = npc.FactionId, Name = npc.Name };
         Visible = true;

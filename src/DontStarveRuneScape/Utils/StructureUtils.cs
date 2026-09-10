@@ -42,7 +42,7 @@ public static class StructureUtils
 
             if (dist <= radiusPx)
             {
-                if (targetIds == null || targetIds.Contains(structure.StructureDef.StructureId))
+                if (targetIds == null || targetIds.Contains(structure.StructureDef.Id))
                     nearby.Add(structure);
             }
         }

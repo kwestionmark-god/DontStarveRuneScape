@@ -2,6 +2,7 @@ namespace DontStarveRuneScape.Skills.Firemaking;
 
 using System.Collections.Generic;
 using DontStarveRuneScape.Inventory;
+using DontStarveRuneScape.Core;
 
 /// <summary>
 /// FireInstance — An active fire in the world.
@@ -74,6 +75,39 @@ public sealed class FiremakingSkill
             _activeFires[i].RemainingTime -= dt;
             if (_activeFires[i].RemainingTime <= 0)
                 _activeFires.RemoveAt(i);
+        }
+    }
+
+    /// <summary>Get snapshot for saving.</summary>
+    public FireSnapshot GetSnapshot()
+    {
+        var snapshot = new FireSnapshot();
+        snapshot.Fires = _activeFires.Select(f => new FireDataSnapshot
+        {
+            WorldX = f.WorldX,
+            WorldY = f.WorldY,
+            RemainingTime = f.RemainingTime,
+            MaxTime = f.MaxTime,
+        }).ToArray();
+        return snapshot;
+    }
+
+    /// <summary>Restore from snapshot.</summary>
+    public void RestoreSnapshot(FireSnapshot snapshot)
+    {
+        _activeFires.Clear();
+        if (snapshot.Fires != null)
+        {
+            foreach (var f in snapshot.Fires)
+            {
+                _activeFires.Add(new FireInstance
+                {
+                    WorldX = f.WorldX,
+                    WorldY = f.WorldY,
+                    RemainingTime = f.RemainingTime,
+                    MaxTime = f.MaxTime,
+                });
+            }
         }
     }
 }

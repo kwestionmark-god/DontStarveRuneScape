@@ -4,9 +4,9 @@ using System.Collections.Generic;
 using DontStarveRuneScape.Data;
 
 /// <summary>
-/// NPC — Base NPC class.
+/// Npc — Base NPC class.
 /// </summary>
-public abstract class NPC
+public abstract class Npc
 {
     public string NpcId { get; set; } = string.Empty;
     public string Name { get; set; } = string.Empty;
@@ -19,51 +19,74 @@ public abstract class NPC
     public int Health { get; set; } = 100;
     public int MaxHealth { get; set; } = 100;
     public List<string> AvailableQuests { get; set; } = [];
+    public string? RecruitedBy { get; set; }
 
     public virtual void AssignBehavior(string behavior) { }
+
+    /// <summary>Create an NPC instance from a definition dictionary.</summary>
+    public static Npc CreateFromDef(Dictionary<string, object> def)
+    {
+        string type = def.TryGetValue("type", out var typeObj) && typeObj is string t ? t : "npc";
+        Npc npc = type switch
+        {
+            "merchant" => new MerchantNpc(),
+            "recruit" => new RecruitNpc(),
+            "faction_leader" => new FactionLeaderNpc(),
+            "quest_giver" => new QuestGiverNpc(),
+            _ => new QuestGiverNpc(), // default
+        };
+
+        if (def.TryGetValue("id", out var id) && id is string idStr) npc.NpcId = idStr;
+        if (def.TryGetValue("name", out var name) && name is string nameStr) npc.Name = nameStr;
+        npc.NpcType = type;
+        if (def.TryGetValue("health", out var hp) && hp is int hpInt) npc.Health = hpInt;
+        if (def.TryGetValue("max_health", out var maxHp) && maxHp is int maxHpInt) npc.MaxHealth = maxHpInt;
+        
+        return npc;
+    }
 }
 
 /// <summary>
-/// MerchantNPC — NPC that can trade.
+/// MerchantNpc — NPC that can trade.
 /// </summary>
-public sealed class MerchantNPC : NPC
+public sealed class MerchantNpc : Npc
 {
-    public MerchantNPC()
+    public MerchantNpc()
     {
         NpcType = "merchant";
     }
 }
 
 /// <summary>
-/// RecruitNPC — NPC that can be recruited.
+/// RecruitNpc — NPC that can be recruited.
 /// </summary>
-public sealed class RecruitNPC : NPC
+public sealed class RecruitNpc : Npc
 {
-    public RecruitNPC()
+    public RecruitNpc()
     {
         NpcType = "recruit";
     }
 }
 
 /// <summary>
-/// FactionLeaderNPC — NPC that leads a faction.
+/// FactionLeaderNpc — NPC that leads a faction.
 /// </summary>
-public sealed class FactionLeaderNPC : NPC
+public sealed class FactionLeaderNpc : Npc
 {
     public string FactionId { get; set; } = string.Empty;
 
-    public FactionLeaderNPC()
+    public FactionLeaderNpc()
     {
         NpcType = "faction_leader";
     }
 }
 
 /// <summary>
-/// QuestGiverNPC — NPC that gives quests.
+/// QuestGiverNpc — NPC that gives quests.
 /// </summary>
-public sealed class QuestGiverNPC : NPC
+public sealed class QuestGiverNpc : Npc
 {
-    public QuestGiverNPC()
+    public QuestGiverNpc()
     {
         NpcType = "quest_giver";
     }

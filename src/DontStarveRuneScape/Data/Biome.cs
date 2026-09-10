@@ -55,7 +55,7 @@ public sealed class BiomeDef : DataRecord
 public sealed class BiomeRegistry
 {
     public Dictionary<string, BiomeDef> Biomes { get; } = [];
-    public BiomeDef? DefaultBiome { get; private set; }
+    public BiomeDef? DefaultBiome { get; set; }
 
     public BiomeRegistry() { }
 

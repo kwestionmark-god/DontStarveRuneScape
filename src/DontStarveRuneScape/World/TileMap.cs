@@ -3,6 +3,7 @@ namespace DontStarveRuneScape.World;
 using DontStarveRuneScape.Data;
 using DontStarveRuneScape.Config;
 using DontStarveRuneScape.Seasons;
+using DontStarveRuneScape.Core;
 
 /// <summary>
 /// World tile map - column-major grid of Tiles.
@@ -123,6 +124,62 @@ public sealed class TileMap
         {
             if (tile.ResourceNode != null)
                 yield return (tile, tile.ResourceNode);
+        }
+    }
+
+    /// <summary>
+    /// Get all depleted resource nodes for saving.
+    /// </summary>
+    public DepletedNodeSnapshot[] GetDepletedNodes()
+    {
+        var result = new List<DepletedNodeSnapshot>();
+        for (int x = 0; x < Width; x++)
+        {
+            for (int y = 0; y < Height; y++)
+            {
+                var node = Tiles[x, y].ResourceNode;
+                if (node != null && node.IsDepleted)
+                {
+                    result.Add(new DepletedNodeSnapshot
+                    {
+                        TileX = x,
+                        TileY = y,
+                        ResourceId = node.ResourceId,
+                        RegrowTime = node.RegrowTime,
+                    });
+                }
+            }
+        }
+        return result.ToArray();
+    }
+
+    /// <summary>
+    /// Restore depleted nodes from save data.
+    /// </summary>
+    public void RestoreDepletedNodes(DepletedNodeSnapshot[] depletedNodes)
+    {
+        if (depletedNodes == null) return;
+        foreach (var d in depletedNodes)
+        {
+            var tile = GetTile(d.TileX, d.TileY);
+            if (tile != null && tile.ResourceNode != null)
+            {
+                tile.ResourceNode.Density = 0f; // Mark as depleted
+                tile.ResourceNode.RegrowTime = d.RegrowTime;
+            }
+        }
+    }
+
+    /// <summary>
+    /// Mark a resource node as regrowing after depletion.
+    /// </summary>
+    public void MarkRegrowing(int tileX, int tileY)
+    {
+        var tile = GetTile(tileX, tileY);
+        if (tile?.ResourceNode != null)
+        {
+            tile.ResourceNode.Density = 0f; // Mark as depleted
+            tile.ResourceNode.RegrowTime = 0f;
         }
     }
 }

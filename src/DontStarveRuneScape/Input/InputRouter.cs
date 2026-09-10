@@ -2,6 +2,7 @@ namespace DontStarveRuneScape.Input;
 
 using DontStarveRuneScape.Core;
 using DontStarveRuneScape.Interactions;
+using Silk.NET.Input;
 
 /// <summary>
 /// InputRouter — Routes input events based on current GameState.
@@ -21,15 +22,9 @@ public sealed class InputRouter
         _npcFlows = npcFlows;
     }
 
-    /// <summary>Handle an input event based on current state.</summary>
-    public void Handle(Event evt)
+    /// <summary>Handle an input key based on current state.</summary>
+    public void Handle(Key key)
     {
-        // Only handle key down events for one-shot actions
-        if (evt.Type != Silk.NET.SDL.EventType.KeyDown)
-            return;
-
-        var key = evt.Key.Key;
-
         // Handle panel-specific input
         switch (_game.State)
         {
@@ -53,22 +48,23 @@ public sealed class InputRouter
             case GameState.CraftingPanel:
             case GameState.BuildingPanel:
             case GameState.GearPanel:
+            case GameState.DashboardOpen:
                 HandleGenericPanelInput(key);
                 break;
         }
     }
 
-    private void HandlePlayingInput(Silk.NET.SDL.Key key)
+    private void HandlePlayingInput(Key key)
     {
-        if (key == Silk.NET.SDL.Key.E)
+        if (key == Key.E)
             _interactSystem.HandleInteract();
-        else if (key == Silk.NET.SDL.Key.F)
+        else if (key == Key.F)
             _fireInteraction.HandleLightFire();
     }
 
-    private void HandleTradePanelInput(Silk.NET.SDL.Key key)
+    private void HandleTradePanelInput(Key key)
     {
-        if (key == Silk.NET.SDL.Key.Escape || key == Silk.NET.SDL.Key.Q)
+        if (key == Key.Escape || key == Key.Q)
         {
             if (_game.TradePanel != null)
             {
@@ -76,41 +72,41 @@ public sealed class InputRouter
             }
             _game.SetState(GameState.Playing);
         }
-        else if (key == Silk.NET.SDL.Key.Return || key == Silk.NET.SDL.Key.Space)
+        else if (key == Key.Enter || key == Key.Space)
         {
             _npcFlows.HandleTradeAcceptKeyboard();
         }
     }
 
-    private void HandleQuestPanelInput(Silk.NET.SDL.Key key)
+    private void HandleQuestPanelInput(Key key)
     {
-        if (key == Silk.NET.SDL.Key.Escape || key == Silk.NET.SDL.Key.Q)
+        if (key == Key.Escape || key == Key.Q)
         {
             if (_game.QuestPanel != null)
                 _game.QuestPanel.Close();
             _game.SetState(GameState.Playing);
         }
-        else if (key == Silk.NET.SDL.Key.Return || key == Silk.NET.SDL.Key.Space)
+        else if (key == Key.Enter || key == Key.Space)
         {
             _npcFlows.HandleQuestAcceptKeyboard();
         }
     }
 
-    private void HandleRecruitPanelInput(Silk.NET.SDL.Key key)
+    private void HandleRecruitPanelInput(Key key)
     {
-        if (key == Silk.NET.SDL.Key.Escape || key == Silk.NET.SDL.Key.Q)
+        if (key == Key.Escape || key == Key.Q)
         {
             _npcFlows.CloseRecruitPanel();
         }
     }
 
-    private void HandleDiplomacyPanelInput(Silk.NET.SDL.Key key)
+    private void HandleDiplomacyPanelInput(Key key)
     {
-        if (key == Silk.NET.SDL.Key.Escape || key == Silk.NET.SDL.Key.Q)
+        if (key == Key.Escape || key == Key.Q)
         {
             _npcFlows.CloseDiplomacyPanel();
         }
-        else if (key == Silk.NET.SDL.Key.Return || key == Silk.NET.SDL.Key.Space)
+        else if (key == Key.Enter || key == Key.Space)
         {
             // Negotiate on Enter/Space
             if (_game.DiplomacyPanel != null)
@@ -121,9 +117,9 @@ public sealed class InputRouter
         }
     }
 
-    private void HandleGenericPanelInput(Silk.NET.SDL.Key key)
+    private void HandleGenericPanelInput(Key key)
     {
-        if (key == Silk.NET.SDL.Key.Escape || key == Silk.NET.SDL.Key.Q)
+        if (key == Key.Escape || key == Key.Q)
         {
             CloseAllPanels();
             _game.SetState(GameState.Playing);

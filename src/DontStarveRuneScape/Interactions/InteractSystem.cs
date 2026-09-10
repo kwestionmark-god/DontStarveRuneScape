@@ -34,7 +34,8 @@ public sealed class InteractSystem
         if (node != null)
         {
             // Determine action type based on resource tool requirement
-            ActionType actionType = node.RequiresTool switch
+            string toolReq = node.ResourceDef?.ToolRequirement ?? string.Empty;
+            ActionType actionType = toolReq switch
             {
                 "axe" => ActionType.Woodcutting,
                 "pickaxe" => ActionType.Mining,
@@ -47,7 +48,7 @@ public sealed class InteractSystem
                 tileXy: (tx, ty));
 
             if (error != null)
-                actionSys.AddNotification(error, game.ErrorColor);
+                actionSys.AddNotification(error, Game.ErrorColor);
         }
     }
 }

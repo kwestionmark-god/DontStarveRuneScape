@@ -4,11 +4,13 @@ using DontStarveRuneScape.Config;
 using DontStarveRuneScape.Input;
 using DontStarveRuneScape.Skills;
 using DontStarveRuneScape.Inventory;
+using Inv = DontStarveRuneScape.Inventory.Inventory;
 using DontStarveRuneScape.Combat;
 using DontStarveRuneScape.Survival;
 using DontStarveRuneScape.Seasons;
 using DontStarveRuneScape.Actions;
 using DontStarveRuneScape.World;
+using DontStarveRuneScape.Data;
 
 /// <summary>
 /// Player entity with smooth movement and sub-tile precision.
@@ -24,18 +26,18 @@ using DontStarveRuneScape.World;
 public sealed class Player
 {
     // Movement state
-    public float WorldX { get; private set; }
-    public float WorldY { get; private set; }
+    public float WorldX { get; set; }
+    public float WorldY { get; set; }
     public float Speed { get; set; } = Constants.PlayerMovementSpeed;  // Pixels per second
-    public float TargetX { get; private set; }
-    public float TargetY { get; private set; }
-    public bool Moving { get; private set; }
+    public float TargetX { get; set; }
+    public float TargetY { get; set; }
+    public bool Moving { get; set; }
 
     // Subsystem references (wired by Bootstrap)
     public ActionSystem? ActionSystem { get; set; }
     public PlayerGear? Gear { get; set; }
     public SkillManager? SkillManager { get; set; }
-    public Inventory.Inventory? Inventory { get; set; }
+    public Inv? Inventory { get; set; }
     public SurvivalSystem? Survival { get; set; }
     public WeatherSystem? WeatherSystem { get; set; }
 

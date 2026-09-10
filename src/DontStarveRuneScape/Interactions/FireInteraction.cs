@@ -1,7 +1,9 @@
 namespace DontStarveRuneScape.Interactions;
 
 using DontStarveRuneScape.Config;
+using DontStarveRuneScape.Core;
 using DontStarveRuneScape.Skills;
+using DontStarveRuneScape.Utils;
 
 /// <summary>
 /// FireInteraction — Handles fire-related player interactions.

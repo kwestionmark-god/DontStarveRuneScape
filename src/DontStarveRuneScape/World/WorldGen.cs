@@ -42,7 +42,10 @@ public static class WorldGen
 
         // Step 5: Find spawn point (safe biome, moderate elevation)
         progressCallback?.Invoke(0.9f);
-        FindSpawnPoint(map, biomeRegistry, out map.SpawnX, out map.SpawnY);
+        int spawnX = 0, spawnY = 0;
+        FindSpawnPoint(map, biomeRegistry, out spawnX, out spawnY);
+        map.SpawnX = spawnX;
+        map.SpawnY = spawnY;
 
         progressCallback?.Invoke(1.0f);
         return map;
@@ -220,7 +223,7 @@ public static class WorldGen
                 float e11 = map.GetTile(x + 1, y + 1)?.Elevation ?? tile.Elevation;
                 float e01 = map.GetTile(x, y + 1)?.Elevation ?? tile.Elevation;
 
-                tile.CornerElevations = [e00, e10, e11, e01];
+                tile.CornerElevations = [(int)e00, (int)e10, (int)e11, (int)e01];
             }
         }
     }

@@ -2,6 +2,7 @@ namespace DontStarveRuneScape.Survival;
 
 using DontStarveRuneScape.Config;
 using DontStarveRuneScape.World;
+using DontStarveRuneScape.Core;
 
 /// <summary>
 /// SurvivalSystem — Hunger + HP management.
@@ -20,7 +21,7 @@ public sealed class SurvivalSystem
     public float Hunger { get; private set; } = 100.0f;
 
     /// <summary>Max hunger (constant 100).</summary>
-    public float MaxHunger { get; } = 100.0f;
+    public float MaxHunger { get; private set; } = 100.0f;
 
     /// <summary>Current HP 0–MaxHP (0 = dead).</summary>
     public float Hp { get; private set; }
@@ -236,4 +237,28 @@ public sealed class SurvivalSystem
 
     /// <summary>Return weather spawn modifier (0.0+).</summary>
     public float WeatherSpawnMod => GetWeatherEffects().GetValueOrDefault("spawn_mod", 1.0f);
+
+    /// <summary>Get snapshot for saving.</summary>
+    public SurvivalSnapshot GetSnapshot()
+    {
+        return new SurvivalSnapshot
+        {
+            Hp = Hp,
+            MaxHp = MaxHp,
+            Hunger = Hunger,
+            MaxHunger = MaxHunger,
+            Stamina = 100f, // TODO: add stamina to SurvivalSystem
+            MaxStamina = 100f
+        };
+    }
+
+    /// <summary>Restore from snapshot.</summary>
+    public void RestoreSnapshot(SurvivalSnapshot snapshot)
+    {
+        Hp = snapshot.Hp;
+        MaxHp = snapshot.MaxHp;
+        Hunger = snapshot.Hunger;
+        MaxHunger = snapshot.MaxHunger;
+        IsDead = Hp <= 0;
+    }
 }

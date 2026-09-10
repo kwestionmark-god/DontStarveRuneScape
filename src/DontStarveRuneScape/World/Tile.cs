@@ -18,6 +18,12 @@ public sealed class ResourceNode
     public int TotalHarvests { get; set; } = 0;
     public bool IsDepleted => Density <= 0f;
 
+    // Additional properties for action system compatibility
+    public int XpReward => ResourceDef?.Xp ?? 0;
+    public string YieldItem => ResourceDef?.Id ?? string.Empty;
+    public int YieldQuantity => ResourceDef?.Yield ?? 1;
+    public bool RequiresTool => ResourceDef?.RequiresTool ?? false;
+
     public ResourceNode() { }
 
     public ResourceNode(string resourceId, ResourceDef def, float density)

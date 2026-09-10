@@ -1,5 +1,6 @@
 namespace DontStarveRuneScape.Core;
 
+using System.Text.Json;
 using System.Threading;
 using DontStarveRuneScape.World;
 using DontStarveRuneScape.Data;
@@ -15,6 +16,8 @@ using DontStarveRuneScape.Render;
 using DontStarveRuneScape.Camera;
 using DontStarveRuneScape.Input;
 using DontStarveRuneScape.UI;
+using DontStarveRuneScape.Config;
+using DontStarveRuneScape.Interactions;
 
 /// <summary>
 /// Bootstrap — Handles world generation, save loading, and subsystem initialization.
@@ -33,7 +36,7 @@ public sealed class Bootstrap
     /// <summary>Begin asynchronous world generation.</summary>
     public void BeginWorldGen()
     {
-        var thread = new Thread(() =>
+        var thread = new System.Threading.Thread(() =>
         {
             try
             {
@@ -41,9 +44,48 @@ public sealed class Bootstrap
                 var dataLoader = new DataLoader();
                 dataLoader.LoadAll();
 
+                // Store DataLoader in Game for save/load
+                _game.DataLoader = dataLoader;
+
                 // Generate world
-                var worldGen = new WorldGen(_game.Seed);
-                var tileMap = worldGen.Generate();
+                var biomeRegistry = new BiomeRegistry();
+                // Convert BiomesData to BiomeDef objects
+                foreach (var biomeDict in dataLoader.BiomesData)
+                {
+                    if (biomeDict.TryGetValue("id", out var id) && id is string idStr)
+                    {
+                        var biomeDef = new BiomeDef();
+                        // Populate biomeDef from dictionary
+                        if (biomeDict.TryGetValue("name", out var name) && name is string n) biomeDef.GetType().GetProperty("Name")?.SetValue(biomeDef, n);
+                        if (biomeDict.TryGetValue("mega_cluster", out var mc) && mc is string mcs) biomeDef.GetType().GetProperty("MegaCluster")?.SetValue(biomeDef, mcs);
+                        if (biomeDict.TryGetValue("environmental_pressure", out var ep) && ep is float epf) biomeDef.GetType().GetProperty("EnvironmentalPressure")?.SetValue(biomeDef, epf);
+                        if (biomeDict.TryGetValue("starting_safety", out var ss) && ss is bool ssb) biomeDef.GetType().GetProperty("StartingSafety")?.SetValue(biomeDef, ssb);
+                        if (biomeDict.TryGetValue("elevation_range", out var er) && er is System.Text.Json.JsonElement ere)
+                        {
+                            var range = JsonSerializer.Deserialize<int[]>(ere);
+                            if (range != null) biomeDef.GetType().GetProperty("ElevationRange")?.SetValue(biomeDef, range);
+                        }
+                        if (biomeDict.TryGetValue("terrain_colors", out var tc) && tc is System.Text.Json.JsonElement tce)
+                        {
+                            var colors = JsonSerializer.Deserialize<Dictionary<string, int[]>>(tce);
+                            if (colors != null) biomeDef.GetType().GetProperty("TerrainColors")?.SetValue(biomeDef, colors);
+                        }
+                        if (biomeDict.TryGetValue("resource_spawns", out var rs) && rs is System.Text.Json.JsonElement rse)
+                        {
+                            var spawns = JsonSerializer.Deserialize<string[]>(rse);
+                            if (spawns != null) biomeDef.GetType().GetProperty("ResourceSpawns")?.SetValue(biomeDef, spawns);
+                        }
+                        biomeRegistry.Biomes[idStr] = biomeDef;
+                    }
+                }
+                // Find starting safety biome as default
+                biomeRegistry.DefaultBiome = biomeRegistry.Biomes.Values.FirstOrDefault(b => b.StartingSafety)
+                                           ?? biomeRegistry.Biomes.Values.FirstOrDefault();
+
+                var tileMap = WorldGen.Generate(_game.Seed, biomeRegistry, _game.SeasonSystem, progress => 
+                {
+                    _game.SetLoadingProgress(progress);
+                });
 
                 // Create player at center
                 float startX = Constants.MapWidth * Constants.TileSize / 2f;

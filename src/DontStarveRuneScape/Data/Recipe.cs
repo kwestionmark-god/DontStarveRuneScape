@@ -1,6 +1,7 @@
 namespace DontStarveRuneScape.Data;
 
 using System.Text.Json.Serialization;
+using DontStarveRuneScape.Skills;
 
 /// <summary>
 /// Recipe definition for crafting/cooking/smelting.

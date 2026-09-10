@@ -27,7 +27,7 @@ public sealed class ActionNotification
         float duration = 2.0f)
     {
         Text = text;
-        Color = color == default ? (255, 255, 255) : color;
+        Color = color == default ? ((byte)255, (byte)255, (byte)255) : color;
         Duration = duration;
     }
 

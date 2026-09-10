@@ -3,8 +3,13 @@ namespace DontStarveRuneScape.Actions;
 using System.Collections.Generic;
 using DontStarveRuneScape.Config;
 using DontStarveRuneScape.Inventory;
+using Inv = DontStarveRuneScape.Inventory.Inventory;
 using DontStarveRuneScape.Skills;
+using DontStarveRuneScape.Skills.Woodcutting;
+using DontStarveRuneScape.Skills.Mining;
+using DontStarveRuneScape.Skills.Foraging;
 using DontStarveRuneScape.World;
+using DontStarveRuneScape.Survival;
 
 /// <summary>
 /// ActionSystem — Manages all player resource interaction actions.
@@ -58,7 +63,7 @@ public sealed class ActionSystem
         ActionType actionType,
         ResourceNode? resource,
         SkillManager skillManager,
-        Inventory inventory,
+        Inv inventory,
         string? recipeId = null,
         (int X, int Y)? tileXy = null)
     {
@@ -71,24 +76,24 @@ public sealed class ActionSystem
             return "You must wait a moment before acting again.";
 
         // Required-tool check (for gathering)
-        if (resource != null && !string.IsNullOrEmpty(resource.RequiresTool))
+        if (resource != null && resource.ResourceDef != null && !string.IsNullOrEmpty(resource.ResourceDef.ToolRequirement))
         {
-            string? tool = FindEquippedTool(inventory, resource.RequiresTool);
+            string? tool = FindEquippedTool(inventory, resource.ResourceDef.ToolRequirement);
             if (tool == null)
-                return $"You need a {resource.RequiresTool}.";
+                return $"You need a {resource.ResourceDef.ToolRequirement}.";
         }
 
         // Skill-level gate: high-tier nodes require a minimum level
-        if (resource != null)
+        if (resource != null && resource.ResourceDef != null)
         {
-            int requiredLevel = resource.RequiredLevel;
+            int requiredLevel = resource.ResourceDef.Tier;
             if (requiredLevel > 1 && skillManager != null)
             {
                 string skillId = actionType.GetSkillId(resource);
                 int level = skillManager.GetSkillLevel(skillId);
                 if (level < requiredLevel)
                 {
-                    return $"You need {System.Globalization.CultureInfo.CurrentCulture.TextInfo.ToTitleCase(skillId)} level {requiredLevel} to harvest {resource.Name}.";
+                    return $"You need {System.Globalization.CultureInfo.CurrentCulture.TextInfo.ToTitleCase(skillId)} level {requiredLevel} to harvest {resource.ResourceDef.Name}.";
                 }
             }
         }
@@ -103,7 +108,7 @@ public sealed class ActionSystem
             action.XpReward = resource.XpReward;
             action.YieldItem = resource.YieldItem;
             action.YieldQuantity = resource.YieldQuantity;
-            action.RequiredTool = resource.RequiresTool;
+            action.RequiredTool = resource.ResourceDef?.ToolRequirement;
 
             if (WoodcuttingSkill != null)
             {
@@ -125,7 +130,7 @@ public sealed class ActionSystem
             action.XpReward = resource.XpReward;
             action.YieldItem = resource.YieldItem;
             action.YieldQuantity = resource.YieldQuantity;
-            action.RequiredTool = resource.RequiresTool;
+            action.RequiredTool = resource.ResourceDef?.ToolRequirement;
 
             if (MiningSkill != null)
             {
@@ -147,7 +152,7 @@ public sealed class ActionSystem
             action.XpReward = resource.XpReward;
             action.YieldItem = resource.YieldItem;
             action.YieldQuantity = resource.YieldQuantity;
-            action.RequiredTool = resource.RequiresTool; // Should be None/empty for foraging
+            action.RequiredTool = resource.ResourceDef?.ToolRequirement; // Should be None/empty for foraging
 
             if (ForagingSkill != null)
             {
@@ -192,7 +197,7 @@ public sealed class ActionSystem
     /// <param name="foodRegistry">Optional food registry for spoilage info.</param>
     public void ProcessCompletion(
         ActionResult? result,
-        Inventory inventory,
+        Inv inventory,
         SkillManager skillManager,
         FoodRegistry? foodRegistry = null)
     {
@@ -343,7 +348,8 @@ public sealed class ActionSystem
         if (random.NextDouble() * 100.0 < successThreshold)
         {
             // Success
-            if (!resource.Harvest())
+            var harvestResult = resource.Harvest();
+            if (string.IsNullOrEmpty(harvestResult.ItemId))
                 return ActionResult.Failure("The resource is depleted.");
 
             // Notify the tile map so the regrow timer starts
@@ -400,7 +406,7 @@ public sealed class ActionSystem
     /// <summary>
     /// Find a tool of the given type in the inventory.
     /// </summary>
-    private string? FindEquippedTool(Inventory inventory, string toolType)
+    private string? FindEquippedTool(Inv inventory, string toolType)
     {
         // Exact id match or a suffix match ("stone_axe" for "axe") — NOT a
         // substring match: "axe" in "pickaxe" is True, which made a pickaxe
