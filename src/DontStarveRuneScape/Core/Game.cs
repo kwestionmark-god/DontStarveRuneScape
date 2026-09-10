@@ -96,6 +96,7 @@ public sealed class Game
     // Renderers
     public TileRenderer? TileRenderer { get; set; }
     public SpriteRenderer? SpriteRenderer { get; set; }
+    public PrimitiveBatch? PrimitiveBatch { get; set; }
 
     // UI Panels
     public InventoryPanel? InventoryPanel { get; set; }
@@ -144,7 +145,24 @@ public sealed class Game
         Seed = seed;
         SaveSystem = new SaveSystem();
         InputManager = new InputManager();
+        TitleScreen = new TitleScreen();
+        LoadingScreen = new LoadingScreen();
         _bootstrap = new Bootstrap(this, null);
+    }
+
+    public void InitializeGraphics(Silk.NET.OpenGL.GL gl)
+    {
+        PrimitiveBatch?.Dispose();
+        PrimitiveBatch = new PrimitiveBatch(gl);
+        gl.Enable(Silk.NET.OpenGL.EnableCap.Blend);
+        gl.BlendFunc(Silk.NET.OpenGL.BlendingFactor.SrcAlpha, Silk.NET.OpenGL.BlendingFactor.OneMinusSrcAlpha);
+        gl.Disable(Silk.NET.OpenGL.EnableCap.DepthTest);
+    }
+
+    public void DisposeGraphics()
+    {
+        PrimitiveBatch?.Dispose();
+        PrimitiveBatch = null;
     }
 
     /// <summary>
@@ -309,6 +327,13 @@ public sealed class Game
             }
         }
 
+        if (State == GameState.Title)
+        {
+            var input = InputManager?.InputState;
+            if (input != null && (input.Confirm || input.MouseLeftClick))
+                SetState(GameState.Loading);
+        }
+
         // Gameplay update (only when playing)
         if (State == GameState.Playing)
         {
@@ -433,39 +458,56 @@ public sealed class Game
     /// </summary>
     public void Render(Silk.NET.OpenGL.GL gl, int screenWidth, int screenHeight)
     {
+        if (PrimitiveBatch == null)
+            InitializeGraphics(gl);
+
+        Camera?.SetScreenSize(screenWidth, screenHeight);
+
+        gl.Viewport(0, 0, (uint)Math.Max(1, screenWidth), (uint)Math.Max(1, screenHeight));
+        gl.Enable(Silk.NET.OpenGL.EnableCap.Blend);
+        gl.BlendFunc(Silk.NET.OpenGL.BlendingFactor.SrcAlpha, Silk.NET.OpenGL.BlendingFactor.OneMinusSrcAlpha);
+        gl.Disable(Silk.NET.OpenGL.EnableCap.DepthTest);
+
+        var fog = Constants.FogColor;
+        if (State == GameState.Title || State == GameState.CharacterSelect)
+            gl.ClearColor(28 / 255f, 18 / 255f, 12 / 255f, 1f);
+        else if (State == GameState.Error)
+            gl.ClearColor(40 / 255f, 12 / 255f, 12 / 255f, 1f);
+        else
+            gl.ClearColor(fog.R / 255f, fog.G / 255f, fog.B / 255f, 1f);
+        gl.Clear((uint)Silk.NET.OpenGL.ClearBufferMask.ColorBufferBit);
+
+        var batch = PrimitiveBatch;
+        if (batch == null) return;
+
+        batch.Begin(screenWidth, screenHeight);
+
         switch (State)
         {
             case GameState.Title:
-                TitleScreen?.Render(this, gl, screenWidth, screenHeight);
+                TitleScreen?.Render(batch, screenWidth, screenHeight, PlayTime);
                 break;
             case GameState.CharacterSelect:
-                CharacterSelectPanel?.Render(gl, screenWidth, screenHeight);
+                CharacterSelectPanel?.Render(batch, screenWidth, screenHeight);
                 break;
             case GameState.Loading:
             case GameState.LoadingSave:
             case GameState.Error:
-                LoadingScreen?.Render(this, gl, screenWidth, screenHeight);
+                LoadingScreen?.Render(batch, this, screenWidth, screenHeight);
                 break;
             default:
-                RenderGame(gl, screenWidth, screenHeight);
+                RenderGame(gl, batch, screenWidth, screenHeight);
                 break;
         }
+
+        batch.End();
     }
 
-    private void RenderGame(Silk.NET.OpenGL.GL gl, int screenWidth, int screenHeight)
+    private void RenderGame(Silk.NET.OpenGL.GL gl, PrimitiveBatch batch, int screenWidth, int screenHeight)
     {
-        // Clear with fog color
-        var fog = Constants.FogColor;
-        gl.ClearColor(fog.R / 255f, fog.G / 255f, fog.B / 255f, 1f);
-        gl.Clear((uint)Silk.NET.OpenGL.ClearBufferMask.ColorBufferBit);
+        if (TileRenderer != null && Camera != null && World != null)
+            TileRenderer.Render(batch, Camera, World);
 
-        // Render terrain
-        if (TileRenderer != null && Camera != null)
-        {
-            TileRenderer.Render(Camera);
-        }
-
-        // Collect all sprite drawables with depth sort key
         var drawables = new List<(float Depth, Action Draw)>();
 
         if (SpriteRenderer != null && World != null && Camera != null)
@@ -476,7 +518,6 @@ public sealed class Game
             int yMin = Math.Max(0, (int)(top / Constants.TileSize));
             int yMax = Math.Min(World.Height, (int)(bottom / Constants.TileSize) + 1);
 
-            // Resources
             for (int x = xMin; x < xMax; x++)
             {
                 for (int y = yMin; y < yMax; y++)
@@ -485,24 +526,25 @@ public sealed class Game
                     if (tile?.ResourceNode != null)
                     {
                         float sortY = GetDepthSort(x + 0.5f, y + 0.5f, tile.Elevation * Constants.ZScale);
-                        drawables.Add((Depth: sortY, Draw: new Action(() => SpriteRenderer.RenderResource(
-                            tile.ResourceNode!, Camera!, (int)tile.Elevation, x, y))));
+                        var node = tile.ResourceNode;
+                        int tx = x, ty = y;
+                        int elev = (int)tile.Elevation;
+                        drawables.Add((Depth: sortY, Draw: () => SpriteRenderer.RenderResource(
+                            node, batch, Camera, elev, tx, ty)));
                     }
                 }
             }
 
-            // Player
             if (Player != null)
             {
                 var (ptx, pty) = Player.GetTilePosition();
                 var tile = World.GetTile(ptx, pty);
-                float elev = (tile?.Elevation ?? 0) * Constants.ZScale;
-                float sortY = GetDepthSort(Player.WorldX, Player.WorldY, elev);
+                float elev = tile?.Elevation ?? 0f;
+                float sortY = GetDepthSort(Player.WorldX, Player.WorldY, elev * Constants.ZScale);
                 drawables.Add((Depth: sortY, Draw: () => SpriteRenderer.RenderPlayer(
-                    Player, Camera!, elev, Dt)));
+                    Player, batch, Camera, elev, Dt)));
             }
 
-            // Monsters
             if (CombatSystem != null)
             {
                 foreach (var monster in CombatSystem.Monsters)
@@ -510,12 +552,12 @@ public sealed class Game
                     if (monster.IsAlive())
                     {
                         float sortY = GetDepthSort(monster.WorldX, monster.WorldY, 0);
-                        drawables.Add((Depth: sortY, Draw: () => SpriteRenderer.RenderMonster(monster, Camera!)));
+                        var m = monster;
+                        drawables.Add((Depth: sortY, Draw: () => SpriteRenderer.RenderMonster(m, batch, Camera)));
                     }
                 }
             }
 
-            // NPCs
             if (NPCSystem != null && Player != null)
             {
                 var nearbyNpc = NPCSystem.CheckProximity(Player);
@@ -523,16 +565,14 @@ public sealed class Game
                 {
                     if (!npc.IsActive) continue;
                     float sortY = GetDepthSort(npc.WorldX, npc.WorldY, 0);
-                    drawables.Add((Depth: sortY, Draw: () => SpriteRenderer.RenderNPC(npc, Camera!, 0)));
+                    var n = npc;
+                    drawables.Add((Depth: sortY, Draw: () => SpriteRenderer.RenderNPC(n, batch, Camera, 0)));
 
                     if (npc == nearbyNpc)
-                    {
-                        drawables.Add((Depth: sortY, Draw: () => SpriteRenderer.RenderProximityPrompt(npc, Camera!)));
-                    }
+                        drawables.Add((Depth: sortY, Draw: () => SpriteRenderer.RenderProximityPrompt(n, batch, Camera)));
                 }
             }
 
-            // Structures
             if (BuildingSystem != null)
             {
                 foreach (var structure in BuildingSystem.Structures)
@@ -540,42 +580,33 @@ public sealed class Game
                     if (structure.IsActive)
                     {
                         float sortY = GetDepthSort(structure.WorldX, structure.WorldY, 0);
-                        drawables.Add((Depth: sortY, Draw: () => SpriteRenderer.RenderStructure(structure, Camera!)));
+                        var s = structure;
+                        drawables.Add((Depth: sortY, Draw: () => SpriteRenderer.RenderStructure(s, batch, Camera)));
                     }
                 }
             }
 
-            // Build mode ghost preview
             if (BuildMode && Camera != null && World != null && BuildCursor.HasValue)
-            {
                 drawables.Add((Depth: float.MaxValue, Draw: () => RenderBuildGhost(gl)));
-            }
 
-            // Fires
             if (Firemaking != null)
             {
                 foreach (var fire in Firemaking.GetActiveFires())
                 {
                     float sortY = GetDepthSort(fire.WorldX, fire.WorldY, 0);
-                    drawables.Add((Depth: sortY, Draw: () => SpriteRenderer.RenderFire(fire, Camera!)));
+                    var f = fire;
+                    drawables.Add((Depth: sortY, Draw: () => SpriteRenderer.RenderFire(f, batch, Camera)));
                 }
             }
         }
 
-        // Sort by depth (Y coordinate) so entities "behind" are drawn first
         drawables.Sort((a, b) => a.Depth.CompareTo(b.Depth));
         foreach (var (_, drawFn) in drawables)
-        {
             drawFn();
-        }
 
-        // Particles
         ParticleSystem?.Draw(gl);
-
-        // Seasonal ambient overlay
         SeasonalRenderer?.DrawAmbientOverlay(gl, 20);
 
-        // Combat damage numbers
         if (CombatSystem != null && Camera != null)
         {
             CombatUI.RenderDamageNumbers(gl, CombatSystem.DamageNumbers, Camera);
@@ -587,11 +618,8 @@ public sealed class Game
             }
         }
 
-        // UI Panels
         RenderPanels(gl, screenWidth, screenHeight);
-
-        // HUD (drawn last so overlays are never occluded)
-        HUD?.Render(gl, screenWidth, screenHeight);
+        HUD?.Render(batch, screenWidth, screenHeight, Survival);
     }
 
     private float GetDepthSort(float worldX, float worldY, float elevation)

@@ -31,9 +31,7 @@ public static class Program
         {
             var gl = window.CreateOpenGL();
             game.InputManager!.Initialize(window);
-            
-            // Renderers and panels are initialized on first use
-            // No explicit Initialize() calls needed
+            game.InitializeGraphics(gl);
         };
         
         window.Render += (dt) =>
@@ -50,7 +48,7 @@ public static class Program
         
         window.Closing += () =>
         {
-            // Cleanup
+            game.DisposeGraphics();
             game.InputManager?.Dispose();
         };
         
