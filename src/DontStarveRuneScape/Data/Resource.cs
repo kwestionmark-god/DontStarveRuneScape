@@ -4,47 +4,54 @@ using System.Text.Json.Serialization;
 
 /// <summary>
 /// Resource node definition for world generation.
+/// Field names match the JSON envelope in resources.json.
 /// </summary>
 public sealed class ResourceDef : DataRecord
 {
     [JsonPropertyName("name")]
-    public string Name { get; init; } = string.Empty;
+    public string Name { get; set; } = string.Empty;
 
     [JsonPropertyName("biome")]
-    public string Biome { get; init; } = string.Empty;
+    public string Biome { get; set; } = string.Empty;
 
     [JsonPropertyName("tier")]
-    public int Tier { get; init; } = 1;
+    public int Tier { get; set; } = 1;
 
     [JsonPropertyName("category")]
-    public string Category { get; init; } = string.Empty;
+    public string Category { get; set; } = string.Empty;
 
-    [JsonPropertyName("density")]
-    public float Density { get; init; } = 0.1f;
+    [JsonPropertyName("base_density")]
+    public float Density { get; set; } = 0.1f;
 
-    [JsonPropertyName("yield")]
-    public int Yield { get; init; } = 1;
+    [JsonPropertyName("yield_item")]
+    public string YieldItem { get; set; } = string.Empty;
 
-    [JsonPropertyName("xp")]
-    public int Xp { get; init; } = 1;
+    [JsonPropertyName("yield_quantity")]
+    public int Yield { get; set; } = 1;
 
-    [JsonPropertyName("depletion")]
-    public float Depletion { get; init; } = 1.0f;
+    [JsonPropertyName("xp_reward")]
+    public float Xp { get; set; } = 1f;
 
-    [JsonPropertyName("regrow")]
-    public float Regrow { get; init; } = 0.0f;
+    [JsonPropertyName("depletion_count")]
+    public int DepletionCount { get; set; } = 1;
+
+    [JsonPropertyName("regrow_time")]
+    public float Regrow { get; set; } = 0f;
 
     [JsonPropertyName("sprite_key")]
-    public string SpriteKey { get; init; } = string.Empty;
+    public string SpriteKey { get; set; } = string.Empty;
 
-    [JsonPropertyName("tool_requirement")]
-    public string? ToolRequirement { get; init; }
+    [JsonPropertyName("requires_tool")]
+    public string? ToolRequirement { get; set; }
 
     [JsonPropertyName("seasons")]
-    public string[] Seasons { get; init; } = [];
+    public string[] Seasons { get; set; } = [];
 
     [JsonPropertyName("rarity")]
-    public string Rarity { get; init; } = "common";
+    public string Rarity { get; set; } = "common";
+
+    [JsonPropertyName("required_level")]
+    public int RequiredLevel { get; set; } = 1;
 
     /// <summary>Whether this resource requires a tool to harvest.</summary>
     public bool RequiresTool => !string.IsNullOrEmpty(ToolRequirement);

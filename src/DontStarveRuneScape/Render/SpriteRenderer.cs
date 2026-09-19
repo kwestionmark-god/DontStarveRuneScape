@@ -1,69 +1,187 @@
 namespace DontStarveRuneScape.Render;
 
+using System.Collections.Generic;
 using DontStarveRuneScape.Camera;
+using DontStarveRuneScape.Config;
 using DontStarveRuneScape.World;
 using DontStarveRuneScape.Core;
 using DontStarveRuneScape.Combat;
 using DontStarveRuneScape.NPC;
 using DontStarveRuneScape.Building;
 using DontStarveRuneScape.Skills.Firemaking;
+using SkiaSharp;
+using Silk.NET.OpenGL;
 
 /// <summary>
-/// SpriteRenderer — Handles rendering of all sprites (resources, player, monsters, NPCs, structures, fires).
+/// SpriteRenderer — Loads sprite textures from Assets/sprites/ and renders
+/// resources, player, monsters, NPCs, structures, and fires on the world.
+/// Each unique sprite key is loaded once and cached; repeated draws reuse the
+/// uploaded OpenGL texture.
 /// </summary>
-public sealed class SpriteRenderer
+public sealed class SpriteRenderer : IDisposable
 {
+    private readonly GL _gl;
+    private readonly string _spritesDir;
+
+    // textureId -> (width, height) in pixels
+    private readonly Dictionary<string, (uint Texture, int W, int H)> _cache = new();
+
+    private bool _disposed;
+
+    public SpriteRenderer(GL gl)
+    {
+        _gl = gl;
+        string baseDir = AppContext.BaseDirectory;
+        _spritesDir = System.IO.Path.Combine(baseDir, "Assets", "sprites");
+        if (!System.IO.Directory.Exists(_spritesDir))
+            _spritesDir = baseDir;
+    }
+
+    // ─── Resource rendering ───────────────────────────────────────────────
+
     public void RenderResource(ResourceNode resource, PrimitiveBatch batch, Camera camera, int elevation, int tileX, int tileY)
     {
-        (byte r, byte g, byte b) color = resource.IsDepleted
-            ? ((byte)120, (byte)120, (byte)120)
-            : resource.GrowthStage == 1
-                ? ((byte)150, (byte)220, (byte)120)
-                : ((byte)90, (byte)160, (byte)70);
-        DrawSprite(batch, camera, tileX, tileY, elevation, 22f, color.r, color.g, color.b);
+        string spriteKey = resource.GetSpriteKey();
+        uint tex = GetSpriteTexture(spriteKey);
+        float half = 24f * camera.Zoom;
+
+        var screen = camera.WorldToScreen(
+            tileX * Constants.TileSize + Constants.TileSize * 0.5f,
+            tileY * Constants.TileSize + Constants.TileSize * 0.5f,
+            elevation);
+
+        if (tex != 0)
+        {
+            // Straight-alpha white texture; tint via the batch shader.
+            batch.DrawTexturedScreenQuad(screen.X, screen.Y, half, half, tex, 255, 255, 255);
+        }
+        else
+        {
+            // Fallback colored quad.
+            (byte r, byte g, byte b) color = resource.IsDepleted
+                ? ((byte)120, (byte)120, (byte)120)
+                : resource.GrowthStage == 1
+                    ? ((byte)150, (byte)220, (byte)120)
+                    : ((byte)90, (byte)160, (byte)70);
+            batch.DrawScreenQuad(screen.X, screen.Y, half, half, color.r, color.g, color.b);
+        }
     }
+
+    // ─── Player / monster / NPC / structure / fire ────────────────────────
 
     public void RenderPlayer(Player player, PrimitiveBatch batch, Camera camera, float elevation, float dt)
     {
-        DrawSprite(batch, camera, player.WorldX, player.WorldY, elevation, 30f, 60, 120, 220);
+        // Simple colored placeholder for now; sprite animation can be added later.
+        var screen = camera.WorldToScreen(player.WorldX, player.WorldY, elevation);
+        float half = 16f * camera.Zoom;
+        batch.DrawScreenQuad(screen.X, screen.Y, half, half, 60, 120, 220);
     }
 
     public void RenderMonster(Monster monster, PrimitiveBatch batch, Camera camera)
     {
-        DrawSprite(batch, camera, monster.WorldX, monster.WorldY, 0f, 32f, 200, 60, 60);
+        var screen = camera.WorldToScreen(monster.WorldX, monster.WorldY, 0f);
+        float half = 16f * camera.Zoom;
+        batch.DrawScreenQuad(screen.X, screen.Y, half, half, 200, 60, 60);
     }
 
     public void RenderNPC(Npc npc, PrimitiveBatch batch, Camera camera, int elevation)
     {
-        DrawSprite(batch, camera, npc.WorldX, npc.WorldY, elevation, 30f, 70, 180, 100);
+        var screen = camera.WorldToScreen(npc.WorldX, npc.WorldY, elevation);
+        float half = 15f * camera.Zoom;
+        batch.DrawScreenQuad(screen.X, screen.Y, half, half, 70, 180, 100);
     }
 
     public void RenderProximityPrompt(Npc npc, PrimitiveBatch batch, Camera camera)
     {
-        DrawSprite(batch, camera, npc.WorldX, npc.WorldY, 0f, 8f, 255, 255, 120);
+        var screen = camera.WorldToScreen(npc.WorldX, npc.WorldY, 0f);
+        batch.DrawScreenQuad(screen.X, screen.Y, 4f * camera.Zoom, 4f * camera.Zoom, 255, 255, 120);
     }
 
     public void RenderStructure(Structure structure, PrimitiveBatch batch, Camera camera)
     {
-        DrawSprite(batch, camera, structure.WorldX, structure.WorldY, 0f, 32f, 150, 150, 160);
+        var screen = camera.WorldToScreen(structure.WorldX, structure.WorldY, 0f);
+        float half = 16f * camera.Zoom;
+        batch.DrawScreenQuad(screen.X, screen.Y, half, half, 150, 150, 160);
     }
 
     public void RenderFire(FireInstance fire, PrimitiveBatch batch, Camera camera)
     {
-        DrawSprite(batch, camera, fire.WorldX, fire.WorldY, 0f, 16f, 230, 140, 40);
+        var screen = camera.WorldToScreen(fire.WorldX, fire.WorldY, 0f);
+        float half = 10f * camera.Zoom;
+        batch.DrawScreenQuad(screen.X, screen.Y, half, half, 230, 140, 40);
     }
 
-    private static void DrawSprite(PrimitiveBatch batch, Camera camera, float worldX, float worldY, float elevation, float halfSize, byte r, byte g, byte b)
+    // ─── Sprite texture loading / caching ─────────────────────────────────
+
+    private uint GetSpriteTexture(string key)
     {
-        var screen = camera.WorldToScreen(worldX, worldY, elevation);
-        float half = halfSize * camera.Zoom;
-        batch.DrawScreenQuad(screen.X, screen.Y, half, half, r, g, b);
+        if (string.IsNullOrEmpty(key))
+        {
+                return 0;
+        }
+        if (_cache.TryGetValue(key, out var entry))
+        {
+            return entry.Texture;
+        }
+
+        string path = System.IO.Path.Combine(_spritesDir, key + ".png");
+        if (!System.IO.File.Exists(path))
+            return 0;
+
+        using var bitmap = SKBitmap.Decode(path);
+        if (bitmap == null) return 0;
+
+        int w = bitmap.Width;
+        int h = bitmap.Height;
+
+        // Convert to RGBA8888 unpremultiplied so the batch shader tints cleanly.
+        using var rgba = new SKBitmap(w, h, SKColorType.Rgba8888, SKAlphaType.Unpremul);
+        using var canvas = new SKCanvas(rgba);
+        canvas.DrawBitmap(bitmap, 0, 0);
+
+        // Convert to straight alpha: multiply RGB by alpha so the batch shader
+        // can tint cleanly without double-multiplied alpha.
+        Span<byte> span = rgba.GetPixelSpan();
+        byte[] px = new byte[span.Length];
+        span.CopyTo(px);
+        for (int i = 0; i + 3 < px.Length; i += 4)
+        {
+            byte a = px[i + 3];
+            if (a > 0 && a < 255)
+            {
+                // Straighten premultiplied alpha: scale RGB up by 255/a
+                px[i]     = (byte)Math.Clamp(px[i]     * 255 / a, 0, 255);
+                px[i + 1] = (byte)Math.Clamp(px[i + 1] * 255 / a, 0, 255);
+                px[i + 2] = (byte)Math.Clamp(px[i + 2] * 255 / a, 0, 255);
+            }
+        }
+
+        uint tex = _gl.GenTexture();
+        _gl.BindTexture(TextureTarget.Texture2D, tex);
+        _gl.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMinFilter, (int)TextureMinFilter.Linear);
+        _gl.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMagFilter, (int)TextureMagFilter.Linear);
+        _gl.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapS, (int)TextureWrapMode.ClampToEdge);
+        _gl.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapT, (int)TextureWrapMode.ClampToEdge);
+
+        unsafe
+        {
+            fixed (byte* ptr = px)
+            {
+                _gl.TexImage2D(TextureTarget.Texture2D, 0, InternalFormat.Rgba, (uint)w, (uint)h, 0,
+                    PixelFormat.Rgba, PixelType.UnsignedByte, ptr);
+            }
+        }
+
+        _cache[key] = (tex, w, h);
+        return tex;
     }
 
-    private static void DrawSprite(PrimitiveBatch batch, Camera camera, int tileX, int tileY, int elevation, float halfSize, byte r, byte g, byte b)
+    public void Dispose()
     {
-        float worldX = tileX * DontStarveRuneScape.Config.Constants.TileSize + DontStarveRuneScape.Config.Constants.TileSize * 0.5f;
-        float worldY = tileY * DontStarveRuneScape.Config.Constants.TileSize + DontStarveRuneScape.Config.Constants.TileSize * 0.5f;
-        DrawSprite(batch, camera, worldX, worldY, elevation, halfSize, r, g, b);
+        if (_disposed) return;
+        _disposed = true;
+        foreach (var kv in _cache)
+            _gl.DeleteTexture(kv.Value.Texture);
+        _cache.Clear();
     }
 }

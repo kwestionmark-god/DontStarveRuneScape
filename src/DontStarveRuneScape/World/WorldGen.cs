@@ -16,6 +16,7 @@ public static class WorldGen
     public static TileMap Generate(
         int seed,
         BiomeRegistry biomeRegistry,
+        ResourceRegistry? resourceRegistry,
         SeasonSystem? seasonSystem,
         Action<float>? progressCallback = null)
     {
@@ -38,7 +39,7 @@ public static class WorldGen
 
         // Step 4: Place resources
         progressCallback?.Invoke(0.6f);
-        ResourcePlacer.Place(map, biomeRegistry, seasonSystem, random);
+        ResourcePlacer.Place(map, biomeRegistry, resourceRegistry, seasonSystem, random);
 
         // Step 5: Find spawn point (safe biome, moderate elevation)
         progressCallback?.Invoke(0.9f);
@@ -99,12 +100,17 @@ public static class WorldGen
         NormalizeMap(elevation);
         NormalizeMap(moisture);
 
-        // Scale elevation to 0-ElevationLevels
+        // Apply a sigmoid curve so lowlands cluster and peaks stay rare.
+        // Real terrain is not uniform: most land sits at moderate-low elevation,
+        // with mountains concentrated at the extremes.
+        const float SigmoidK = 7.0f; // Steeper = more clustered lowlands
         for (int x = 0; x < width; x++)
         {
             for (int y = 0; y < height; y++)
             {
-                elevation[x, y] = elevation[x, y] * (Constants.ElevationLevels - 1);
+                float n = elevation[x, y]; // 0..1 uniform
+                float s = 1.0f / (1.0f + MathF.Exp(-SigmoidK * (n - 0.5f))); // 0..1 sigmoid
+                elevation[x, y] = s * (Constants.ElevationLevels - 1); // 0..31
             }
         }
 
@@ -164,38 +170,43 @@ public static class WorldGen
                 tile.Elevation = elev;
                 tile.Moisture = moist;
 
-                // Classify biome based on elevation/moisture thresholds
-                // Water: elevation < 1
-                if (elev < 1.0f)
+                // Classify biome based on elevation/moisture thresholds.
+                // Elevation is in 0..ElevationLevels-1 (0..31). After normalization
+                // the distribution is roughly uniform, so thresholds are spaced to
+                // give a realistic spread: lots of lowland forest/plains, a narrow
+                // coastal/swamp band, scattered deserts, and mountains only at the
+                // highest peaks.
+                // Water: elevation < 3
+                if (elev < 3.0f)
                 {
                     tile.Biome = biomeRegistry.GetBiome("water");
                 }
-                // Mountains: elevation > 4
-                else if (elev > 4.0f)
+                // Mountains: only the highest peaks (elevation > 27)
+                else if (elev > 27.0f)
                 {
                     tile.Biome = biomeRegistry.GetBiome("mountains");
                 }
-                // Swamp: low elevation, high moisture
-                else if (elev < 2.0f && moist > 0.7f)
-                {
-                    tile.Biome = biomeRegistry.GetBiome("swamp");
-                }
-                // Desert: medium elevation, low moisture
-                else if (elev > 2.0f && elev < 4.0f && moist < 0.3f)
+                // Desert: mid-high elevation, low moisture
+                else if (elev > 10.0f && elev < 18.0f && moist < 0.3f)
                 {
                     tile.Biome = biomeRegistry.GetBiome("desert");
                 }
-                // Coastal: low elevation, near water
-                else if (elev < 2.0f && moist > 0.5f)
+                // Swamp: low elevation, high moisture
+                else if (elev < 5.0f && moist > 0.7f)
+                {
+                    tile.Biome = biomeRegistry.GetBiome("swamp");
+                }
+                // Coastal: low elevation, high moisture
+                else if (elev < 5.0f && moist > 0.5f)
                 {
                     tile.Biome = biomeRegistry.GetBiome("coastal");
                 }
-                // Plains: medium elevation, medium moisture
-                else if (elev > 1.5f && elev < 3.5f && moist > 0.3f && moist < 0.7f)
+                // Plains: low-mid elevation, medium moisture
+                else if (elev >= 5.0f && elev < 9.0f && moist > 0.3f && moist < 0.7f)
                 {
                     tile.Biome = biomeRegistry.GetBiome("plains");
                 }
-                // Forest: everything else
+                // Forest: broad mid-elevation band (5–27)
                 else
                 {
                     tile.Biome = biomeRegistry.GetBiome("forest");
@@ -254,9 +265,10 @@ public static class WorldGen
                     var tile = map.GetTile(x, y);
                     if (tile == null) continue;
 
-                    // Check if biome is safe and elevation is reasonable
+                    // Check if biome is safe and elevation is reasonable.
+                    // Forest spans 5–27; spawn in the lowland fringe.
                     if (safeBiomes.Contains(tile.Biome?.Id ?? "") &&
-                        tile.Elevation >= 1.0f && tile.Elevation <= 3.0f &&
+                        tile.Elevation >= 4.0f && tile.Elevation <= 7.0f &&
                         tile.ResourceNode == null) // Don't spawn on resource
                     {
                         spawnX = x;
@@ -284,6 +296,7 @@ public static class ResourcePlacer
     public static void Place(
         TileMap map,
         BiomeRegistry biomeRegistry,
+        ResourceRegistry? resourceRegistry,
         SeasonSystem? seasonSystem,
         Random random)
     {
@@ -294,21 +307,9 @@ public static class ResourcePlacer
             var biome = biomeRegistry.GetBiome(biomeId);
             if (biome == null) continue;
 
-            // Get resources for this biome
-            var resources = biomeRegistry.Biomes.Values
-                .SelectMany(b => b.ResourceSpawns)
-                .Distinct()
-                .Select(id => biomeRegistry.GetBiome(biomeId)?.ResourceSpawns.Contains(id) == true ? id : null)
-                .Where(id => id != null)
-                .Select(id => biomeRegistry.Biomes.Values.FirstOrDefault(b => b.ResourceSpawns.Contains(id!))?.Id)
-                .Where(id => id != null)
-                .Cast<string>();
-
-            // Actually get resource defs from registry (would need ResourceRegistry)
-            // For now, place based on biome's resource_spawns list
             foreach (var resourceId in biome.ResourceSpawns)
             {
-                PlaceResource(map, resourceId, biome, currentSeason, random);
+                PlaceResource(map, resourceId, biome, resourceRegistry, currentSeason, random);
             }
         }
     }
@@ -317,14 +318,15 @@ public static class ResourcePlacer
         TileMap map,
         string resourceId,
         BiomeDef biome,
+        ResourceRegistry? resourceRegistry,
         string currentSeason,
         Random random)
     {
-        // Find resource definition (would come from ResourceRegistry)
-        // For now, use density from config
-        float density = 0.1f; // Default
+        // Look up the resource definition so we know density and sprite.
+        ResourceDef? def = resourceRegistry?.GetResource(resourceId);
+        float density = def?.Density ?? 0.1f;
 
-        // Calculate number of placements based on biome area
+        // Calculate number of placements based on biome area.
         int biomeTileCount = 0;
         for (int x = 0; x < map.Width; x++)
         {
@@ -338,7 +340,7 @@ public static class ResourcePlacer
         int targetCount = (int)(biomeTileCount * density);
         int placed = 0;
         int attempts = 0;
-        int maxAttempts = targetCount * 10;
+        int maxAttempts = Math.Max(targetCount * 10, 50);
 
         while (placed < targetCount && attempts < maxAttempts)
         {
@@ -358,13 +360,8 @@ public static class ResourcePlacer
                     continue;
             }
 
-            // Create resource node (would use ResourceRegistry in full implementation)
-            tile.ResourceNode = new ResourceNode
+            tile.ResourceNode = new ResourceNode(resourceId, def, 1.0f)
             {
-                ResourceId = resourceId,
-                // ResourceDef would be set from registry
-                Density = 1.0f,
-                MaxDensity = 1.0f,
                 GrowthStage = 2, // Start mature
             };
 

@@ -56,6 +56,7 @@ public sealed class Game
     // Subsystems
     public SurvivalSystem? Survival { get; set; }
     public FoodRegistry? FoodRegistry { get; set; }
+    public ResourceRegistry? ResourceRegistry { get; set; }
     public SkillManager? SkillManager { get; set; }
     public DataLoader? DataLoader { get; set; }
     public CraftingSystem? Crafting { get; set; }
@@ -97,6 +98,7 @@ public sealed class Game
     public TileRenderer? TileRenderer { get; set; }
     public SpriteRenderer? SpriteRenderer { get; set; }
     public PrimitiveBatch? PrimitiveBatch { get; set; }
+    public TextRenderer? TextRenderer { get; set; }
 
     // UI Panels
     public InventoryPanel? InventoryPanel { get; set; }
@@ -154,6 +156,16 @@ public sealed class Game
     {
         PrimitiveBatch?.Dispose();
         PrimitiveBatch = new PrimitiveBatch(gl);
+
+        TileRenderer?.Dispose();
+        TileRenderer = new TileRenderer(gl);
+
+        SpriteRenderer?.Dispose();
+        SpriteRenderer = new SpriteRenderer(gl);
+
+        TextRenderer?.Dispose();
+        TextRenderer = TextRenderer.Create(gl);
+
         gl.Enable(Silk.NET.OpenGL.EnableCap.Blend);
         gl.BlendFunc(Silk.NET.OpenGL.BlendingFactor.SrcAlpha, Silk.NET.OpenGL.BlendingFactor.OneMinusSrcAlpha);
         gl.Disable(Silk.NET.OpenGL.EnableCap.DepthTest);
@@ -161,8 +173,14 @@ public sealed class Game
 
     public void DisposeGraphics()
     {
+        TileRenderer?.Dispose();
+        TileRenderer = null;
+        SpriteRenderer?.Dispose();
+        SpriteRenderer = null;
         PrimitiveBatch?.Dispose();
         PrimitiveBatch = null;
+        TextRenderer?.Dispose();
+        TextRenderer = null;
     }
 
     /// <summary>
@@ -485,7 +503,7 @@ public sealed class Game
         switch (State)
         {
             case GameState.Title:
-                TitleScreen?.Render(batch, screenWidth, screenHeight, PlayTime);
+                TitleScreen?.Render(batch, TextRenderer, screenWidth, screenHeight, PlayTime);
                 break;
             case GameState.CharacterSelect:
                 CharacterSelectPanel?.Render(batch, screenWidth, screenHeight);

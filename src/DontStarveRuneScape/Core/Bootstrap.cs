@@ -48,41 +48,36 @@ public sealed class Bootstrap
                 _game.DataLoader = dataLoader;
 
                 // Generate world
-                var biomeRegistry = new BiomeRegistry();
-                // Convert BiomesData to BiomeDef objects
-                foreach (var biomeDict in dataLoader.BiomesData)
+                var biomeRegistry = new BiomeRegistry(dataLoader.Biomes);
+                var resourceRegistry = new ResourceRegistry(dataLoader.ResourcesData.Select(d =>
                 {
-                    if (biomeDict.TryGetValue("id", out var id) && id is string idStr)
+                    var def = new ResourceDef();
+                    foreach (var kv in d)
                     {
-                        var biomeDef = new BiomeDef();
-                        // Populate biomeDef from dictionary
-                        if (biomeDict.TryGetValue("name", out var name) && name is string n) biomeDef.GetType().GetProperty("Name")?.SetValue(biomeDef, n);
-                        if (biomeDict.TryGetValue("mega_cluster", out var mc) && mc is string mcs) biomeDef.GetType().GetProperty("MegaCluster")?.SetValue(biomeDef, mcs);
-                        if (biomeDict.TryGetValue("environmental_pressure", out var ep) && ep is float epf) biomeDef.GetType().GetProperty("EnvironmentalPressure")?.SetValue(biomeDef, epf);
-                        if (biomeDict.TryGetValue("starting_safety", out var ss) && ss is bool ssb) biomeDef.GetType().GetProperty("StartingSafety")?.SetValue(biomeDef, ssb);
-                        if (biomeDict.TryGetValue("elevation_range", out var er) && er is System.Text.Json.JsonElement ere)
+                        var v = kv.Value?.ToString() ?? string.Empty;
+                        switch (kv.Key.ToLowerInvariant())
                         {
-                            var range = JsonSerializer.Deserialize<int[]>(ere);
-                            if (range != null) biomeDef.GetType().GetProperty("ElevationRange")?.SetValue(biomeDef, range);
+                            case "id": def.Id = v; break;
+                            case "name": def.Name = v; break;
+                            case "biome": def.Biome = v; break;
+                            case "tier": def.Tier = int.TryParse(v, out var t) ? t : 1; break;
+                            case "category": def.Category = v; break;
+                            case "base_density": def.Density = float.TryParse(v, out var d2) ? d2 : 0.1f; break;
+                            case "yield_item": def.YieldItem = v; break;
+                            case "yield_quantity": def.Yield = int.TryParse(v, out var y) ? y : 1; break;
+                            case "xp_reward": def.Xp = float.TryParse(v, out var xp) ? xp : 1f; break;
+                            case "depletion_count": def.DepletionCount = int.TryParse(v, out var dc) ? dc : 1; break;
+                            case "regrow_time": def.Regrow = float.TryParse(v, out var rt) ? rt : 0f; break;
+                            case "sprite_key": def.SpriteKey = v; break;
+                            case "requires_tool": def.ToolRequirement = string.IsNullOrEmpty(v) ? null : v; break;
+                            case "rarity": def.Rarity = string.IsNullOrEmpty(v) ? "common" : v; break;
+                            case "required_level": def.RequiredLevel = int.TryParse(v, out var rl) ? rl : 1; break;
                         }
-                        if (biomeDict.TryGetValue("terrain_colors", out var tc) && tc is System.Text.Json.JsonElement tce)
-                        {
-                            var colors = JsonSerializer.Deserialize<Dictionary<string, int[]>>(tce);
-                            if (colors != null) biomeDef.GetType().GetProperty("TerrainColors")?.SetValue(biomeDef, colors);
-                        }
-                        if (biomeDict.TryGetValue("resource_spawns", out var rs) && rs is System.Text.Json.JsonElement rse)
-                        {
-                            var spawns = JsonSerializer.Deserialize<string[]>(rse);
-                            if (spawns != null) biomeDef.GetType().GetProperty("ResourceSpawns")?.SetValue(biomeDef, spawns);
-                        }
-                        biomeRegistry.Biomes[idStr] = biomeDef;
                     }
-                }
-                // Find starting safety biome as default
-                biomeRegistry.DefaultBiome = biomeRegistry.Biomes.Values.FirstOrDefault(b => b.StartingSafety)
-                                           ?? biomeRegistry.Biomes.Values.FirstOrDefault();
+                    return def;
+                }));
 
-                var tileMap = WorldGen.Generate(_game.Seed, biomeRegistry, _game.SeasonSystem, progress => 
+                var tileMap = WorldGen.Generate(_game.Seed, biomeRegistry, resourceRegistry, _game.SeasonSystem, progress =>
                 {
                     _game.SetLoadingProgress(progress);
                 });
@@ -98,6 +93,7 @@ public sealed class Bootstrap
                 // Set result
                 _game.World = tileMap;
                 _game.Player = player;
+                _game.ResourceRegistry = resourceRegistry;
                 _game.SetWorldGenResult("success");
             }
             catch (System.Exception ex)
@@ -189,9 +185,8 @@ public sealed class Bootstrap
         _game.SeasonSystem = new SeasonSystem();
         _game.WeatherSystem = new WeatherSystem();
 
-        // Render
-        _game.TileRenderer = new Render.TileRenderer();
-        _game.SpriteRenderer = new Render.SpriteRenderer();
+        // Render — TileRenderer and SpriteRenderer are created in Game.InitializeGraphics
+        // with the GL context. Other renderers don't need GL.
         _game.ParticleSystem = new Render.ParticleSystem();
         _game.SeasonalRenderer = new Render.SeasonalRenderer();
         _game.LightingSystem = new Render.LightingSystem();

@@ -22,6 +22,13 @@ public sealed class PrimitiveBatch : IDisposable
     private int _vertexCount;
     private int _screenWidth = 1;
     private int _screenHeight = 1;
+
+    // Textured quads (e.g. rendered text) share this batch. We flush whenever the
+    // active mode flips between color-only and textured so every draw call is
+    // homogeneous with respect to the uUseTexture uniform.
+    private bool _textureMode;
+    private uint _boundTexture;
+
     private bool _disposed;
 
     public unsafe PrimitiveBatch(GL gl)
@@ -63,6 +70,9 @@ public sealed class PrimitiveBatch : IDisposable
 
     public void DrawScreenQuad(float centerX, float centerY, float halfWidth, float halfHeight, byte r, byte g, byte b, byte a = 255)
     {
+        // Switching from a textured block to a color block ends the previous batch.
+        if (_textureMode) Flush();
+
         if (_vertexCount + 6 * Stride > _vertices.Length)
             Flush();
 
@@ -77,22 +87,116 @@ public sealed class PrimitiveBatch : IDisposable
         float ca = a / 255f;
 
         // Quad corners: bottom-left, bottom-right, top-right, top-left.
-        AddVertex(x0, y0, cr, cg, cb, ca);
-        AddVertex(x1, y0, cr, cg, cb, ca);
-        AddVertex(x1, y1, cr, cg, cb, ca);
-        AddVertex(x0, y0, cr, cg, cb, ca);
-        AddVertex(x1, y1, cr, cg, cb, ca);
-        AddVertex(x0, y1, cr, cg, cb, ca);
+        AddVertex(x0, y0, 0f, 0f, cr, cg, cb, ca);
+        AddVertex(x1, y0, 1f, 0f, cr, cg, cb, ca);
+        AddVertex(x1, y1, 1f, 1f, cr, cg, cb, ca);
+        AddVertex(x0, y0, 0f, 0f, cr, cg, cb, ca);
+        AddVertex(x1, y1, 1f, 1f, cr, cg, cb, ca);
+        AddVertex(x0, y1, 0f, 1f, cr, cg, cb, ca);
+    }
+
+    /// <summary>
+    /// Draw a textured screen-space quad. The texture is bound for the batch and
+    /// the glyph alpha is multiplied by the supplied tint color.
+    /// </summary>
+    public void DrawTexturedScreenQuad(float centerX, float centerY, float halfWidth, float halfHeight,
+        uint texture, byte r, byte g, byte b, byte a = 255)
+    {
+        // Switching from a color block to a textured block ends the previous batch.
+        if (!_textureMode) Flush();
+
+        if (_vertexCount + 6 * Stride > _vertices.Length)
+            Flush();
+
+        float x0 = ToNdcX(centerX - halfWidth);
+        float x1 = ToNdcX(centerX + halfWidth);
+        float y0 = ToNdcY(centerY + halfHeight); // bottom
+        float y1 = ToNdcY(centerY - halfHeight); // top
+
+        float cr = r / 255f;
+        float cg = g / 255f;
+        float cb = b / 255f;
+        float ca = a / 255f;
+
+        // v is flipped so the uploaded bitmap (row 0 = glyph top) reads upright.
+        AddVertex(x0, y0, 0f, 1f, cr, cg, cb, ca);
+        AddVertex(x1, y0, 1f, 1f, cr, cg, cb, ca);
+        AddVertex(x1, y1, 1f, 0f, cr, cg, cb, ca);
+        AddVertex(x0, y0, 0f, 1f, cr, cg, cb, ca);
+        AddVertex(x1, y1, 1f, 0f, cr, cg, cb, ca);
+        AddVertex(x0, y1, 0f, 0f, cr, cg, cb, ca);
+
+        _textureMode = true;
+        _boundTexture = texture;
+    }
+
+    /// <summary>
+    /// Draw a quadrilateral from four screen-space corners (in screen pixel coords).
+    /// Corners are ordered: bottom-left, bottom-right, top-right, top-left.
+    /// </summary>
+    public void DrawScreenQuadCorners(float blX, float blY, float brX, float brY, float trX, float trY, float tlX, float tlY, byte r, byte g, byte b, byte a = 255)
+    {
+        if (_textureMode) Flush();
+
+        if (_vertexCount + 6 * Stride > _vertices.Length)
+            Flush();
+
+        float cr = r / 255f;
+        float cg = g / 255f;
+        float cb = b / 255f;
+        float ca = a / 255f;
+
+        AddVertex(ToNdcX(blX), ToNdcY(blY), 0f, 0f, cr, cg, cb, ca);
+        AddVertex(ToNdcX(brX), ToNdcY(brY), 1f, 0f, cr, cg, cb, ca);
+        AddVertex(ToNdcX(trX), ToNdcY(trY), 1f, 1f, cr, cg, cb, ca);
+        AddVertex(ToNdcX(blX), ToNdcY(blY), 0f, 0f, cr, cg, cb, ca);
+        AddVertex(ToNdcX(trX), ToNdcY(trY), 1f, 1f, cr, cg, cb, ca);
+        AddVertex(ToNdcX(tlX), ToNdcY(tlY), 0f, 1f, cr, cg, cb, ca);
+    }
+
+    /// <summary>
+    /// Draw a textured quadrilateral from four screen-space corners.
+    /// Corners are ordered: bottom-left, bottom-right, top-right, top-left.
+    /// </summary>
+    public void DrawScreenQuadCornersTextured(float blX, float blY, float brX, float brY, float trX, float trY, float tlX, float tlY,
+        uint texture, byte r, byte g, byte b, byte a = 255)
+    {
+        if (!_textureMode) Flush();
+
+        if (_vertexCount + 6 * Stride > _vertices.Length)
+            Flush();
+
+        float cr = r / 255f;
+        float cg = g / 255f;
+        float cb = b / 255f;
+        float ca = a / 255f;
+
+        AddVertex(ToNdcX(blX), ToNdcY(blY), 0f, 1f, cr, cg, cb, ca);
+        AddVertex(ToNdcX(brX), ToNdcY(brY), 1f, 1f, cr, cg, cb, ca);
+        AddVertex(ToNdcX(trX), ToNdcY(trY), 1f, 0f, cr, cg, cb, ca);
+        AddVertex(ToNdcX(blX), ToNdcY(blY), 0f, 1f, cr, cg, cb, ca);
+        AddVertex(ToNdcX(trX), ToNdcY(trY), 1f, 0f, cr, cg, cb, ca);
+        AddVertex(ToNdcX(tlX), ToNdcY(tlY), 0f, 0f, cr, cg, cb, ca);
+
+        _textureMode = true;
+        _boundTexture = texture;
     }
 
     public void End()
     {
-        if (_vertexCount == 0) return;
+        if (_vertexCount == 0)
+        {
+            _textureMode = false;
+            return;
+        }
 
         _shader.Use();
         _shader.SetUniform("uProjection", Matrix4X4<float>.Identity);
         _shader.SetUniform("uView", Matrix4X4<float>.Identity);
-        _shader.SetUniform("uUseTexture", false);
+        _shader.SetUniform("uUseTexture", _textureMode);
+
+        if (_textureMode)
+            _gl.BindTexture(TextureTarget.Texture2D, _boundTexture);
 
         _gl.BindVertexArray(_vao);
         _gl.BindBuffer(BufferTargetARB.ArrayBuffer, _vbo);
@@ -106,6 +210,8 @@ public sealed class PrimitiveBatch : IDisposable
         _gl.DrawArrays(PrimitiveType.Triangles, 0, (uint)(_vertexCount / Stride));
         _gl.BindVertexArray(0);
         _vertexCount = 0;
+        _textureMode = false;
+        _boundTexture = 0;
     }
 
     public void Flush() => End();
@@ -113,15 +219,15 @@ public sealed class PrimitiveBatch : IDisposable
     private float ToNdcX(float screenX) => screenX * 2f / _screenWidth - 1f;
     private float ToNdcY(float screenY) => 1f - screenY * 2f / _screenHeight;
 
-    private void AddVertex(float x, float y, float r, float g, float b, float a)
+    private void AddVertex(float x, float y, float u, float v, float r, float g, float b, float a)
     {
         int i = _vertexCount;
         if (i + Stride > _vertices.Length) return;
 
         _vertices[i + 0] = x;
         _vertices[i + 1] = y;
-        _vertices[i + 2] = 0f; // u
-        _vertices[i + 3] = 0f; // v
+        _vertices[i + 2] = u;
+        _vertices[i + 3] = v;
         _vertices[i + 4] = r;
         _vertices[i + 5] = g;
         _vertices[i + 6] = b;

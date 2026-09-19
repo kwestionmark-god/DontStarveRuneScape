@@ -1,25 +1,43 @@
 namespace DontStarveRuneScape.Render;
 
+using System.Collections.Generic;
 using DontStarveRuneScape.Camera;
 using DontStarveRuneScape.Config;
+using DontStarveRuneScape.Data;
 using DontStarveRuneScape.World;
+using SkiaSharp;
+using Silk.NET.OpenGL;
 
 /// <summary>
-/// TileRenderer — Renders the terrain tiles as shaded, biome-colored quads.
+/// TileRenderer — Renders terrain tiles as shaded, biome-colored quads with
+/// optional terrain-sprite texture overlays.
 /// </summary>
-public sealed class TileRenderer
+public sealed class TileRenderer : IDisposable
 {
+    private readonly GL _gl;
+    private readonly string _spritesDir;
+
+    // biomeId -> OpenGL texture id
+    private readonly Dictionary<string, uint> _terrainTextures = new();
+    private bool _disposed;
+
+    public TileRenderer(GL gl)
+    {
+        _gl = gl;
+        string baseDir = AppContext.BaseDirectory;
+        _spritesDir = System.IO.Path.Combine(baseDir, "Assets", "sprites", "terrain");
+        if (!System.IO.Directory.Exists(_spritesDir))
+            _spritesDir = baseDir;
+    }
+
     public void Render(PrimitiveBatch batch, Camera camera, TileMap world)
     {
         var (left, top, right, bottom) = camera.GetViewRect();
 
         int xMin = Math.Max(0, (int)(left / Constants.TileSize));
-        int xMax = Math.Min(world.Width, (int)(right / Constants.TileSize) + 1);
+        int xMax = Math.Min(world.Width - 1, (int)(right / Constants.TileSize));
         int yMin = Math.Max(0, (int)(top / Constants.TileSize));
-        int yMax = Math.Min(world.Height, (int)(bottom / Constants.TileSize) + 1);
-
-        float halfWidth = Constants.TileSize * 0.5f * camera.Zoom;
-        float halfHeight = halfWidth * MathF.Cos(camera.Pitch);
+        int yMax = Math.Min(world.Height - 1, (int)(bottom / Constants.TileSize));
 
         // Draw top (far) rows first so nearer rows paint over them.
         for (int y = yMin; y < yMax; y++)
@@ -28,10 +46,6 @@ public sealed class TileRenderer
             {
                 var tile = world.Tiles[x, y];
                 if (tile == null) continue;
-
-                float worldX = x * Constants.TileSize + Constants.TileSize * 0.5f;
-                float worldY = y * Constants.TileSize + Constants.TileSize * 0.5f;
-                var screen = camera.WorldToScreen(worldX, worldY, tile.Elevation);
 
                 int elevation = (int)MathF.Round(tile.Elevation);
                 var color = tile.Biome?.GetTerrainColor(elevation) ?? (128, 128, 128);
@@ -45,8 +59,102 @@ public sealed class TileRenderer
                 byte g = (byte)Math.Clamp((int)(color.G * shade), 0, 255);
                 byte b = (byte)Math.Clamp((int)(color.B * shade), 0, 255);
 
-                batch.DrawScreenQuad(screen.X, screen.Y, halfWidth, halfHeight, r, g, b);
+                // Project all four corners of the tile to screen space so adjacent
+                // tiles share edges and there are no gaps when the camera is tilted.
+                float e00 = tile.CornerElevations?[0] ?? tile.Elevation;
+                float e10 = tile.CornerElevations?[1] ?? tile.Elevation;
+                float e11 = tile.CornerElevations?[2] ?? tile.Elevation;
+                float e01 = tile.CornerElevations?[3] ?? tile.Elevation;
+
+                var bl = camera.WorldToScreen(x * Constants.TileSize, y * Constants.TileSize, e00);
+                var br = camera.WorldToScreen((x + 1) * Constants.TileSize, y * Constants.TileSize, e10);
+                var tr = camera.WorldToScreen((x + 1) * Constants.TileSize, (y + 1) * Constants.TileSize, e11);
+                var tl = camera.WorldToScreen(x * Constants.TileSize, (y + 1) * Constants.TileSize, e01);
+
+                // Draw colored base tile.
+                batch.DrawScreenQuadCorners(bl.X, bl.Y, br.X, br.Y, tr.X, tr.Y, tl.X, tl.Y, r, g, b);
+
+                // Overlay terrain sprite if available for this biome.
+                // Use white tint so the sprite's actual colors show through
+                // instead of being blended into the solid biome color.
+                if (tile.Biome != null)
+                {
+                    uint tex = GetTerrainTexture(tile.Biome.Id);
+                    if (tex != 0)
+                    {
+                        // Render sprite covering the full tile using projected corners.
+                        batch.DrawScreenQuadCornersTextured(
+                            bl.X, bl.Y, br.X, br.Y, tr.X, tr.Y, tl.X, tl.Y,
+                            tex, 255, 255, 255);
+                    }
+                }
             }
         }
+    }
+
+    private uint GetTerrainTexture(string biomeId)
+    {
+        if (string.IsNullOrEmpty(biomeId)) return 0;
+        if (_terrainTextures.TryGetValue(biomeId, out var tex))
+            return tex;
+
+        string path = System.IO.Path.Combine(_spritesDir, biomeId + ".png");
+        if (!System.IO.File.Exists(path))
+            return 0;
+
+        using var bitmap = SKBitmap.Decode(path);
+        if (bitmap == null) return 0;
+
+        int w = bitmap.Width;
+        int h = bitmap.Height;
+
+        using var rgba = new SKBitmap(w, h, SKColorType.Rgba8888, SKAlphaType.Unpremul);
+        using var canvas = new SKCanvas(rgba);
+        canvas.DrawBitmap(bitmap, 0, 0);
+
+        // Convert to straight alpha: multiply RGB by alpha so the batch shader
+        // can tint cleanly without double-multiplied alpha.
+        Span<byte> span = rgba.GetPixelSpan();
+        byte[] px = new byte[span.Length];
+        span.CopyTo(px);
+        for (int i = 0; i + 3 < px.Length; i += 4)
+        {
+            byte a = px[i + 3];
+            if (a > 0 && a < 255)
+            {
+                // Straighten premultiplied alpha: scale RGB up by 255/a
+                px[i]     = (byte)Math.Clamp(px[i]     * 255 / a, 0, 255);
+                px[i + 1] = (byte)Math.Clamp(px[i + 1] * 255 / a, 0, 255);
+                px[i + 2] = (byte)Math.Clamp(px[i + 2] * 255 / a, 0, 255);
+            }
+        }
+
+        uint tid = _gl.GenTexture();
+        _gl.BindTexture(TextureTarget.Texture2D, tid);
+        _gl.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMinFilter, (int)TextureMinFilter.Linear);
+        _gl.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMagFilter, (int)TextureMagFilter.Linear);
+        _gl.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapS, (int)TextureWrapMode.ClampToEdge);
+        _gl.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapT, (int)TextureWrapMode.ClampToEdge);
+
+        unsafe
+        {
+            fixed (byte* ptr = px)
+            {
+                _gl.TexImage2D(TextureTarget.Texture2D, 0, InternalFormat.Rgba, (uint)w, (uint)h, 0,
+                    PixelFormat.Rgba, PixelType.UnsignedByte, ptr);
+            }
+        }
+
+        _terrainTextures[biomeId] = tid;
+        return tid;
+    }
+
+    public void Dispose()
+    {
+        if (_disposed) return;
+        _disposed = true;
+        foreach (var kv in _terrainTextures)
+            _gl.DeleteTexture(kv.Value);
+        _terrainTextures.Clear();
     }
 }

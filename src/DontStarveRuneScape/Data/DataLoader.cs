@@ -22,7 +22,7 @@ public sealed class DataLoader
 
     // Loaded data
     public List<Dictionary<string, object>> ItemsData { get; private set; } = [];
-    public List<Dictionary<string, object>> BiomesData { get; private set; } = [];
+    public List<BiomeDef> Biomes { get; private set; } = [];
     public List<Dictionary<string, object>> ResourcesData { get; private set; } = [];
     public List<Dictionary<string, object>> MonstersData { get; private set; } = [];
     public List<Dictionary<string, object>> GearData { get; private set; } = [];
@@ -110,9 +110,9 @@ public sealed class DataLoader
 
         try
         {
-            BiomesData = LoadJsonList<Dictionary<string, object>>(Constants.BiomesFile, "biomes");
+            Biomes = LoadJsonList<BiomeDef>(Constants.BiomesFile, "biomes");
         }
-        catch { BiomesData = []; }
+        catch { Biomes = []; }
 
         try
         {
@@ -128,5 +128,5 @@ public sealed class DataLoader
 public abstract class DataRecord
 {
     [JsonPropertyName("id")]
-    public string Id { get; init; } = string.Empty;
+    public string Id { get; set; } = string.Empty;
 }

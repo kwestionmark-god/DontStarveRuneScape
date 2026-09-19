@@ -41,7 +41,7 @@ public static class Constants
     // Domain warping parameters (for geological distortion)
     public const float DomainWarpScale = 0.008f;
     public const int DomainWarpOctaves = 3;
-    public const float DomainWarpAmplitude = 12.0f;      // Max warp distance in tiles
+    public const float DomainWarpAmplitude = 4.0f;      // Max warp distance in tiles
 
     // Biome-specific noise overrides (can be overridden per biome)
     public static readonly Dictionary<string, BiomeNoiseParams> BiomeNoiseParams = new()

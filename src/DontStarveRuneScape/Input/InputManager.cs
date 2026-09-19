@@ -120,18 +120,18 @@ public sealed class InputManager
 
     private void HandleKey(Key key, bool pressed)
     {
-        // Movement (held)
-        if (key == Key.W || key == Key.Up) InputState.MoveUp = pressed;
-        else if (key == Key.S || key == Key.Down) InputState.MoveDown = pressed;
-        else if (key == Key.A || key == Key.Left) InputState.MoveLeft = pressed;
-        else if (key == Key.D || key == Key.Right) InputState.MoveRight = pressed;
+        // Movement (held) — WASD only; arrow keys reserved for camera
+        if (key == Key.W) InputState.MoveUp = pressed;
+        else if (key == Key.S) InputState.MoveDown = pressed;
+        else if (key == Key.A) InputState.MoveLeft = pressed;
+        else if (key == Key.D) InputState.MoveRight = pressed;
 
-        // Camera orbit (held) - using separate keys to avoid conflict with movement
-        // Arrow keys for camera when not moving, or use dedicated camera keys
+        // Camera orbit (held)
         if (key == Key.Left) InputState.OrbitCCW = pressed;
         else if (key == Key.Right) InputState.OrbitCW = pressed;
-        else if (key == Key.PageUp) InputState.OrbitTiltUp = pressed;
-        else if (key == Key.PageDown) InputState.OrbitTiltDown = pressed;
+        // Up/Down arrows control pitch (tilt)
+        else if (key == Key.Up) InputState.OrbitTiltUp = pressed;
+        else if (key == Key.Down) InputState.OrbitTiltDown = pressed;
 
         // Actions (one-shot on key down)
         if (pressed)

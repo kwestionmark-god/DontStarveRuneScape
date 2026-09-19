@@ -8,25 +8,25 @@ using System.Text.Json.Serialization;
 public sealed class BiomeDef : DataRecord
 {
     [JsonPropertyName("name")]
-    public string Name { get; init; } = string.Empty;
+    public string Name { get; set; } = string.Empty;
 
     [JsonPropertyName("mega_cluster")]
-    public string MegaCluster { get; init; } = string.Empty;
+    public string MegaCluster { get; set; } = string.Empty;
 
     [JsonPropertyName("environmental_pressure")]
-    public float EnvironmentalPressure { get; init; }
+    public float EnvironmentalPressure { get; set; }
 
     [JsonPropertyName("starting_safety")]
-    public bool StartingSafety { get; init; }
+    public bool StartingSafety { get; set; }
 
     [JsonPropertyName("elevation_range")]
-    public int[] ElevationRange { get; init; } = [0, 7];
+    public int[] ElevationRange { get; set; } = [0, 7];
 
     [JsonPropertyName("terrain_colors")]
-    public Dictionary<string, int[]> TerrainColors { get; init; } = [];
+    public Dictionary<string, int[]> TerrainColors { get; set; } = [];
 
     [JsonPropertyName("resource_spawns")]
-    public string[] ResourceSpawns { get; init; } = [];
+    public string[] ResourceSpawns { get; set; } = [];
 
     /// <summary>
     /// Get terrain color for a specific elevation level.
