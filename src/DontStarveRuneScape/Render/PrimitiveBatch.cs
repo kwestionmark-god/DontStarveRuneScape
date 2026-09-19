@@ -102,8 +102,10 @@ public sealed class PrimitiveBatch : IDisposable
     public void DrawTexturedScreenQuad(float centerX, float centerY, float halfWidth, float halfHeight,
         uint texture, byte r, byte g, byte b, byte a = 255)
     {
-        // Switching from a color block to a textured block ends the previous batch.
-        if (!_textureMode) Flush();
+        // End the previous batch when switching modes or when the texture changes
+        // mid-batch — otherwise buffered quads would be drawn with the last bound
+        // texture (mixed sprites would all share one texture).
+        if (!_textureMode || _boundTexture != texture) Flush();
 
         if (_vertexCount + 6 * Stride > _vertices.Length)
             Flush();
@@ -161,7 +163,7 @@ public sealed class PrimitiveBatch : IDisposable
     public void DrawScreenQuadCornersTextured(float blX, float blY, float brX, float brY, float trX, float trY, float tlX, float tlY,
         uint texture, byte r, byte g, byte b, byte a = 255)
     {
-        if (!_textureMode) Flush();
+        if (!_textureMode || _boundTexture != texture) Flush();
 
         if (_vertexCount + 6 * Stride > _vertices.Length)
             Flush();

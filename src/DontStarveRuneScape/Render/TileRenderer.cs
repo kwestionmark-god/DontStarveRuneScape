@@ -100,10 +100,17 @@ public sealed class TileRenderer : IDisposable
 
         string path = System.IO.Path.Combine(_spritesDir, biomeId + ".png");
         if (!System.IO.File.Exists(path))
+        {
+            _terrainTextures[biomeId] = 0;
             return 0;
+        }
 
         using var bitmap = SKBitmap.Decode(path);
-        if (bitmap == null) return 0;
+        if (bitmap == null)
+        {
+            _terrainTextures[biomeId] = 0;
+            return 0;
+        }
 
         int w = bitmap.Width;
         int h = bitmap.Height;

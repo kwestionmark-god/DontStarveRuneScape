@@ -15,8 +15,17 @@ using Window = Silk.NET.Windowing.Window;
 /// </summary>
 public static class Program
 {
-    public static void Main()
+    public static void Main(string[] args)
     {
+        // --smoketest <path.png>: boot straight into a fresh world, render a few
+        // frames, save the framebuffer to the path, and exit.
+        string? smokeTestPath = null;
+        for (int i = 0; i + 1 < args.Length; i++)
+        {
+            if (args[i] == "--smoketest")
+                smokeTestPath = args[i + 1];
+        }
+
         var options = WindowOptions.Default;
         options.Size = new Silk.NET.Maths.Vector2D<int>(1280, 720);
         options.Title = "Don't Starve RuneScape";
@@ -26,7 +35,9 @@ public static class Program
         var window = Window.Create(options);
         
         var game = new Game(42);
-        
+        if (smokeTestPath != null)
+            game.SmokeTestPath = smokeTestPath;
+
         window.Load += () =>
         {
             var gl = window.CreateOpenGL();

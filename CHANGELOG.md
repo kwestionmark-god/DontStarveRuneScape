@@ -5,6 +5,29 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+- **Resource sprites rendering with wrong textures**: PrimitiveBatch no longer
+  batches quads across texture changes — each texture switch flushes the batch,
+  so resources, terrain overlays, and text draw with their own texture.
+- **Terrain elevation overwhelming biomes**: sigmoid curve on normalized
+  elevation keeps lowlands clustered and peaks rare; biome thresholds respaced
+  for the 0..31 elevation range (water < 3, mountains > 27, etc.)
+- **Biome/resource data never reaching worldgen**: biomes now deserialize
+  directly to BiomeDef (no reflection copy); ResourceRegistry is constructed
+  from resources.json and passed into the resource placer, which honors each
+  resource's configured density and sprite key.
+- Sprite/terrain texture misses are cached to avoid per-frame filesystem stat.
+
+### Added
+- TextRenderer with bundled Liberation Mono fonts; title screen renders text.
+- `--smoketest <path.png>` CLI flag: boots past the menus, generates a world,
+  renders a few frames, saves the framebuffer PNG, and exits.
+
+### Changed
+- Domain-warp amplitude reduced from 12 to 4 tiles to stop biome smearing.
+
 ## [0.1.1] - 2026-09-10
 
 ### Fixed

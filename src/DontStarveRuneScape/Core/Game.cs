@@ -317,8 +317,21 @@ public sealed class Game
     /// <summary>
     /// Main update loop.
     /// </summary>
+    /// <summary>
+    /// When set (--smoketest &lt;path&gt;), auto-advances past the title/character
+    /// screens, waits for worldgen, renders a few frames, saves a framebuffer PNG,
+    /// and exits. Used for headless render verification.
+    /// </summary>
+    public string? SmokeTestPath { get; set; }
+    private int _smokeFrames;
+
     public void Update(float dt)
     {
+        if (SmokeTestPath != null)
+        {
+            if (State == GameState.Title) SetState(GameState.CharacterSelect);
+            else if (State == GameState.CharacterSelect) SetState(GameState.Loading);
+        }
         Dt = dt;
         PlayTime += dt;
 
@@ -519,6 +532,50 @@ public sealed class Game
         }
 
         batch.End();
+
+        if (SmokeTestPath != null && State == GameState.Playing && ++_smokeFrames >= 6)
+        {
+            CaptureFramebuffer(gl, screenWidth, screenHeight, SmokeTestPath);
+            Environment.Exit(0);
+        }
+    }
+
+    private static void CaptureFramebuffer(Silk.NET.OpenGL.GL gl, int width, int height, string path)
+    {
+        int bytes = width * height * 4;
+        var pixels = new byte[bytes];
+        unsafe
+        {
+            fixed (byte* ptr = pixels)
+            {
+                gl.ReadPixels(0, 0, (uint)width, (uint)height,
+                    Silk.NET.OpenGL.PixelFormat.Rgba, Silk.NET.OpenGL.PixelType.UnsignedByte, ptr);
+            }
+        }
+
+        // GL rows are bottom-up; flip so the top row is first.
+        var flipped = new byte[bytes];
+        int stride = width * 4;
+        for (int y = 0; y < height; y++)
+            Array.Copy(pixels, (height - 1 - y) * stride, flipped, y * stride, stride);
+
+        var info = new SkiaSharp.SKImageInfo(width, height, SkiaSharp.SKColorType.Rgba8888);
+        // Write through a bitmap so the row flip is preserved.
+        using var bitmap = new SkiaSharp.SKBitmap();
+        System.Runtime.InteropServices.GCHandle handle =
+            System.Runtime.InteropServices.GCHandle.Alloc(flipped, System.Runtime.InteropServices.GCHandleType.Pinned);
+        try
+        {
+            bitmap.InstallPixels(info, handle.AddrOfPinnedObject());
+            using var image = SkiaSharp.SKImage.FromBitmap(bitmap);
+            using var data = image.Encode(SkiaSharp.SKEncodedImageFormat.Png, 100);
+            using var stream = System.IO.File.Create(path);
+            data.SaveTo(stream);
+        }
+        finally
+        {
+            handle.Free();
+        }
     }
 
     private void RenderGame(Silk.NET.OpenGL.GL gl, PrimitiveBatch batch, int screenWidth, int screenHeight)

@@ -126,10 +126,18 @@ public sealed class SpriteRenderer : IDisposable
 
         string path = System.IO.Path.Combine(_spritesDir, key + ".png");
         if (!System.IO.File.Exists(path))
+        {
+            // Cache the miss so we don't stat the filesystem every frame.
+            _cache[key] = (0, 0, 0);
             return 0;
+        }
 
         using var bitmap = SKBitmap.Decode(path);
-        if (bitmap == null) return 0;
+        if (bitmap == null)
+        {
+            _cache[key] = (0, 0, 0);
+            return 0;
+        }
 
         int w = bitmap.Width;
         int h = bitmap.Height;

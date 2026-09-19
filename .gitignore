@@ -41,5 +41,9 @@ FakesAssemblies/
 # BenchmarkDotNet artifacts
 BenchmarkDotNet.Artifacts/
 
+# Local verification screenshots
+/terrain_test*.png
+/verify_*.png
+
 # Publish output
 publish/
