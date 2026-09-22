@@ -628,10 +628,13 @@ public sealed class Game
 
     private void RenderGame(Silk.NET.OpenGL.GL gl, PrimitiveBatch batch, int screenWidth, int screenHeight)
     {
-        if (TileRenderer != null && Camera != null && World != null)
-            TileRenderer.Render(batch, Camera, World);
+        // One shared painter's list for terrain AND sprites: identical depth
+        // keys mean elevated terrain correctly occludes sprites behind it.
+        var drawables = new List<(float Depth, int Seq, Action Draw)>();
+        int seq = 0;
 
-        var drawables = new List<(float Depth, Action Draw)>();
+        if (TileRenderer != null && Camera != null && World != null)
+            TileRenderer.Render(batch, Camera, World, drawables, ref seq);
 
         if (SpriteRenderer != null && World != null && Camera != null)
         {
@@ -640,6 +643,10 @@ public sealed class Game
             int xMax = Math.Min(World.Width, (int)(right / Constants.TileSize) + 1);
             int yMin = Math.Max(0, (int)(top / Constants.TileSize));
             int yMax = Math.Min(World.Height, (int)(bottom / Constants.TileSize) + 1);
+
+            // Screen-space cull margin (world-space rects include tiles far
+            // outside the frame, especially at shallow pitch).
+            float cull = 96f * Camera.Zoom + 96f;
 
             for (int x = xMin; x < xMax; x++)
             {
@@ -652,11 +659,16 @@ public sealed class Game
                         // value of the corner heights, not tile.Elevation —
                         // on slopes those differ enough to float the sprite.
                         float elev = tile.GetElevationAt(0.5f, 0.5f);
-                        float sortY = GetDepthSort((x + 0.5f) * Constants.TileSize,
-                            (y + 0.5f) * Constants.TileSize, elev);
+                        float wx = (x + 0.5f) * Constants.TileSize;
+                        float wy = (y + 0.5f) * Constants.TileSize;
+                        var screen = Camera.WorldToScreen(wx, wy, elev);
+                        if (screen.X < -cull || screen.X > screenWidth + cull ||
+                            screen.Y < -cull || screen.Y > screenHeight + cull)
+                            continue;
+                        float sortY = GetDepthSort(wx, wy, elev);
                         var node = tile.ResourceNode;
                         int tx = x, ty = y;
-                        drawables.Add((Depth: sortY, Draw: () => SpriteRenderer.RenderResource(
+                        drawables.Add((sortY, seq++, () => SpriteRenderer.RenderResource(
                             node, batch, Camera, elev, tx, ty)));
                     }
                 }
@@ -672,7 +684,7 @@ public sealed class Game
                 float fy = Player.WorldY / Constants.TileSize - pty;
                 float elev = tile?.GetElevationAt(fx, fy) ?? 0f;
                 float sortY = GetDepthSort(Player.WorldX, Player.WorldY, elev);
-                drawables.Add((Depth: sortY, Draw: () => SpriteRenderer.RenderPlayer(
+                drawables.Add((sortY, seq++, () => SpriteRenderer.RenderPlayer(
                     Player, batch, Camera, elev, Dt)));
             }
 
@@ -684,7 +696,7 @@ public sealed class Game
                     {
                         float sortY = GetDepthSort(monster.WorldX, monster.WorldY, 0);
                         var m = monster;
-                        drawables.Add((Depth: sortY, Draw: () => SpriteRenderer.RenderMonster(m, batch, Camera)));
+                        drawables.Add((sortY, seq++, () => SpriteRenderer.RenderMonster(m, batch, Camera)));
                     }
                 }
             }
@@ -697,10 +709,10 @@ public sealed class Game
                     if (!npc.IsActive) continue;
                     float sortY = GetDepthSort(npc.WorldX, npc.WorldY, 0);
                     var n = npc;
-                    drawables.Add((Depth: sortY, Draw: () => SpriteRenderer.RenderNPC(n, batch, Camera, 0)));
+                    drawables.Add((sortY, seq++, () => SpriteRenderer.RenderNPC(n, batch, Camera, 0)));
 
                     if (npc == nearbyNpc)
-                        drawables.Add((Depth: sortY, Draw: () => SpriteRenderer.RenderProximityPrompt(n, batch, Camera)));
+                        drawables.Add((sortY, seq++, () => SpriteRenderer.RenderProximityPrompt(n, batch, Camera)));
                 }
             }
 
@@ -712,13 +724,13 @@ public sealed class Game
                     {
                         float sortY = GetDepthSort(structure.WorldX, structure.WorldY, 0);
                         var s = structure;
-                        drawables.Add((Depth: sortY, Draw: () => SpriteRenderer.RenderStructure(s, batch, Camera)));
+                        drawables.Add((sortY, seq++, () => SpriteRenderer.RenderStructure(s, batch, Camera)));
                     }
                 }
             }
 
             if (BuildMode && Camera != null && World != null && BuildCursor.HasValue)
-                drawables.Add((Depth: float.MaxValue, Draw: () => RenderBuildGhost(gl)));
+                drawables.Add((float.MaxValue, seq++, () => RenderBuildGhost(gl)));
 
             if (Firemaking != null)
             {
@@ -726,13 +738,17 @@ public sealed class Game
                 {
                     float sortY = GetDepthSort(fire.WorldX, fire.WorldY, 0);
                     var f = fire;
-                    drawables.Add((Depth: sortY, Draw: () => SpriteRenderer.RenderFire(f, batch, Camera)));
+                    drawables.Add((sortY, seq++, () => SpriteRenderer.RenderFire(f, batch, Camera)));
                 }
             }
         }
 
-        drawables.Sort((a, b) => a.Depth.CompareTo(b.Depth));
-        foreach (var (_, drawFn) in drawables)
+        drawables.Sort(static (a, b) =>
+        {
+            int c = a.Depth.CompareTo(b.Depth);
+            return c != 0 ? c : a.Seq.CompareTo(b.Seq);
+        });
+        foreach (var (_, _, drawFn) in drawables)
             drawFn();
 
         ParticleSystem?.Draw(gl);

@@ -32,7 +32,13 @@ public sealed class TileRenderer : IDisposable
             _spritesDir = baseDir;
     }
 
-    public void Render(PrimitiveBatch batch, Camera camera, TileMap world)
+    /// <summary>
+    /// Terrian draw item for the shared painter's list: tiles and sprites get
+    /// unified depth keys so elevated terrain occludes sprites behind it.
+    /// </summary>
+    /// <param name="drawables">Shared (depth, seq, draw) list; sort by depth then seq.</param>
+    public void Render(PrimitiveBatch batch, Camera camera, TileMap world,
+        List<(float Depth, int Seq, Action Draw)> drawables, ref int seq)
     {
         var (left, top, right, bottom) = camera.GetViewRect();
 
@@ -75,6 +81,7 @@ public sealed class TileRenderer : IDisposable
             {
                 var tile = world.Tiles[x, y];
                 if (tile == null) continue;
+                int tileX = x, tileY = y;
 
                 int elevation = (int)MathF.Round(tile.Elevation);
                 var color = tile.Biome?.GetTerrainColor(elevation) ?? (128, 128, 128);
@@ -100,26 +107,30 @@ public sealed class TileRenderer : IDisposable
                 var tr = camera.WorldToScreen((x + 1) * Constants.TileSize, (y + 1) * Constants.TileSize, e11);
                 var tl = camera.WorldToScreen(x * Constants.TileSize, (y + 1) * Constants.TileSize, e01);
 
-                // Draw colored base tile.
-                batch.DrawScreenQuadCorners(bl.X, bl.Y, br.X, br.Y, tr.X, tr.Y, tl.X, tl.Y, r, g, b);
+                // Depth key in the same world-pixel units the sprite pass uses.
+                float depthPx = ((y + 0.5f) * cy + (x + 0.5f) * sy) * Constants.TileSize
+                                + tile.GetElevationAt(0.5f, 0.5f) * Constants.ZScale * 0.5f;
 
-                // Overlay terrain sprite if available for this biome.
-                // Use white tint so the sprite's actual colors show through
-                // instead of being blended into the solid biome color.
-                if (tile.Biome != null && drawTerrainTexture)
+                string? biomeId = tile.Biome?.Id;
+                drawables.Add((depthPx, seq++, () =>
                 {
-                    uint tex = GetTerrainTexture(tile.Biome.Id);
-                    if (tex != 0)
+                    // Draw colored base tile.
+                    batch.DrawScreenQuadCorners(bl.X, bl.Y, br.X, br.Y, tr.X, tr.Y, tl.X, tl.Y, r, g, b);
+
+                    // Overlay terrain sprite if available for this biome.
+                    if (biomeId != null && drawTerrainTexture)
                     {
-                        // Render sprite covering the full tile using projected corners.
-                        // Pass the slope/elevation shading as the tint so the
-                        // texture darkens on shaded slopes like the Python renderer.
-                        byte t = (byte)Math.Clamp((int)(shade * 255f), 0, 255);
-                        batch.DrawScreenQuadCornersTextured(
-                            bl.X, bl.Y, br.X, br.Y, tr.X, tr.Y, tl.X, tl.Y,
-                            tex, t, t, t);
+                        uint tex = GetTerrainTexture(biomeId);
+                        if (tex != 0)
+                        {
+                            // Terrain texture tinted by the slope/elevation shading.
+                            byte t = (byte)Math.Clamp((int)(shade * 255f), 0, 255);
+                            batch.DrawScreenQuadCornersTextured(
+                                bl.X, bl.Y, br.X, br.Y, tr.X, tr.Y, tl.X, tl.Y,
+                                tex, t, t, t);
+                        }
                     }
-                }
+                }));
             }
         }
     }
