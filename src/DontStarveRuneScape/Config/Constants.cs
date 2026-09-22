@@ -142,8 +142,8 @@ public static class Constants
     public const float CameraZoomDefault = 1.8f;       // Closer, more intimate aerial view
     public const float CameraOrbitSpeed = 90.0f;      // Degrees per second for yaw
     public const float CameraTiltSpeed = 60.0f;       // Degrees per second for pitch
-    public const float CameraPitchMin = 18.0f;        // Minimum pitch (18° keeps view from flattening)
-    public const float CameraPitchMax = 35.0f;        // Maximum pitch in degrees
+    public const float CameraPitchMin = 10.0f;        // Near-horizon view
+    public const float CameraPitchMax = 80.0f;        // Near top-down view
 
     // ─── Terrain Shading ──────────────────────────────────────────────────
 

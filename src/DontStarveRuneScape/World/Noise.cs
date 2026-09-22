@@ -66,9 +66,11 @@ public static class Noise
 
         for (int i = 0; i < octaves; i++)
         {
-            float n = Math.Abs(Perlin2D(x * frequency, y * frequency));
-            n = 1.0f - n; // Invert to create ridges
-            n = n * n;    // Sharpen ridges
+            // Matches the Python port: n = 1 - 2*|pnoise| per octave. The
+            // previous |n| -> invert -> square form biased the sum upward,
+            // contributing to elevation saturation.
+            float n = Perlin2D(x * frequency, y * frequency);
+            n = 1.0f - 2.0f * Math.Abs(n);
             value += amplitude * n;
             maxValue += amplitude;
             amplitude *= persistence;
@@ -136,15 +138,21 @@ public static class Noise
         int gi1 = PermMod12[ii + i1 + Perm[jj + j1]];
         int gi2 = PermMod12[ii + 1 + Perm[jj + 1]];
 
-        // Gradient dot products
+        // Gradient dot products. Simplex attenuation must be t^4 (t0 squared
+        // twice); t^2 keeps contributions far too large and the 70x scale pushes
+        // the output well beyond ±1, which saturated the worldgen elevation
+        // clamp (most tiles collapsed to max elevation).
         float t0 = 0.5f - x0 * x0 - y0 * y0;
-        float n0 = t0 < 0 ? 0 : t0 * t0 * Grad(gi0, x0, y0);
+        float n0 = 0f;
+        if (t0 > 0) { t0 *= t0; n0 = t0 * t0 * Grad(gi0, x0, y0); }
 
         float t1 = 0.5f - x1 * x1 - y1 * y1;
-        float n1 = t1 < 0 ? 0 : t1 * t1 * Grad(gi1, x1, y1);
+        float n1 = 0f;
+        if (t1 > 0) { t1 *= t1; n1 = t1 * t1 * Grad(gi1, x1, y1); }
 
         float t2 = 0.5f - x2 * x2 - y2 * y2;
-        float n2 = t2 < 0 ? 0 : t2 * t2 * Grad(gi2, x2, y2);
+        float n2 = 0f;
+        if (t2 > 0) { t2 *= t2; n2 = t2 * t2 * Grad(gi2, x2, y2); }
 
         return 70.0f * (n0 + n1 + n2); // Scale to roughly -1..1
     }

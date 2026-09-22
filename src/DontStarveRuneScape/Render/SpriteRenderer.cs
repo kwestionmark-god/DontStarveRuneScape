@@ -39,21 +39,26 @@ public sealed class SpriteRenderer : IDisposable
 
     // ─── Resource rendering ───────────────────────────────────────────────
 
-    public void RenderResource(ResourceNode resource, PrimitiveBatch batch, Camera camera, int elevation, int tileX, int tileY)
+    public void RenderResource(ResourceNode resource, PrimitiveBatch batch, Camera camera, float elevation, int tileX, int tileY)
     {
         string spriteKey = resource.GetSpriteKey();
         uint tex = GetSpriteTexture(spriteKey);
         float half = 24f * camera.Zoom;
 
+        // Ground point at tile center — bottom-anchored billboard (same scheme
+        // as the player sprite) so the resource keeps its tile placement under
+        // any camera yaw/pitch instead of sliding around the tile center.
         var screen = camera.WorldToScreen(
             tileX * Constants.TileSize + Constants.TileSize * 0.5f,
             tileY * Constants.TileSize + Constants.TileSize * 0.5f,
             elevation);
+        float cx = screen.X;
+        float cy = screen.Y - half;
 
         if (tex != 0)
         {
             // Straight-alpha white texture; tint via the batch shader.
-            batch.DrawTexturedScreenQuad(screen.X, screen.Y, half, half, tex, 255, 255, 255);
+            batch.DrawTexturedScreenQuad(cx, cy, half, half, tex, 255, 255, 255);
         }
         else
         {
@@ -63,18 +68,40 @@ public sealed class SpriteRenderer : IDisposable
                 : resource.GrowthStage == 1
                     ? ((byte)150, (byte)220, (byte)120)
                     : ((byte)90, (byte)160, (byte)70);
-            batch.DrawScreenQuad(screen.X, screen.Y, half, half, color.r, color.g, color.b);
+            batch.DrawScreenQuad(cx, cy, half, half, color.r, color.g, color.b);
         }
     }
 
     // ─── Player / monster / NPC / structure / fire ────────────────────────
 
+    private float _playerAnimTime;
+
     public void RenderPlayer(Player player, PrimitiveBatch batch, Camera camera, float elevation, float dt)
     {
-        // Simple colored placeholder for now; sprite animation can be added later.
+        _playerAnimTime += dt;
+        bool moving = player.Moving;
+        // Walk cycles run a bit faster than the idle bob.
+        float frameDuration = moving ? 0.12f : 0.3f;
+        int frame = (int)(_playerAnimTime / frameDuration) % 4;
+        string key = (moving ? "player/walk_" : "player/idle_") + frame;
+
+        uint tex = GetSpriteTexture(key);
+        // Ground point: the world position is the player's feet.
         var screen = camera.WorldToScreen(player.WorldX, player.WorldY, elevation);
-        float half = 16f * camera.Zoom;
-        batch.DrawScreenQuad(screen.X, screen.Y, half, half, 60, 120, 220);
+        const float HalfWidth = 22f;
+        float half = HalfWidth * camera.Zoom;
+        // Anchor bottom-center: feet at the ground point at any zoom/pitch.
+        float cx = screen.X;
+        float cy = screen.Y - half;
+
+        if (tex != 0)
+        {
+            batch.DrawTexturedScreenQuad(cx, cy, half, half, tex, 255, 255, 255);
+        }
+        else
+        {
+            batch.DrawScreenQuad(cx, cy, half, half, 60, 120, 220);
+        }
     }
 
     public void RenderMonster(Monster monster, PrimitiveBatch batch, Camera camera)
@@ -132,11 +159,23 @@ public sealed class SpriteRenderer : IDisposable
             return 0;
         }
 
-        using var bitmap = SKBitmap.Decode(path);
-        if (bitmap == null)
+        using var decoded = SKBitmap.Decode(path);
+        if (decoded == null)
         {
             _cache[key] = (0, 0, 0);
             return 0;
+        }
+
+        // Pixel-art sprites (<=32px) are re-sampled 2-4x with nearest neighbor
+        // so they stay crisp under the batcher's Linear filtering at higher zooms.
+        SKBitmap bitmap = decoded;
+        int upscale = decoded.Width <= 16 ? 4 : decoded.Width <= 32 ? 2 : 1;
+        if (upscale > 1)
+        {
+            var resized = decoded.Resize(
+                new SKImageInfo(decoded.Width * upscale, decoded.Height * upscale),
+                new SKSamplingOptions(SKFilterMode.Nearest, SKMipmapMode.None)) ?? decoded;
+            bitmap = resized;
         }
 
         int w = bitmap.Width;

@@ -72,82 +72,44 @@ public static class WorldGen
         {
             for (int y = 0; y < height; y++)
             {
-                float nx = x * Constants.NoiseScale;
-                float ny = y * Constants.NoiseScale;
-
-                // Domain warping
-                var (wx, wy) = Noise.DomainWarp(nx, ny, Constants.DomainWarpScale,
+                // Domain warping operates on raw tile coordinates, like the
+                // Python version (xs/ys in tile units, scales applied at
+                // sampling time).
+                var (wx, wy) = Noise.DomainWarp(x, y, Constants.DomainWarpScale,
                     Constants.DomainWarpOctaves, Constants.DomainWarpAmplitude);
 
-                // Elevation: base noise + ridges
-                float baseElev = Noise.PNoise2(wx + warpX, wy + warpY,
+                // Elevation: base + ridge, mixed 0.85/0.15 with a -0.2 bias —
+                // mirrors the Python generator. Ridge noise uses its own
+                // (higher-frequency) sampling scale.
+                float baseElev = Noise.PNoise2((wx + warpX) * Constants.NoiseScale,
+                    (wy + warpY) * Constants.NoiseScale,
                     Constants.ElevationOctaves, 0.5f, 2.0f);
-                float ridgeElev = Noise.RidgedNoise2(wx + warpX, wy + warpY,
+                float ridgeElev = Noise.RidgedNoise2((wx + warpX) * Constants.RidgeNoiseScale,
+                    (wy + warpY) * Constants.RidgeNoiseScale,
                     Constants.RidgeOctaves, Constants.RidgePersistence, Constants.RidgeLacunarity);
-                elevation[x, y] = Math.Clamp(baseElev * 0.7f + ridgeElev * 0.3f, -1f, 1f);
+                // -0.1 bias (Python uses -0.2 with a wider-spread noise lib;
+                // our normalized octaves need the smaller bias to center the
+                // distribution on the same ~15/31 median).
+                float combined = baseElev * 0.85f + ridgeElev * 0.15f - 0.1f;
+                float e = (combined + 1.0f) * 0.5f * Constants.ElevationLevels;
+                elevation[x, y] = Math.Clamp(MathF.Floor(e), 0, Constants.ElevationLevels - 1);
 
-                // Moisture: independent noise
-                float m = Noise.PNoise2((wx + warpX) * Constants.MoistureScale, (wy + warpY) * Constants.MoistureScale,
+                // Moisture: independent noise, +100 coordinate offset like the
+                // Python version so it doesn't correlate with elevation.
+                float m = Noise.PNoise2((x + 100) * Constants.MoistureScale + warpX,
+                    (y + 100) * Constants.MoistureScale + warpY,
                     Constants.MoistureOctaves, 0.5f, 2.0f);
-                moisture[x, y] = Math.Clamp(m * Constants.MoistureRangeMultiplier, -1f, 1f);
+                // Multiplier 0.7 shrinks our octave sum to the Python-noise
+                // library's spread; with the raw 2.5 multiplier ~24% of tiles
+                // clamped to exactly 0/1.
+                moisture[x, y] = Math.Clamp((m * Constants.MoistureRangeMultiplier * 0.7f + 1f) * 0.5f, 0f, 1f);
             }
 
             if (x % 64 == 0)
                 progressCallback?.Invoke(0.1f + 0.3f * x / (float)width);
         }
 
-        // Normalize to 0-1 range
-        NormalizeMap(elevation);
-        NormalizeMap(moisture);
-
-        // Apply a sigmoid curve so lowlands cluster and peaks stay rare.
-        // Real terrain is not uniform: most land sits at moderate-low elevation,
-        // with mountains concentrated at the extremes.
-        const float SigmoidK = 7.0f; // Steeper = more clustered lowlands
-        for (int x = 0; x < width; x++)
-        {
-            for (int y = 0; y < height; y++)
-            {
-                float n = elevation[x, y]; // 0..1 uniform
-                float s = 1.0f / (1.0f + MathF.Exp(-SigmoidK * (n - 0.5f))); // 0..1 sigmoid
-                elevation[x, y] = s * (Constants.ElevationLevels - 1); // 0..31
-            }
-        }
-
         return (elevation, moisture);
-    }
-
-    /// <summary>
-    /// Normalize a map to 0-1 range.
-    /// </summary>
-    private static void NormalizeMap(float[,] map)
-    {
-        int width = map.GetLength(0);
-        int height = map.GetLength(1);
-        float min = float.MaxValue;
-        float max = float.MinValue;
-
-        for (int x = 0; x < width; x++)
-        {
-            for (int y = 0; y < height; y++)
-            {
-                float v = map[x, y];
-                if (v < min) min = v;
-                if (v > max) max = v;
-            }
-        }
-
-        float range = max - min;
-        if (range > 0)
-        {
-            for (int x = 0; x < width; x++)
-            {
-                for (int y = 0; y < height; y++)
-                {
-                    map[x, y] = (map[x, y] - min) / range;
-                }
-            }
-        }
     }
 
     /// <summary>
@@ -170,49 +132,31 @@ public static class WorldGen
                 tile.Elevation = elev;
                 tile.Moisture = moist;
 
-                // Classify biome based on elevation/moisture thresholds.
-                // Elevation is in 0..ElevationLevels-1 (0..31). After normalization
-                // the distribution is roughly uniform, so thresholds are spaced to
-                // give a realistic spread: lots of lowland forest/plains, a narrow
-                // coastal/swamp band, scattered deserts, and mountains only at the
-                // highest peaks.
-                // Water: elevation < 3
+                // Port of the Python classifier: six elevation bands with
+                // moisture sub-bands. (Water currently comes only from the
+                // shallowest lowlands; rivers/lakes are a separate port.)
+                string biomeId;
                 if (elev < 3.0f)
-                {
-                    tile.Biome = biomeRegistry.GetBiome("water");
-                }
-                // Mountains: only the highest peaks (elevation > 27)
-                else if (elev > 27.0f)
-                {
-                    tile.Biome = biomeRegistry.GetBiome("mountains");
-                }
-                // Desert: mid-high elevation, low moisture
-                else if (elev > 10.0f && elev < 18.0f && moist < 0.3f)
-                {
-                    tile.Biome = biomeRegistry.GetBiome("desert");
-                }
-                // Swamp: low elevation, high moisture
-                else if (elev < 5.0f && moist > 0.7f)
-                {
-                    tile.Biome = biomeRegistry.GetBiome("swamp");
-                }
-                // Coastal: low elevation, high moisture
-                else if (elev < 5.0f && moist > 0.5f)
-                {
-                    tile.Biome = biomeRegistry.GetBiome("coastal");
-                }
-                // Plains: low-mid elevation, medium moisture
-                else if (elev >= 5.0f && elev < 9.0f && moist > 0.3f && moist < 0.7f)
-                {
-                    tile.Biome = biomeRegistry.GetBiome("plains");
-                }
-                // Forest: broad mid-elevation band (5–27)
+                    biomeId = "water";
+                else if (elev >= 26f)
+                    biomeId = "mountains";
+                else if (elev >= 20f)
+                    biomeId = moist < 0.15f ? "desert" : moist < 0.35f ? "plains" : "mountains";
+                else if (elev >= 14f)
+                    biomeId = moist < 0.15f ? "desert" : moist < 0.3f ? "plains"
+                        : moist < 0.6f ? "forest" : moist < 0.8f ? "mountains" : "swamp";
+                else if (elev >= 8f)
+                    biomeId = moist < 0.2f ? "desert" : moist < 0.35f ? "plains"
+                        : moist < 0.55f ? "forest" : "swamp";
+                else if (elev >= 4f)
+                    biomeId = moist < 0.2f ? "desert" : moist < 0.35f ? "plains"
+                        : moist < 0.4f ? "forest" : "coastal";
                 else
-                {
-                    tile.Biome = biomeRegistry.GetBiome("forest");
-                }
+                    biomeId = moist < 0.25f ? "desert" : moist < 0.4f ? "plains" : "coastal";
 
-                tile.Biome ??= biomeRegistry.DefaultBiome ?? biomeRegistry.GetBiome("forest")!;
+                tile.Biome = biomeRegistry.GetBiome(biomeId)
+                             ?? biomeRegistry.DefaultBiome
+                             ?? biomeRegistry.GetBiome("forest")!;
             }
         }
     }
@@ -290,8 +234,24 @@ public static class WorldGen
 /// </summary>
 public static class ResourcePlacer
 {
+    // Rarity density ranges from the Python version
+    // (RARITY_DENSITY_RANGE, with its 0.35 global scale folded in).
+    private static readonly Dictionary<string, (float Min, float Max)> RarityDensityRange = new()
+    {
+        ["ubiquitous"] = (0.15f * 0.35f, 0.30f * 0.35f),
+        ["common"] = (0.08f * 0.35f, 0.15f * 0.35f),
+        ["uncommon"] = (0.03f * 0.35f, 0.08f * 0.35f),
+        ["rare"] = (0.01f * 0.35f, 0.03f * 0.35f),
+        ["epic"] = (0.003f * 0.35f, 0.01f * 0.35f),
+        ["legendary"] = (0.001f * 0.35f, 0.003f * 0.35f),
+    };
+
+    // Never let resources saturate more than this fraction of the map.
+    private const float MaxTileOccupancy = 0.40f;
+
     /// <summary>
-    /// Place resources on the map.
+    /// Place resources on the map, one pass over tiles (matches the Python
+    /// placer's per-tile probability model).
     /// </summary>
     public static void Place(
         TileMap map,
@@ -300,72 +260,41 @@ public static class ResourcePlacer
         SeasonSystem? seasonSystem,
         Random random)
     {
-        string currentSeason = seasonSystem?.CurrentSeason ?? "spring";
+        int occupancyLimit = (int)(map.Width * map.Height * MaxTileOccupancy);
+        int occupied = 0;
 
-        foreach (var biomeId in biomeRegistry.Biomes.Keys)
-        {
-            var biome = biomeRegistry.GetBiome(biomeId);
-            if (biome == null) continue;
-
-            foreach (var resourceId in biome.ResourceSpawns)
-            {
-                PlaceResource(map, resourceId, biome, resourceRegistry, currentSeason, random);
-            }
-        }
-    }
-
-    private static void PlaceResource(
-        TileMap map,
-        string resourceId,
-        BiomeDef biome,
-        ResourceRegistry? resourceRegistry,
-        string currentSeason,
-        Random random)
-    {
-        // Look up the resource definition so we know density and sprite.
-        ResourceDef? def = resourceRegistry?.GetResource(resourceId);
-        float density = def?.Density ?? 0.1f;
-
-        // Calculate number of placements based on biome area.
-        int biomeTileCount = 0;
         for (int x = 0; x < map.Width; x++)
         {
             for (int y = 0; y < map.Height; y++)
             {
-                if (map.Tiles[x, y].Biome?.Id == biome.Id)
-                    biomeTileCount++;
+                if (occupied >= occupancyLimit) return;
+
+                var tile = map.Tiles[x, y];
+                if (tile.ResourceNode != null) continue;
+                if (tile.Structure != null) continue;
+                if (tile.Biome == null) continue;
+
+                foreach (var resourceId in tile.Biome.ResourceSpawns)
+                {
+                    ResourceDef? def = resourceRegistry?.GetResource(resourceId);
+                    if (def == null) continue;
+
+                    // Effective density: base_density clamped to its rarity band.
+                    float density = def.Density;
+                    if (RarityDensityRange.TryGetValue(def.Rarity, out var band))
+                        density = Math.Clamp(density, band.Min, band.Max);
+
+                    if (random.NextSingle() < density)
+                    {
+                        tile.ResourceNode = new ResourceNode(resourceId, def, 1.0f)
+                        {
+                            GrowthStage = 2, // Start mature
+                        };
+                        occupied++;
+                        break; // First successful placement wins; tile occupied.
+                    }
+                }
             }
-        }
-
-        int targetCount = (int)(biomeTileCount * density);
-        int placed = 0;
-        int attempts = 0;
-        int maxAttempts = Math.Max(targetCount * 10, 50);
-
-        while (placed < targetCount && attempts < maxAttempts)
-        {
-            int x = random.Next(map.Width);
-            int y = random.Next(map.Height);
-            attempts++;
-
-            var tile = map.Tiles[x, y];
-            if (tile.Biome?.Id != biome.Id) continue;
-            if (tile.ResourceNode != null) continue;
-            if (tile.Structure != null) continue;
-
-            // Check elevation suitability
-            if (biome.ElevationRange.Length >= 2)
-            {
-                if (tile.Elevation < biome.ElevationRange[0] || tile.Elevation > biome.ElevationRange[1])
-                    continue;
-            }
-
-            tile.ResourceNode = new ResourceNode(resourceId, def, 1.0f)
-            {
-                GrowthStage = 2, // Start mature
-            };
-
-            placed++;
         }
     }
 }

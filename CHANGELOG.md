@@ -8,25 +8,46 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
-- **Resource sprites rendering with wrong textures**: PrimitiveBatch no longer
-  batches quads across texture changes — each texture switch flushes the batch,
-  so resources, terrain overlays, and text draw with their own texture.
-- **Terrain elevation overwhelming biomes**: sigmoid curve on normalized
-  elevation keeps lowlands clustered and peaks rare; biome thresholds respaced
-  for the 0..31 elevation range (water < 3, mountains > 27, etc.)
-- **Biome/resource data never reaching worldgen**: biomes now deserialize
-  directly to BiomeDef (no reflection copy); ResourceRegistry is constructed
-  from resources.json and passed into the resource placer, which honors each
-  resource's configured density and sprite key.
-- Sprite/terrain texture misses are cached to avoid per-frame filesystem stat.
+- **Flattened world / mountain-only biomes**: Perlin2D simplex attenuation used
+  t^2 instead of t^4, pushing noise to ±6; combined with min-max normalization
+  and a steep sigmoid, 60% of tiles pinned to elevation max. Kernel fixed,
+  ridged noise switched to the Python `1 - 2|n|` form, and elevation/moisture
+  shaping ported from the Python generator.
+- **Resources only spawning on water**: ResourcePlacer rejected tiles outside
+  biome `elevation_range` (legacy 0-7 scale vs 0-31 elevation). The gate was
+  removed and the placer rewritten to the Python per-tile model with
+  rarity-clamped densities and a 40% occupancy cap.
+- **Bottom half of screen unpainted**: tile culling did not account for
+  elevation displacement; the view rect is now padded by the max terrain
+  displacement in tiles.
+- **Painter order breaking under camera yaw**: tiles drew row-major and sprite
+  depth keys mixed tile-index units with world-pixel units. Tiles are now
+  depth-sorted per frame and all sprite depth keys use world-pixel coordinates.
+- **Resource sprites sliding across tiles when panning the camera**: resources
+  were screen-center anchored; they are now bottom-anchored billboards at the
+  tile center, matching the player sprite.
+- **Sprites floating above low-elevation ground**: render/depth anchoring used
+  `tile.Elevation` instead of the bilinear corner height at the actual position.
+- **Camera centering drifted with pitch/zoom**: the camera anchored the
+  elevation-0 plane. The focus now anchors to the player's bilinear ground
+  elevation, and the vertical anchor is pitch-adaptive (lower at shallow pitch,
+  centered near top-down).
 
 ### Added
 - TextRenderer with bundled Liberation Mono fonts; title screen renders text.
 - `--smoketest <path.png>` CLI flag: boots past the menus, generates a world,
   renders a few frames, saves the framebuffer PNG, and exits.
+- `DSR_CAM_PITCH`/`DSR_CAM_YAW`/`DSR_CAM_ZOOM` env vars override the camera for
+  headless captures.
+- Player sprite animation (idle/walk frame sets) with bottom-center anchoring;
+  small pixel-art sprites are pre-upscaled with nearest-neighbor sampling.
 
 ### Changed
 - Domain-warp amplitude reduced from 12 to 4 tiles to stop biome smearing.
+- Camera pitch range widened to 10°–80°.
+- The biome classifier is a direct port of the Python six-band
+  elevation/moisture tree.
+- Terrain textures receive the slope/elevation shading as a grayscale tint.
 
 ## [0.1.1] - 2026-09-10
 

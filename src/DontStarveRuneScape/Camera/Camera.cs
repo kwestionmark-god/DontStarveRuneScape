@@ -12,6 +12,8 @@ public sealed class Camera
 {
     private float _yaw = 0f;           // Horizontal orbit (radians)
     private float _pitch = 0.5236f;    // Vertical tilt (radians) - default ~30°
+    private World.TileMap? _world;     // For focus-elevation anchoring
+    private float _focusElev = 0f;     // Ground elevation under the camera focus
     private float _zoom = Constants.CameraZoomDefault;
     private float _panX = 0f;
     private float _panY = 0f;
@@ -26,6 +28,23 @@ public sealed class Camera
     public float PanX => _panX;
     public float PanY => _panY;
 
+    /// <summary>
+    /// Vertical anchor of the camera focus as a fraction of screen height.
+    /// At low pitch the world compresses near the horizon and spreads below,
+    /// so the focus sits lower and the view covers both ahead and behind.
+    /// Near top-down it centers.
+    /// </summary>
+    public float AnchorY
+    {
+        get
+        {
+            float pitchMin = Constants.CameraPitchMin * MathF.PI / 180f;
+            float pitchMax = Constants.CameraPitchMax * MathF.PI / 180f;
+            float t = (_pitch - pitchMin) / Math.Max(1e-5f, pitchMax - pitchMin);
+            return 0.72f - 0.22f * Math.Clamp(t, 0f, 1f);
+        }
+    }
+
     public Camera(int screenWidth, int screenHeight)
     {
         _screenWidth = screenWidth;
@@ -38,6 +57,12 @@ public sealed class Camera
     public void SetPlayer(Player? player)
     {
         _player = player;
+    }
+
+    /// <summary>World reference used to read the ground elevation at the focus point.</summary>
+    public void SetWorld(World.TileMap? world)
+    {
+        _world = world;
     }
 
     /// <summary>
@@ -78,6 +103,18 @@ public sealed class Camera
         // The pan offsets are in world space
         _panX = _player.WorldX;
         _panY = _player.WorldY;
+
+        // Elevation anchoring: keep the player's actual ground point fixed at
+        // the anchor instead of the elevation-0 plane. Without this, the
+        // player's feet drift up-screen by elev*ZScale*sin(pitch)*zoom.
+        if (_world != null)
+        {
+            float txf = _panX / Constants.TileSize;
+            float tyf = _panY / Constants.TileSize;
+            var tile = _world.GetTile((int)txf, (int)tyf);
+            if (tile != null)
+                _focusElev = tile.GetElevationAt(txf - (int)txf, tyf - (int)tyf);
+        }
     }
 
     /// <summary>
@@ -91,8 +128,9 @@ public sealed class Camera
         float relX = worldX - _panX;
         float relY = worldY - _panY;
 
-        // Apply elevation offset (height displacement)
-        float elevOffset = elevation * Constants.ZScale * Constants.TerrainHeightScale;
+        // Apply elevation offset (height displacement), relative to the
+        // ground elevation at the camera focus so the focus tile stays anchored.
+        float elevOffset = (elevation - _focusElev) * Constants.ZScale * Constants.TerrainHeightScale;
 
         // Rotate by yaw
         float cosYaw = MathF.Cos(_yaw);
@@ -105,9 +143,9 @@ public sealed class Camera
         float sinPitch = MathF.Sin(_pitch);
         float projectedY = rotY * cosPitch - elevOffset * sinPitch;
 
-        // Apply zoom and center on screen
+        // Apply zoom and center on screen (Y anchored lower at shallow pitch)
         float screenX = _screenWidth * 0.5f + rotX * _zoom;
-        float screenY = _screenHeight * 0.5f + projectedY * _zoom;
+        float screenY = _screenHeight * AnchorY + projectedY * _zoom;
 
         return new Vector2D<float>(screenX, screenY);
     }
@@ -121,7 +159,7 @@ public sealed class Camera
 
         // Reverse the transform
         float relScreenX = (screenX - _screenWidth * 0.5f) / _zoom;
-        float relScreenY = (screenY - _screenHeight * 0.5f) / _zoom;
+        float relScreenY = (screenY - _screenHeight * AnchorY) / _zoom;
 
         // Reverse pitch (approximate, ignoring elevation)
         float cosPitch = MathF.Cos(_pitch);
@@ -154,6 +192,20 @@ public sealed class Camera
         float bottom = Math.Max(Math.Max(tl.WorldY, tr.WorldY), Math.Max(bl.WorldY, br.WorldY));
 
         return (left, top, right, bottom);
+    }
+
+    /// <summary>Override view angles/zoom directly (used by smoketest tooling).</summary>
+    public void SetViewAngles(float? yawDeg = null, float? pitchDeg = null, float? zoom = null)
+    {
+        if (yawDeg.HasValue) _yaw = yawDeg.Value * MathF.PI / 180f;
+        if (pitchDeg.HasValue)
+        {
+            float pitchMin = Constants.CameraPitchMin * MathF.PI / 180f;
+            float pitchMax = Constants.CameraPitchMax * MathF.PI / 180f;
+            _pitch = Math.Clamp(pitchDeg.Value * MathF.PI / 180f, pitchMin, pitchMax);
+        }
+        if (zoom.HasValue)
+            _zoom = Math.Clamp(zoom.Value, Constants.CameraZoomMin, Constants.CameraZoomMax);
     }
 
     /// <summary>

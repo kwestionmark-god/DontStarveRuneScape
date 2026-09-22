@@ -82,9 +82,10 @@ public sealed class Bootstrap
                     _game.SetLoadingProgress(progress);
                 });
 
-                // Create player at center
-                float startX = Constants.MapWidth * Constants.TileSize / 2f;
-                float startY = Constants.MapHeight * Constants.TileSize / 2f;
+                // Create player at the generated spawn point (safe biome,
+                // moderate elevation), not the geographic map center.
+                float startX = (tileMap.SpawnX + 0.5f) * Constants.TileSize;
+                float startY = (tileMap.SpawnY + 0.5f) * Constants.TileSize;
                 var player = new Player(startX, startY);
 
                 // Initialize subsystems
@@ -194,6 +195,17 @@ public sealed class Bootstrap
         // Camera
         _game.Camera = new Camera(1280, 720);
         _game.Camera.SetPlayer(player);
+        _game.Camera.SetWorld(tileMap);
+
+        // Smoketest hooks: DSR_CAM_PITCH/DSR_CAM_YAW/DSR_CAM_ZOOM override the
+        // camera before the first rendered frame so headless captures can be
+        // taken at specific angles.
+        var cs = System.Globalization.CultureInfo.InvariantCulture;
+        float? pitch = float.TryParse(System.Environment.GetEnvironmentVariable("DSR_CAM_PITCH"), System.Globalization.NumberStyles.Float, cs, out var p2) ? p2 : null;
+        float? yaw = float.TryParse(System.Environment.GetEnvironmentVariable("DSR_CAM_YAW"), System.Globalization.NumberStyles.Float, cs, out var y2) ? y2 : null;
+        float? zoom = float.TryParse(System.Environment.GetEnvironmentVariable("DSR_CAM_ZOOM"), System.Globalization.NumberStyles.Float, cs, out var z2) ? z2 : null;
+        if (pitch.HasValue || yaw.HasValue || zoom.HasValue)
+            _game.Camera.SetViewAngles(yaw, pitch, zoom);
 
         // UI
         _game.HUD = new HUD();

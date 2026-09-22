@@ -34,15 +34,37 @@ public sealed class TileRenderer : IDisposable
     {
         var (left, top, right, bottom) = camera.GetViewRect();
 
-        int xMin = Math.Max(0, (int)(left / Constants.TileSize));
-        int xMax = Math.Min(world.Width - 1, (int)(right / Constants.TileSize));
-        int yMin = Math.Max(0, (int)(top / Constants.TileSize));
-        int yMax = Math.Min(world.Height - 1, (int)(bottom / Constants.TileSize));
+        // Pad beyond the view rect: high-elevation tiles project upward, so
+        // rows below the elevation-0 bottom edge can still be visible, and the
+        // top rows underneath tall terrain must not pop out.
+        int padTiles = 1 + (int)(Constants.ElevationLevels * Constants.ZScale * Constants.TerrainHeightScale / Constants.TileSize);
+        int xMin = Math.Max(0, (int)(left / Constants.TileSize) - padTiles);
+        int xMax = Math.Min(world.Width - 1, (int)(right / Constants.TileSize) + padTiles);
+        int yMin = Math.Max(0, (int)(top / Constants.TileSize) - padTiles);
+        int yMax = Math.Min(world.Height - 1, (int)(bottom / Constants.TileSize) + padTiles);
 
-        // Draw top (far) rows first so nearer rows paint over them.
-        for (int y = yMin; y < yMax; y++)
+        // Painter's order: sort tiles back-to-front along the camera's view axis
+        // so the draw order stays correct at any yaw (row-major loops only work
+        // when yaw == 0).
+        float cy = MathF.Cos(camera.Yaw);
+        float sy = MathF.Sin(camera.Yaw);
+        int tileCount = (xMax - xMin) * (yMax - yMin);
+        var order = new List<(float Depth, int X, int Y)>(tileCount);
+        for (int yy = yMin; yy < yMax; yy++)
         {
-            for (int x = xMin; x < xMax; x++)
+            for (int xx = xMin; xx < xMax; xx++)
+            {
+                var t = world.Tiles[xx, yy];
+                if (t == null) continue;
+                float depth = (yy + 0.5f) * cy + (xx + 0.5f) * sy
+                              + t.GetElevationAt(0.5f, 0.5f) * 0.5f;
+                order.Add((depth, xx, yy));
+            }
+        }
+        order.Sort((a, b) => a.Depth.CompareTo(b.Depth));
+
+        foreach (var (_, x, y) in order)
+        {
             {
                 var tile = world.Tiles[x, y];
                 if (tile == null) continue;
@@ -83,9 +105,12 @@ public sealed class TileRenderer : IDisposable
                     if (tex != 0)
                     {
                         // Render sprite covering the full tile using projected corners.
+                        // Pass the slope/elevation shading as the tint so the
+                        // texture darkens on shaded slopes like the Python renderer.
+                        byte t = (byte)Math.Clamp((int)(shade * 255f), 0, 255);
                         batch.DrawScreenQuadCornersTextured(
                             bl.X, bl.Y, br.X, br.Y, tr.X, tr.Y, tl.X, tl.Y,
-                            tex, 255, 255, 255);
+                            tex, t, t, t);
                     }
                 }
             }

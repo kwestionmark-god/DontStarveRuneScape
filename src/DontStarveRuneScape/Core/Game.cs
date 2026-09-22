@@ -600,10 +600,14 @@ public sealed class Game
                     var tile = World.Tiles[x, y];
                     if (tile?.ResourceNode != null)
                     {
-                        float sortY = GetDepthSort(x + 0.5f, y + 0.5f, tile.Elevation * Constants.ZScale);
+                        // Ground height at the tile center is the bilinear
+                        // value of the corner heights, not tile.Elevation —
+                        // on slopes those differ enough to float the sprite.
+                        float elev = tile.GetElevationAt(0.5f, 0.5f);
+                        float sortY = GetDepthSort((x + 0.5f) * Constants.TileSize,
+                            (y + 0.5f) * Constants.TileSize, elev);
                         var node = tile.ResourceNode;
                         int tx = x, ty = y;
-                        int elev = (int)tile.Elevation;
                         drawables.Add((Depth: sortY, Draw: () => SpriteRenderer.RenderResource(
                             node, batch, Camera, elev, tx, ty)));
                     }
@@ -614,8 +618,12 @@ public sealed class Game
             {
                 var (ptx, pty) = Player.GetTilePosition();
                 var tile = World.GetTile(ptx, pty);
-                float elev = tile?.Elevation ?? 0f;
-                float sortY = GetDepthSort(Player.WorldX, Player.WorldY, elev * Constants.ZScale);
+                // Bilinear ground height at the player's fractional position —
+                // the same value the camera focus anchors to.
+                float fx = Player.WorldX / Constants.TileSize - ptx;
+                float fy = Player.WorldY / Constants.TileSize - pty;
+                float elev = tile?.GetElevationAt(fx, fy) ?? 0f;
+                float sortY = GetDepthSort(Player.WorldX, Player.WorldY, elev);
                 drawables.Add((Depth: sortY, Draw: () => SpriteRenderer.RenderPlayer(
                     Player, batch, Camera, elev, Dt)));
             }
@@ -697,12 +705,15 @@ public sealed class Game
         HUD?.Render(batch, screenWidth, screenHeight, Survival);
     }
 
+    /// Depth key for painter's-order sorting of world sprites. All callers
+    /// must pass world PIXEL positions and elevation in LEVELS — a sprite's
+    /// depth is only meaningful relative to other sprites if the units match.
     private float GetDepthSort(float worldX, float worldY, float elevation)
     {
         if (Camera == null) return worldY;
         float cy = MathF.Cos(Camera.Yaw);
         float sy = MathF.Sin(Camera.Yaw);
-        return worldY * cy + worldX * sy + elevation * 0.5f;
+        return worldY * cy + worldX * sy + elevation * Constants.ZScale * 0.5f;
     }
 
     private void RenderBuildGhost(Silk.NET.OpenGL.GL gl)
