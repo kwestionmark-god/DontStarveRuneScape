@@ -288,11 +288,13 @@ public static class ResourcePlacer
                         density = Math.Clamp(density, band.Min, band.Max);
                     density *= DensityScaleAtmospheric;
 
-                    // Generative size: most nodes near 1x, occasional giants.
+                    // Generative size: range driven by the resource's own
+                    // size_variance — trees swing wide, pebbles stay uniform.
                     // Bigger nodes consume more visual space, so their density
                     // is divided by area (scale^2) — one big tree instead of
                     // three same-sized small ones.
-                    float scale = 0.9f + MathF.Pow(random.NextSingle(), 2.2f) * 2.1f;
+                    float v = def.SizeVariance;
+                    float scale = (1f - 0.40f * v) + MathF.Pow(random.NextSingle(), 2.2f) * (2.8f * v);
                     float scaledDensity = density / (scale * scale);
 
                     if (random.NextSingle() < scaledDensity)

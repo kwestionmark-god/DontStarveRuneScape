@@ -57,6 +57,13 @@ public sealed class ResourceDef : DataRecord
     [JsonPropertyName("display_scale")]
     public float DisplayScale { get; set; } = 1f;
 
+    /// <summary>
+    /// How much per-node size varies: 0 = uniform, 0.5 = tree-like spread
+    /// (0.8x..2.2x). Combined with the density tradeoff, bigger rolls are rarer.
+    /// </summary>
+    [JsonPropertyName("size_variance")]
+    public float SizeVariance { get; set; } = 0.2f;
+
     /// <summary>Whether this resource requires a tool to harvest.</summary>
     public bool RequiresTool => !string.IsNullOrEmpty(ToolRequirement);
 }

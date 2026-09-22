@@ -205,7 +205,7 @@ public sealed class SpriteRenderer : IDisposable
                 float ny = (y + 0.5f) / Size * 2f - 1f;
                 float d = MathF.Sqrt(nx * nx + ny * ny);
                 float t = Math.Clamp(1f - d, 0f, 1f);
-                byte a = (byte)(t * t * 110f); // quadratic falloff, max ~110
+                byte a = (byte)(t * t * 200f); // quadratic falloff
                 int i = (y * Size + x) * 4;
                 px[i] = 20; px[i + 1] = 20; px[i + 2] = 25; px[i + 3] = a;
             }
@@ -229,13 +229,17 @@ public sealed class SpriteRenderer : IDisposable
         return _shadowTex;
     }
 
-    /// <summary>Soft ellipse shadow under a sprite standing at (cx, groundY).</summary>
+    /// <summary>
+    /// Soft ellipse shadow under a sprite standing at (cx, groundY). Kept
+    /// flattened and tightly inside the sprite's own tile band — anything
+    /// taller would get buried by nearer tile quads in the painter order.
+    /// </summary>
     public void DrawShadow(PrimitiveBatch batch, float cx, float groundY, float half, byte alphaScale = 255)
     {
         uint tex = GetShadowTexture();
         batch.DrawTexturedScreenQuad(
-            cx + half * 0.18f, groundY + half * 0.10f,
-            half * 1.0f, half * 0.42f,
+            cx + half * 0.10f, groundY - half * 0.10f,
+            half * 0.85f, half * 0.22f,
             tex, 255, 255, 255, alphaScale);
     }
 

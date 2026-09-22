@@ -25,7 +25,9 @@
         "swamp": 0.1,
         "desert": 0.0
       },
-      "required_level": 1
+      "required_level": 1,
+      "display_scale": 2.2,
+      "size_variance": 0.55
     },
     {
       "id": "berry_bush",
@@ -50,7 +52,9 @@
         "mountains": 0.1,
         "desert": 0.0
       },
-      "required_level": 1
+      "required_level": 1,
+      "display_scale": 1.1,
+      "size_variance": 0.3
     },
     {
       "id": "herb",
@@ -75,7 +79,9 @@
         "mountains": 0.3,
         "desert": 0.2
       },
-      "required_level": 1
+      "required_level": 1,
+      "display_scale": 0.7,
+      "size_variance": 0.2
     },
     {
       "id": "fiber_plant",
@@ -100,7 +106,9 @@
         "mountains": 0.2,
         "desert": 0.0
       },
-      "required_level": 1
+      "required_level": 1,
+      "display_scale": 0.8,
+      "size_variance": 0.2
     },
     {
       "id": "grass_patch",
@@ -125,7 +133,9 @@
         "swamp": 0.2,
         "desert": 0.1
       },
-      "required_level": 1
+      "required_level": 1,
+      "display_scale": 0.9,
+      "size_variance": 0.15
     },
     {
       "id": "wheat_field",
@@ -150,7 +160,9 @@
         "mountains": 0.1,
         "desert": 0.1
       },
-      "required_level": 5
+      "required_level": 5,
+      "display_scale": 1.0,
+      "size_variance": 0.2
     },
     {
       "id": "water_source",
@@ -175,7 +187,9 @@
         "mountains": 0.5,
         "desert": 0.3
       },
-      "required_level": 1
+      "required_level": 1,
+      "display_scale": 1.0,
+      "size_variance": 0.25
     },
     {
       "id": "driftwood",
@@ -200,7 +214,9 @@
         "mountains": 0.0,
         "desert": 0.0
       },
-      "required_level": 1
+      "required_level": 1,
+      "display_scale": 1.1,
+      "size_variance": 0.3
     },
     {
       "id": "shell_beach",
@@ -225,7 +241,9 @@
         "mountains": 0.0,
         "desert": 0.0
       },
-      "required_level": 1
+      "required_level": 1,
+      "display_scale": 0.6,
+      "size_variance": 0.15
     },
     {
       "id": "fish_spot",
@@ -250,7 +268,9 @@
         "mountains": 0.1,
         "desert": 0.0
       },
-      "required_level": 5
+      "required_level": 5,
+      "display_scale": 0.6,
+      "size_variance": 0.1
     },
     {
       "id": "salt_deposit",
@@ -275,7 +295,9 @@
         "forest": 0.1,
         "mountains": 0.1
       },
-      "required_level": 5
+      "required_level": 5,
+      "display_scale": 0.7,
+      "size_variance": 0.15
     },
     {
       "id": "peat_mound",
@@ -300,7 +322,9 @@
         "mountains": 0.0,
         "desert": 0.0
       },
-      "required_level": 5
+      "required_level": 5,
+      "display_scale": 0.9,
+      "size_variance": 0.2
     },
     {
       "id": "toxic_reed",
@@ -325,7 +349,9 @@
         "mountains": 0.0,
         "desert": 0.0
       },
-      "required_level": 12
+      "required_level": 12,
+      "display_scale": 0.8,
+      "size_variance": 0.25
     },
     {
       "id": "iron_rock",
@@ -350,7 +376,9 @@
         "coastal": 0.1,
         "swamp": 0.1
       },
-      "required_level": 15
+      "required_level": 15,
+      "display_scale": 1.4,
+      "size_variance": 0.4
     },
     {
       "id": "copper_rock",
@@ -375,7 +403,9 @@
         "coastal": 0.1,
         "swamp": 0.1
       },
-      "required_level": 1
+      "required_level": 1,
+      "display_scale": 1.4,
+      "size_variance": 0.4
     },
     {
       "id": "gold_vein",
@@ -400,7 +430,9 @@
         "coastal": 0.1,
         "swamp": 0.1
       },
-      "required_level": 30
+      "required_level": 30,
+      "display_scale": 1.3,
+      "size_variance": 0.4
     },
     {
       "id": "stone_quarry",
@@ -425,7 +457,9 @@
         "coastal": 0.1,
         "swamp": 0.1
       },
-      "required_level": 1
+      "required_level": 1,
+      "display_scale": 1.4,
+      "size_variance": 0.35
     },
     {
       "id": "gemstone",
@@ -450,7 +484,9 @@
         "coastal": 0.1,
         "swamp": 0.1
       },
-      "required_level": 35
+      "required_level": 35,
+      "display_scale": 0.9,
+      "size_variance": 0.3
     },
     {
       "id": "sand_deposit",
@@ -475,7 +511,9 @@
         "mountains": 0.1,
         "swamp": 0.0
       },
-      "required_level": 1
+      "required_level": 1,
+      "display_scale": 1.0,
+      "size_variance": 0.1
     },
     {
       "id": "salt_crystal",
@@ -500,7 +538,9 @@
         "forest": 0.1,
         "mountains": 0.1
       },
-      "required_level": 8
+      "required_level": 8,
+      "display_scale": 0.7,
+      "size_variance": 0.15
     },
     {
       "id": "cactus",
@@ -525,7 +565,9 @@
         "mountains": 0.1,
         "swamp": 0.0
       },
-      "required_level": 10
+      "required_level": 10,
+      "display_scale": 1.1,
+      "size_variance": 0.35
     },
     {
       "id": "rare_ore",
@@ -550,7 +592,9 @@
         "coastal": 0.1,
         "swamp": 0.1
       },
-      "required_level": 25
+      "required_level": 25,
+      "display_scale": 1.3,
+      "size_variance": 0.4
     },
     {
       "id": "tin_rock",
@@ -575,7 +619,9 @@
         "coastal": 0.1,
         "swamp": 0.1
       },
-      "required_level": 10
+      "required_level": 10,
+      "display_scale": 1.4,
+      "size_variance": 0.4
     },
     {
       "id": "void_crystal",
@@ -605,7 +651,9 @@
         "swamp": 0.1,
         "desert": 0.1
       },
-      "required_level": 50
+      "required_level": 50,
+      "display_scale": 1.5,
+      "size_variance": 0.5
     },
     {
       "id": "obsidian_vein",
@@ -634,7 +682,9 @@
         "coastal": 0.1,
         "swamp": 0.1
       },
-      "required_level": 40
+      "required_level": 40,
+      "display_scale": 1.5,
+      "size_variance": 0.45
     },
     {
       "id": "dragonbone",
@@ -663,7 +713,9 @@
         "plains": 0.1,
         "desert": 0.1
       },
-      "required_level": 55
+      "required_level": 55,
+      "display_scale": 1.4,
+      "size_variance": 0.4
     },
     {
       "id": "mithril_vein",
@@ -691,7 +743,9 @@
         "swamp": 0.1,
         "desert": 0.1
       },
-      "required_level": 60
+      "required_level": 60,
+      "display_scale": 1.4,
+      "size_variance": 0.4
     },
     {
       "id": "silk_nest",
@@ -720,7 +774,9 @@
         "mountains": 0.1,
         "desert": 0.0
       },
-      "required_level": 25
+      "required_level": 25,
+      "display_scale": 0.7,
+      "size_variance": 0.2
     },
     {
       "id": "amber_deposit",
@@ -749,7 +805,9 @@
         "coastal": 0.1,
         "swamp": 0.1
       },
-      "required_level": 40
+      "required_level": 40,
+      "display_scale": 1.2,
+      "size_variance": 0.35
     },
     {
       "id": "moonstone_deposit",
@@ -774,7 +832,9 @@
         "swamp": 0.1,
         "desert": 0.1
       },
-      "required_level": 50
+      "required_level": 50,
+      "display_scale": 1.3,
+      "size_variance": 0.4
     },
     {
       "id": "ghost_iron_deposit",
@@ -802,7 +862,9 @@
         "swamp": 0.1,
         "desert": 0.1
       },
-      "required_level": 55
+      "required_level": 55,
+      "display_scale": 1.3,
+      "size_variance": 0.4
     },
     {
       "id": "star_metal",
@@ -830,7 +892,9 @@
         "swamp": 0.1,
         "desert": 0.1
       },
-      "required_level": 70
+      "required_level": 70,
+      "display_scale": 1.2,
+      "size_variance": 0.35
     },
     {
       "id": "void_essence",
@@ -859,7 +923,9 @@
         "coastal": 0.1,
         "desert": 0.1
       },
-      "required_level": 60
+      "required_level": 60,
+      "display_scale": 0.6,
+      "size_variance": 0.2
     },
     {
       "id": "phoenix_feather",
@@ -887,7 +953,9 @@
         "swamp": 0.1,
         "desert": 0.1
       },
-      "required_level": 65
+      "required_level": 65,
+      "display_scale": 0.5,
+      "size_variance": 0.1
     },
     {
       "id": "ancient_rune",
@@ -915,7 +983,9 @@
         "swamp": 0.1,
         "desert": 0.1
       },
-      "required_level": 75
+      "required_level": 75,
+      "display_scale": 1.0,
+      "size_variance": 0.3
     },
     {
       "id": "elder_wood",
@@ -944,7 +1014,9 @@
         "swamp": 0.1,
         "desert": 0.0
       },
-      "required_level": 45
+      "required_level": 45,
+      "display_scale": 2.6,
+      "size_variance": 0.55
     },
     {
       "id": "celestial_crystal",
@@ -972,7 +1044,9 @@
         "swamp": 0.1,
         "desert": 0.1
       },
-      "required_level": 85
+      "required_level": 85,
+      "display_scale": 1.4,
+      "size_variance": 0.4
     },
     {
       "id": "birch_tree",
@@ -997,7 +1071,9 @@
         "swamp": 0.1,
         "desert": 0.0
       },
-      "required_level": 5
+      "required_level": 5,
+      "display_scale": 2.0,
+      "size_variance": 0.55
     },
     {
       "id": "maple_tree",
@@ -1022,7 +1098,9 @@
         "swamp": 0.1,
         "desert": 0.0
       },
-      "required_level": 20
+      "required_level": 20,
+      "display_scale": 2.1,
+      "size_variance": 0.55
     },
     {
       "id": "pine_tree",
@@ -1047,7 +1125,9 @@
         "swamp": 0.1,
         "desert": 0.0
       },
-      "required_level": 10
+      "required_level": 10,
+      "display_scale": 2.0,
+      "size_variance": 0.5
     },
     {
       "id": "spruce_tree",
@@ -1072,7 +1152,9 @@
         "swamp": 0.1,
         "desert": 0.0
       },
-      "required_level": 30
+      "required_level": 30,
+      "display_scale": 2.3,
+      "size_variance": 0.5
     },
     {
       "id": "willow_tree",
@@ -1097,7 +1179,9 @@
         "mountains": 0.1,
         "desert": 0.0
       },
-      "required_level": 15
+      "required_level": 15,
+      "display_scale": 2.4,
+      "size_variance": 0.5
     },
     {
       "id": "dead_tree",
@@ -1122,7 +1206,9 @@
         "mountains": 0.1,
         "swamp": 0.1
       },
-      "required_level": 1
+      "required_level": 1,
+      "display_scale": 1.8,
+      "size_variance": 0.45
     },
     {
       "id": "reed_bed",
@@ -1147,7 +1233,9 @@
         "mountains": 0.0,
         "desert": 0.0
       },
-      "required_level": 1
+      "required_level": 1,
+      "display_scale": 1.0,
+      "size_variance": 0.25
     },
     {
       "id": "loose_stones",
@@ -1172,7 +1260,9 @@
         "desert": 1.0,
         "coastal": 0.5,
         "swamp": 0.2
-      }
+      },
+      "display_scale": 0.5,
+      "size_variance": 0.2
     },
     {
       "id": "beehive",
@@ -1202,7 +1292,9 @@
         "coastal": 0.2,
         "mountains": 0.1,
         "desert": 0.0
-      }
+      },
+      "display_scale": 0.9,
+      "size_variance": 0.25
     }
   ]
 }
