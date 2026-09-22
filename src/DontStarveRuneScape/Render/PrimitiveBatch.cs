@@ -160,6 +160,32 @@ public sealed class PrimitiveBatch : IDisposable
     /// Draw a textured quadrilateral from four screen-space corners.
     /// Corners are ordered: bottom-left, bottom-right, top-right, top-left.
     /// </summary>
+    /// <summary>
+    /// Draw a textured quadrilateral from four screen-space corners with a UV
+    /// offset (used for animated water). Same as the textureless-param
+    /// overload but shifted UVs.
+    /// </summary>
+    public void DrawScreenQuadCornersTexturedUV(float blX, float blY, float brX, float brY, float trX, float trY, float tlX, float tlY,
+        uint texture, float uOffset, float vOffset)
+    {
+        if (!_textureMode || _boundTexture != texture) Flush();
+        if (_vertexCount + 6 * Stride > _vertices.Length) Flush();
+
+        AddVertex(ToNdcX(blX), ToNdcY(blY), uOffset, 1f + vOffset, 1, 1, 1, 1);
+        AddVertex(ToNdcX(brX), ToNdcY(brY), 1f + uOffset, 1f + vOffset, 1, 1, 1, 1);
+        AddVertex(ToNdcX(trX), ToNdcY(trY), 1f + uOffset, vOffset, 1, 1, 1, 1);
+        AddVertex(ToNdcX(blX), ToNdcY(blY), uOffset, 1f + vOffset, 1, 1, 1, 1);
+        AddVertex(ToNdcX(trX), ToNdcY(trY), 1f + uOffset, vOffset, 1, 1, 1, 1);
+        AddVertex(ToNdcX(tlX), ToNdcY(tlY), uOffset, vOffset, 1, 1, 1, 1);
+
+        _textureMode = true;
+        _boundTexture = texture;
+    }
+
+    /// <summary>
+    /// Draw a textured quadrilateral from four screen-space corners.
+    /// Corners are ordered: bottom-left, bottom-right, top-right, top-left.
+    /// </summary>
     public void DrawScreenQuadCornersTextured(float blX, float blY, float brX, float brY, float trX, float trY, float tlX, float tlY,
         uint texture, byte r, byte g, byte b, byte a = 255)
     {

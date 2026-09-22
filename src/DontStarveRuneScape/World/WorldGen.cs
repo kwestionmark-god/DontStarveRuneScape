@@ -315,6 +315,39 @@ public static class WorldGen
             }
         }
 
+        // Flatten each connected water body to its lowest tile elevation so
+        // water reads as one continuous surface filling a body, not stepped
+        // slabs. Rivers crossing elevation get carved canyon banks instead.
+        var bodyId = new int[width, height];
+        for (int x = 0; x < width; x++) for (int y = 0; y < height; y++) bodyId[x, y] = -1;
+        int bodyCount = 0;
+        int[] bodyMin = Array.Empty<int>();
+        for (int sx0 = 0; sx0 < width; sx0++)
+            for (int sy0 = 0; sy0 < height; sy0++)
+            {
+                if (!water[sx0, sy0] || bodyId[sx0, sy0] >= 0) continue;
+                int b = bodyCount++;
+                Array.Resize(ref bodyMin, bodyCount);
+                bodyMin[b] = 31;
+                var stack = new Stack<(int X, int Y)>();
+                stack.Push((sx0, sy0));
+                while (stack.Count > 0)
+                {
+                    var (cx, cy) = stack.Pop();
+                    if (cx < 0 || cy < 0 || cx >= width || cy >= height) continue;
+                    if (!water[cx, cy] || bodyId[cx, cy] >= 0) continue;
+                    bodyId[cx, cy] = b;
+                    int ev = (int)map.Tiles[cx, cy].Elevation;
+                    if (ev < bodyMin[b]) bodyMin[b] = ev;
+                    stack.Push((cx + 1, cy)); stack.Push((cx - 1, cy));
+                    stack.Push((cx, cy + 1)); stack.Push((cx, cy - 1));
+                }
+            }
+        for (int x = 0; x < width; x++)
+            for (int y = 0; y < height; y++)
+                if (bodyId[x, y] >= 0)
+                    map.Tiles[x, y].Elevation = bodyMin[bodyId[x, y]];
+
         // Reclassify: water wins.
         for (int x = 0; x < width; x++)
             for (int y = 0; y < height; y++)

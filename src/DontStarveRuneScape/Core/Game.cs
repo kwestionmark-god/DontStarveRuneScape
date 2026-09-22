@@ -634,7 +634,7 @@ public sealed class Game
         int seq = 0;
 
         if (TileRenderer != null && Camera != null && World != null)
-            TileRenderer.Render(batch, Camera, World, drawables, ref seq);
+            TileRenderer.Render(batch, Camera, World, drawables, ref seq, PlayTime);
 
         if (SpriteRenderer != null && World != null && Camera != null)
         {
