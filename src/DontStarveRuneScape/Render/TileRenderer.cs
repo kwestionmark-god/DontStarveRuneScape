@@ -143,15 +143,16 @@ public sealed class TileRenderer : IDisposable
                         // Volumetric water: seabed drawn darker (more depth) at
                         // its own elevation; the surface quad is locked to sea
                         // level so neighboring water tiles read as one plane.
-                        int depth = Math.Max(0, (int)(Constants.SeaLevel - tile.Elevation));
+                        float surface = tile.GetSurfaceElevation();
+                        int depth = Math.Max(0, (int)(surface - tile.Elevation));
                         byte dr = 30, dg = (byte)Math.Clamp(80 - depth * 5, 35, 80),
                              db = (byte)Math.Clamp(140 - depth * 4, 90, 140);
                         batch.DrawScreenQuadCorners(bl.X, bl.Y, br.X, br.Y, tr.X, tr.Y, tl.X, tl.Y, dr, dg, db);
 
-                        var sbl = camera.WorldToScreen(x * Constants.TileSize, y * Constants.TileSize, Constants.SeaLevel);
-                        var sbr = camera.WorldToScreen((x + 1) * Constants.TileSize, y * Constants.TileSize, Constants.SeaLevel);
-                        var str = camera.WorldToScreen((x + 1) * Constants.TileSize, (y + 1) * Constants.TileSize, Constants.SeaLevel);
-                        var stl = camera.WorldToScreen(x * Constants.TileSize, (y + 1) * Constants.TileSize, Constants.SeaLevel);
+                        var sbl = camera.WorldToScreen(x * Constants.TileSize, y * Constants.TileSize, surface);
+                        var sbr = camera.WorldToScreen((x + 1) * Constants.TileSize, y * Constants.TileSize, surface);
+                        var str = camera.WorldToScreen((x + 1) * Constants.TileSize, (y + 1) * Constants.TileSize, surface);
+                        var stl = camera.WorldToScreen(x * Constants.TileSize, (y + 1) * Constants.TileSize, surface);
                         batch.DrawScreenQuadCorners(sbl.X, sbl.Y, sbr.X, sbr.Y, str.X, str.Y, stl.X, stl.Y, 45, 110, 185, 150);
                         uint wt = GetTerrainTexture("water");
                         if (wt != 0)

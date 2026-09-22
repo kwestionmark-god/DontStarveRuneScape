@@ -2,6 +2,7 @@ namespace DontStarveRuneScape.World;
 
 using DontStarveRuneScape.Data;
 using DontStarveRuneScape.Seasons;
+using DontStarveRuneScape.Config;
 
 /// <summary>
 /// Resource node on a tile (harvestable resource).
@@ -176,6 +177,17 @@ public sealed class Tile
     public float Temperature { get; set; } = 20f;     // Celsius
     public float Fertility { get; set; } = 1.0f;      // 0-1, affects regrowth
     public int[]? CornerElevations { get; set; }      // 4 corners for 2.5D rendering
+
+    /// <summary>
+    /// Water surface level for water tiles: NaN = Constants.SeaLevel (the sea).
+    /// Pooled depressions above sea level store their own fill level here.
+    /// </summary>
+    public float WaterLevel { get; set; } = float.NaN;
+
+    /// <summary>Effective water surface level of this tile (sea or pool).</summary>
+    public float GetSurfaceElevation()
+        => Biome?.Id != "water" ? float.NaN
+           : float.IsNaN(WaterLevel) ? Constants.SeaLevel : WaterLevel;
 
     public Tile(int x, int y)
     {

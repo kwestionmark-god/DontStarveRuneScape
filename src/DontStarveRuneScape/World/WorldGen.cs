@@ -195,6 +195,60 @@ public static class WorldGen
             }
         }
 
+        // Priority-flood pooling: closed depressions above sea level fill up
+        // to their spill elevation and become pools. This is the classic
+        // hydrology fill — tiles below sea level are seeded from the map edge
+        // so the sea drains downhill correctly.
+        float[,] spill = new float[width, height];
+        for (int x = 0; x < width; x++)
+            for (int y = 0; y < height; y++)
+                spill[x, y] = float.PositiveInfinity;
+
+        var pq = new PriorityQueue<(int X, int Y), float>();
+        var done = new bool[width, height];
+        for (int x = 0; x < width; x++)
+        {
+            pq.Enqueue((x, 0), elevation[x, 0]);
+            pq.Enqueue((x, height - 1), elevation[x, height - 1]);
+        }
+        for (int y = 0; y < height; y++)
+        {
+            pq.Enqueue((0, y), elevation[0, y]);
+            pq.Enqueue((width - 1, y), elevation[width - 1, y]);
+        }
+
+        while (pq.TryDequeue(out var cell, out float h))
+        {
+            if (done[cell.X, cell.Y]) continue;
+            done[cell.X, cell.Y] = true;
+            float self = elevation[cell.X, cell.Y];
+            spill[cell.X, cell.Y] = Math.Max(self, h); // depression: h > self
+            foreach (var (dx, dy) in new[] { (1, 0), (-1, 0), (0, 1), (0, -1) })
+            {
+                int nx = cell.X + dx, ny = cell.Y + dy;
+                if (nx < 0 || ny < 0 || nx >= width || ny >= height) continue;
+                if (!done[nx, ny])
+                    pq.Enqueue((nx, ny), spill[cell.X, cell.Y]);
+            }
+        }
+
+        // Where a depression pools at least one full level deep (and extends a
+        // few tiles), it's a standing pool with its own water level.
+        for (int x = 0; x < width; x++)
+        {
+            for (int y = 0; y < height; y++)
+            {
+                var tile = map.Tiles[x, y];
+                if (tile.Biome?.Id == "water") continue;
+                float depth = spill[x, y] - elevation[x, y];
+                if (depth >= 3.5f)
+                {
+                    tile.Biome = waterBiome;
+                    tile.WaterLevel = spill[x, y];
+                }
+            }
+        }
+
         // Shoreline ring: land tiles within two steps of water and close to
         // sea level become coastal — beach transitions around every edge.
         var coastalBiome = biomeRegistry.GetBiome("coastal");
@@ -206,12 +260,16 @@ public static class WorldGen
                 for (int y = 0; y < height; y++)
                 {
                     var t = map.Tiles[x, y];
-                    if (t.Biome == waterBiome || t.Elevation > Constants.SeaLevel + 2.5f) continue;
+                    if (t.Biome?.Id == "water") continue;
+                    // Coastal when adjacent to water whose surface is near this tile.
                     bool touchesWater = false;
                     for (int dx = -2; dx <= 2 && !touchesWater; dx++)
                         for (int dy = -2; dy <= 2 && !touchesWater; dy++)
-                            if (map.GetTile(x + dx, y + dy)?.Biome == waterBiome)
+                        {
+                            var w = map.GetTile(x + dx, y + dy);
+                            if (w?.Biome?.Id == "water" && t.Elevation <= w.GetSurfaceElevation() + 2.5f)
                                 touchesWater = true;
+                        }
                     if (touchesWater) toCoastal.Add((x, y));
                 }
             }
