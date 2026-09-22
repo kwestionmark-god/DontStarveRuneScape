@@ -76,6 +76,9 @@ public sealed class SpriteRenderer : IDisposable
         }
         if (tex == 0)
             tex = GetSpriteTexture(spriteKey);
+        // Soft shadow grounds every sprite (Nearest only — dots don't cast).
+        if (tier == Camera.LodTier.Nearest && !resource.IsDepleted)
+            DrawShadow(batch, cx, screen.Y, half, 200);
         if (tex != 0)
         {
             // Mid: sprites smaller than ~6 px half-size degrade to dots —
@@ -107,9 +110,9 @@ public sealed class SpriteRenderer : IDisposable
     private static float FallbackScale(ResourceNode resource)
     {
         string key = resource.ResourceDef?.SpriteKey ?? string.Empty;
-        if (key.StartsWith("trees/")) return 1.5f;
-        if (key.StartsWith("rocks/")) return 1.15f;
-        if (key.StartsWith("world/")) return 0.8f;
+        if (key.StartsWith("trees/")) return 2.2f;
+        if (key.StartsWith("rocks/")) return 1.25f;
+        if (key.StartsWith("world/")) return 0.75f;
         return 1f;
     }
 
@@ -134,6 +137,8 @@ public sealed class SpriteRenderer : IDisposable
         // Anchor bottom-center: feet at the ground point at any zoom/pitch.
         float cx = screen.X;
         float cy = screen.Y - half;
+
+        DrawShadow(batch, screen.X, screen.Y, half, 220);
 
         if (tex != 0)
         {
@@ -177,6 +182,58 @@ public sealed class SpriteRenderer : IDisposable
         var screen = camera.WorldToScreen(fire.WorldX, fire.WorldY, 0f);
         float half = 10f * camera.Zoom;
         batch.DrawScreenQuad(screen.X, screen.Y, half, half, 230, 140, 40);
+    }
+
+    // ─── Soft ground shadow ───────────────────────────────────────────────
+
+    private uint _shadowTex;
+
+    private uint GetShadowTexture()
+    {
+        if (_shadowTex != 0) return _shadowTex;
+
+        const int Size = 64;
+        var px = new byte[Size * Size * 4];
+        for (int y = 0; y < Size; y++)
+        {
+            for (int x = 0; x < Size; x++)
+            {
+                float nx = (x + 0.5f) / Size * 2f - 1f;
+                float ny = (y + 0.5f) / Size * 2f - 1f;
+                float d = MathF.Sqrt(nx * nx + ny * ny);
+                float t = Math.Clamp(1f - d, 0f, 1f);
+                byte a = (byte)(t * t * 110f); // quadratic falloff, max ~110
+                int i = (y * Size + x) * 4;
+                px[i] = 20; px[i + 1] = 20; px[i + 2] = 25; px[i + 3] = a;
+            }
+        }
+
+        uint tex = _gl.GenTexture();
+        _gl.BindTexture(TextureTarget.Texture2D, tex);
+        _gl.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMinFilter, (int)TextureMinFilter.Linear);
+        _gl.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMagFilter, (int)TextureMagFilter.Linear);
+        _gl.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapS, (int)TextureWrapMode.ClampToEdge);
+        _gl.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapT, (int)TextureWrapMode.ClampToEdge);
+        unsafe
+        {
+            fixed (byte* ptr = px)
+            {
+                _gl.TexImage2D(TextureTarget.Texture2D, 0, InternalFormat.Rgba, Size, Size, 0,
+                    PixelFormat.Rgba, PixelType.UnsignedByte, ptr);
+            }
+        }
+        _shadowTex = tex;
+        return _shadowTex;
+    }
+
+    /// <summary>Soft ellipse shadow under a sprite standing at (cx, groundY).</summary>
+    public void DrawShadow(PrimitiveBatch batch, float cx, float groundY, float half, byte alphaScale = 255)
+    {
+        uint tex = GetShadowTexture();
+        batch.DrawTexturedScreenQuad(
+            cx + half * 0.18f, groundY + half * 0.10f,
+            half * 1.0f, half * 0.42f,
+            tex, 255, 255, 255, alphaScale);
     }
 
     // ─── Sprite texture loading / caching ─────────────────────────────────

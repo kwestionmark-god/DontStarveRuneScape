@@ -137,8 +137,8 @@ public static class Constants
 
     // ─── Camera ───────────────────────────────────────────────────────────
 
-    public const float CameraZoomMin = 0.5f;
-    public const float CameraZoomMax = 3.0f;
+    public const float CameraZoomMin = 1.0f;         // No far tier during normal play
+    public const float CameraZoomMax = 2.5f;
     public const float CameraZoomDefault = 1.8f;       // Closer, more intimate aerial view
     public const float CameraOrbitSpeed = 90.0f;      // Degrees per second for yaw
     public const float CameraTiltSpeed = 60.0f;       // Degrees per second for pitch

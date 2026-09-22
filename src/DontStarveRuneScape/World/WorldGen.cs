@@ -234,8 +234,11 @@ public static class WorldGen
 /// </summary>
 public static class ResourcePlacer
 {
-    // Rarity density ranges from the Python version
-    // (RARITY_DENSITY_RANGE, with its 0.35 global scale folded in).
+    // Rarity density ranges from the Python version (RARITY_DENSITY_RANGE,
+    // 0.35 global scale) with an additional world-feel dial: fewer, larger
+    // landmarks instead of a dense scatter.
+    private const float DensityScaleAtmospheric = 0.45f;
+
     private static readonly Dictionary<string, (float Min, float Max)> RarityDensityRange = new()
     {
         ["ubiquitous"] = (0.15f * 0.35f, 0.30f * 0.35f),
@@ -283,6 +286,7 @@ public static class ResourcePlacer
                     float density = def.Density;
                     if (RarityDensityRange.TryGetValue(def.Rarity, out var band))
                         density = Math.Clamp(density, band.Min, band.Max);
+                    density *= DensityScaleAtmospheric;
 
                     if (random.NextSingle() < density)
                     {
