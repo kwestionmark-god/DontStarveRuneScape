@@ -20,23 +20,31 @@ public static class Program
         // --smoketest <path.png>: boot straight into a fresh world, render a few
         // frames, save the framebuffer to the path, and exit.
         string? smokeTestPath = null;
+        int smokeBenchFrames = 0;
         for (int i = 0; i + 1 < args.Length; i++)
         {
             if (args[i] == "--smoketest")
                 smokeTestPath = args[i + 1];
+            else if (args[i] == "--smoketest-bench")
+                smokeBenchFrames = int.Parse(args[i + 1]);
         }
 
         var options = WindowOptions.Default;
         options.Size = new Silk.NET.Maths.Vector2D<int>(1280, 720);
         options.Title = "Don't Starve RuneScape";
         options.API = new GraphicsAPI(ContextAPI.OpenGL, ContextProfile.Core, ContextFlags.Default, new Version(3, 3));
-        options.VSync = true;
+        options.VSync = smokeBenchFrames == 0; // benchmarks need uncapped frametimes
 
         var window = Window.Create(options);
         
         var game = new Game(42);
         if (smokeTestPath != null)
             game.SmokeTestPath = smokeTestPath;
+        if (smokeBenchFrames > 0)
+            game.SmokeBenchFrames = smokeBenchFrames;
+        // Benchmark runs also auto-advance past the menus.
+        if (smokeBenchFrames > 0 && smokeTestPath == null)
+            game.SmokeTestPath = "";
 
         window.Load += () =>
         {

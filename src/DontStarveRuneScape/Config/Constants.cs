@@ -145,6 +145,10 @@ public static class Constants
     public const float CameraPitchMin = 10.0f;        // Near-horizon view
     public const float CameraPitchMax = 80.0f;        // Near top-down view
 
+    // LOD tier zoom thresholds (hysteresis of ±5% applied at runtime)
+    public const float LodNearZoom = 1.2f;            // zoom >= this: full detail
+    public const float LodFarZoom = 0.75f;            // zoom < this: cheapest terrain, dots/culling
+
     // ─── Terrain Shading ──────────────────────────────────────────────────
 
     public const float ShadingStrength = 0.20f;       // ±brightness on slopes

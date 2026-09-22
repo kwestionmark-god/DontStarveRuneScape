@@ -194,6 +194,32 @@ public sealed class Camera
         return (left, top, right, bottom);
     }
 
+    /// <summary>Level-of-detail tier derived from zoom (hysteresis to avoid popping).</summary>
+    public enum LodTier { Nearest, Mid, Far }
+
+    private LodTier _lodTier = LodTier.Nearest;
+
+    public LodTier Tier
+    {
+        get
+        {
+            const float Hyst = 0.05f;
+            float near = Constants.LodNearZoom;
+            float far = Constants.LodFarZoom;
+            _lodTier = _lodTier switch
+            {
+                LodTier.Nearest when _zoom < near * (1f - Hyst) =>
+                    _zoom < far * (1f - Hyst) ? LodTier.Far : LodTier.Mid,
+                LodTier.Mid when _zoom > near * (1f + Hyst) => LodTier.Nearest,
+                LodTier.Mid when _zoom < far * (1f - Hyst) => LodTier.Far,
+                LodTier.Far when _zoom > far * (1f + Hyst) =>
+                    _zoom > near * (1f + Hyst) ? LodTier.Nearest : LodTier.Mid,
+                _ => _lodTier,
+            };
+            return _lodTier;
+        }
+    }
+
     /// <summary>Override view angles/zoom directly (used by smoketest tooling).</summary>
     public void SetViewAngles(float? yawDeg = null, float? pitchDeg = null, float? zoom = null)
     {

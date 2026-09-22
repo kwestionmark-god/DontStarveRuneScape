@@ -71,6 +71,7 @@ public sealed class Bootstrap
                             case "sprite_key": def.SpriteKey = v; break;
                             case "requires_tool": def.ToolRequirement = string.IsNullOrEmpty(v) ? null : v; break;
                             case "rarity": def.Rarity = string.IsNullOrEmpty(v) ? "common" : v; break;
+                            case "display_scale": def.DisplayScale = float.TryParse(v, out var ds) ? ds : 1f; break;
                             case "required_level": def.RequiredLevel = int.TryParse(v, out var rl) ? rl : 1; break;
                         }
                     }

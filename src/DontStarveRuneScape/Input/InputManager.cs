@@ -141,6 +141,7 @@ public sealed class InputManager
             else if (key == Key.F) InputState.LightFire = true;
             else if (key == Key.J) InputState.Attack = true;
             else if (key == Key.F5) InputState.SaveGame = true;
+            else if (key == Key.F3) InputState.ToggleDebugHud = true;
 
             // Panel toggles
             else if (key == Key.C || key == Key.I) InputState.OpenInventory = true;

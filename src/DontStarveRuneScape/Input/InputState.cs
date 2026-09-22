@@ -46,6 +46,7 @@ public sealed class InputState
     public bool MouseLeftClick { get; set; }
     public bool MouseRightClick { get; set; }
     public float ZoomDelta { get; set; } // Mouse wheel
+    public bool ToggleDebugHud { get; set; } // F3
 
     // Click-to-move target (set by router)
     public bool HasClickTarget { get; set; }
@@ -78,6 +79,7 @@ public sealed class InputState
         MouseLeftClick = false;
         MouseRightClick = false;
         ZoomDelta = 0f;
+        ToggleDebugHud = false;
         HasClickTarget = false;
     }
 }

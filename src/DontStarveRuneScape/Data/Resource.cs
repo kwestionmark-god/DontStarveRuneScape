@@ -53,6 +53,10 @@ public sealed class ResourceDef : DataRecord
     [JsonPropertyName("required_level")]
     public int RequiredLevel { get; set; } = 1;
 
+    /// <summary>Draw-size multiplier for this resource's sprite (1 = 48px box).</summary>
+    [JsonPropertyName("display_scale")]
+    public float DisplayScale { get; set; } = 1f;
+
     /// <summary>Whether this resource requires a tool to harvest.</summary>
     public bool RequiresTool => !string.IsNullOrEmpty(ToolRequirement);
 }

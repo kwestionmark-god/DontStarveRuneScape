@@ -325,6 +325,23 @@ public sealed class Game
     public string? SmokeTestPath { get; set; }
     private int _smokeFrames;
 
+    /// <summary>
+    /// When set (--smoketest-bench N), renders N frames after the world loads,
+    /// then prints avg/p95 frame time to stdout and exits. Camera is fixed via
+    /// DSR_CAM_* env vars; run with vsync off for meaningful numbers.
+    /// </summary>
+    public int SmokeBenchFrames { get; set; }
+    private readonly List<float> _benchTimes = new();
+
+    /// <summary>Rolling average frame time in ms (1-second window).</summary>
+    public float FrameMs { get; private set; }
+    /// <summary>Rolling FPS estimate.</summary>
+    public float Fps { get; private set; }
+    /// <summary>Debug HUD visibility (toggled with F3).</summary>
+    public bool ShowDebugHud { get; private set; }
+    private float _fpsAccum;
+    private int _fpsFrames;
+
     public void Update(float dt)
     {
         if (SmokeTestPath != null)
@@ -334,6 +351,37 @@ public sealed class Game
         }
         Dt = dt;
         PlayTime += dt;
+
+        // Rolling frame-time stats (1s window)
+        _fpsAccum += dt;
+        _fpsFrames++;
+        if (_fpsAccum >= 1.0f)
+        {
+            FrameMs = _fpsAccum / _fpsFrames * 1000f;
+            Fps = _fpsFrames / _fpsAccum;
+            _fpsAccum = 0f;
+            _fpsFrames = 0;
+        }
+
+        var debugInput = InputManager?.InputState;
+        if (debugInput?.ToggleDebugHud == true)
+            ShowDebugHud = !ShowDebugHud;
+
+        // Benchmark: accumulate frame times while playing, print and exit at N.
+        if (SmokeBenchFrames > 0 && State == GameState.Playing)
+        {
+            _benchTimes.Add(dt * 1000f);
+            if (_benchTimes.Count >= SmokeBenchFrames)
+            {
+                var sorted = _benchTimes.ToArray();
+                Array.Sort(sorted);
+                float avg = _benchTimes.Count > 0 ? _benchTimes.Average() : 0;
+                float p95 = sorted[(int)(sorted.Length * 0.95)];
+                float p50 = sorted[sorted.Length / 2];
+                Console.WriteLine($"bench: frames={sorted.Length} avg={avg:F2}ms p50={p50:F2}ms p95={p95:F2}ms");
+                Environment.Exit(0);
+            }
+        }
 
         // Always-tick systems (even under panels)
         Survival?.Tick(dt);
@@ -533,7 +581,7 @@ public sealed class Game
 
         batch.End();
 
-        if (SmokeTestPath != null && State == GameState.Playing && ++_smokeFrames >= 6)
+        if (!string.IsNullOrEmpty(SmokeTestPath) && State == GameState.Playing && ++_smokeFrames >= 6)
         {
             CaptureFramebuffer(gl, screenWidth, screenHeight, SmokeTestPath);
             Environment.Exit(0);
@@ -703,6 +751,13 @@ public sealed class Game
 
         RenderPanels(gl, screenWidth, screenHeight);
         HUD?.Render(batch, screenWidth, screenHeight, Survival);
+
+        if (ShowDebugHud && TextRenderer != null)
+        {
+            TextRenderer.DrawText(batch,
+                $"fps {Fps:F0}  frame {FrameMs:F1} ms",
+                screenWidth - 110f, 24f, 14, 240, 240, 240);
+        }
     }
 
     /// Depth key for painter's-order sorting of world sprites. All callers

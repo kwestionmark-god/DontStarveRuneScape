@@ -41,9 +41,7 @@ public sealed class SpriteRenderer : IDisposable
 
     public void RenderResource(ResourceNode resource, PrimitiveBatch batch, Camera camera, float elevation, int tileX, int tileY)
     {
-        string spriteKey = resource.GetSpriteKey();
-        uint tex = GetSpriteTexture(spriteKey);
-        float half = 24f * camera.Zoom;
+        float half = 24f * (resource.ResourceDef?.DisplayScale > 0 ? resource.ResourceDef.DisplayScale : FallbackScale(resource)) * camera.Zoom;
 
         // Ground point at tile center — bottom-anchored billboard (same scheme
         // as the player sprite) so the resource keeps its tile placement under
@@ -55,8 +53,38 @@ public sealed class SpriteRenderer : IDisposable
         float cx = screen.X;
         float cy = screen.Y - half;
 
+        var tier = camera.Tier;
+        if (tier == Camera.LodTier.Far)
+        {
+            // Far: no textures, no texture binds — a single tiny dot carries
+            // the tile's occupancy. 'Ubiquitous' filler isn't worth drawing.
+            if (resource.ResourceDef?.Rarity == "ubiquitous") return;
+            float dot = 3f * camera.Zoom;
+            batch.DrawScreenQuad(cx, screen.Y, dot, dot, 200, 210, 160);
+            return;
+        }
+
+        string spriteKey = resource.GetSpriteKey();
+        uint tex = 0;
+        // Deterministic per-tile variant: try "key_v0..v2" sprites (if artist
+        // files ever exist); the negative cache makes misses free after first check.
+        if (resource.ResourceDef != null && !resource.IsDepleted)
+        {
+            int variant = (tileX * 73856093 ^ tileY * 19349663) & 0x7fffffff % 3;
+            uint vt = GetSpriteTexture($"{spriteKey}_v{variant}");
+            if (vt != 0) { spriteKey = $"{spriteKey}_v{variant}"; tex = vt; }
+        }
+        if (tex == 0)
+            tex = GetSpriteTexture(spriteKey);
         if (tex != 0)
         {
+            // Mid: sprites smaller than ~6 px half-size degrade to dots —
+            // the texture fetch costs more than the detail is worth.
+            if (tier == Camera.LodTier.Mid && half < 6f)
+            {
+                batch.DrawScreenQuad(cx, screen.Y, 3f * camera.Zoom, 3f * camera.Zoom, 200, 210, 160);
+                return;
+            }
             // Straight-alpha white texture; tint via the batch shader.
             batch.DrawTexturedScreenQuad(cx, cy, half, half, tex, 255, 255, 255);
         }
@@ -70,6 +98,19 @@ public sealed class SpriteRenderer : IDisposable
                     : ((byte)90, (byte)160, (byte)70);
             batch.DrawScreenQuad(cx, cy, half, half, color.r, color.g, color.b);
         }
+    }
+
+    /// <summary>
+    /// Fallback size scale by sprite family when the JSON has no display_scale.
+    /// Trees read larger than shrubs and smalls.
+    /// </summary>
+    private static float FallbackScale(ResourceNode resource)
+    {
+        string key = resource.ResourceDef?.SpriteKey ?? string.Empty;
+        if (key.StartsWith("trees/")) return 1.5f;
+        if (key.StartsWith("rocks/")) return 1.15f;
+        if (key.StartsWith("world/")) return 0.8f;
+        return 1f;
     }
 
     // ─── Player / monster / NPC / structure / fire ────────────────────────

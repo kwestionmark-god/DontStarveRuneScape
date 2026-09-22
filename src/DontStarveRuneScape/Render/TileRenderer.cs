@@ -19,6 +19,8 @@ public sealed class TileRenderer : IDisposable
 
     // biomeId -> OpenGL texture id
     private readonly Dictionary<string, uint> _terrainTextures = new();
+    // Reused per-frame painter-order scratch (avoids per-frame allocation),
+    private readonly List<(float Depth, int X, int Y)> _order = new();
     private bool _disposed;
 
     public TileRenderer(GL gl)
@@ -43,13 +45,18 @@ public sealed class TileRenderer : IDisposable
         int yMin = Math.Max(0, (int)(top / Constants.TileSize) - padTiles);
         int yMax = Math.Min(world.Height - 1, (int)(bottom / Constants.TileSize) + padTiles);
 
+        var tier = camera.Tier;
+        bool drawTerrainTexture = tier != Camera.LodTier.Far;
+
         // Painter's order: sort tiles back-to-front along the camera's view axis
         // so the draw order stays correct at any yaw (row-major loops only work
         // when yaw == 0).
         float cy = MathF.Cos(camera.Yaw);
         float sy = MathF.Sin(camera.Yaw);
-        int tileCount = (xMax - xMin) * (yMax - yMin);
-        var order = new List<(float Depth, int X, int Y)>(tileCount);
+        _order.Clear();
+        if (_order.Capacity < (xMax - xMin) * (yMax - yMin))
+            _order.Capacity = (xMax - xMin) * (yMax - yMin);
+        var order = _order;
         for (int yy = yMin; yy < yMax; yy++)
         {
             for (int xx = xMin; xx < xMax; xx++)
@@ -99,7 +106,7 @@ public sealed class TileRenderer : IDisposable
                 // Overlay terrain sprite if available for this biome.
                 // Use white tint so the sprite's actual colors show through
                 // instead of being blended into the solid biome color.
-                if (tile.Biome != null)
+                if (tile.Biome != null && drawTerrainTexture)
                 {
                     uint tex = GetTerrainTexture(tile.Biome.Id);
                     if (tex != 0)
