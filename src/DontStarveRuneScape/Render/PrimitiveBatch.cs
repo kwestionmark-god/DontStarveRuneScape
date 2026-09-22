@@ -210,6 +210,26 @@ public sealed class PrimitiveBatch : IDisposable
         _boundTexture = texture;
     }
 
+    /// <summary>
+    /// Draw a convex polygon fan (used for shoreline water overlays that get
+    /// cut by terrain crossings). Points are screen-space, already ordered.
+    /// </summary>
+    public void DrawScreenPolygon(System.Collections.Generic.List<Silk.NET.Maths.Vector2D<float>> pts,
+        byte r, byte g, byte b, byte a)
+    {
+        if (_textureMode) Flush();
+        if (pts.Count < 3) return;
+
+        float cr = r / 255f, cg = g / 255f, cb = b / 255f, ca = a / 255f;
+        for (int i = 2; i < pts.Count; i++)
+        {
+            if (_vertexCount + 3 * Stride > _vertices.Length) Flush();
+            AddVertex(ToNdcX(pts[0].X), ToNdcY(pts[0].Y), 0f, 0f, cr, cg, cb, ca);
+            AddVertex(ToNdcX(pts[i - 1].X), ToNdcY(pts[i - 1].Y), 0f, 0f, cr, cg, cb, ca);
+            AddVertex(ToNdcX(pts[i].X), ToNdcY(pts[i].Y), 0f, 0f, cr, cg, cb, ca);
+        }
+    }
+
     public void End()
     {
         if (_vertexCount == 0)
