@@ -684,6 +684,9 @@ public sealed class Game
                 float fx = Player.WorldX / Constants.TileSize - ptx;
                 float fy = Player.WorldY / Constants.TileSize - pty;
                 float elev = tile?.GetElevationAt(fx, fy) ?? 0f;
+                // Wading: in water, sink to just above the surface plane.
+                if (tile?.Biome?.Id == "water")
+                    elev = Constants.SeaLevel - 0.8f;
                 float sortY = GetDepthSort(Player.WorldX, Player.WorldY, elev);
                 drawables.Add((sortY, seq++, () => SpriteRenderer.RenderPlayer(
                     Player, batch, Camera, elev, Dt)));

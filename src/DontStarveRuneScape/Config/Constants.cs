@@ -117,6 +117,9 @@ public static class Constants
     public const float RiverThreshold = 10.0f;        // Flow accumulation threshold for rivers
     public const int LakeMinSize = 5;                 // Minimum tiles for a lake
 
+    /// <summary>World sea level: any tile at or below this elevation is water.</summary>
+    public const float SeaLevel = 6.5f;
+
     // ─── Survival ─────────────────────────────────────────────────────────
 
     public const float HungerDrainInterval = 30.0f;   // Seconds per hunger point drain

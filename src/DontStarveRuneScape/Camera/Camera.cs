@@ -113,7 +113,11 @@ public sealed class Camera
             float tyf = _panY / Constants.TileSize;
             var tile = _world.GetTile((int)txf, (int)tyf);
             if (tile != null)
-                _focusElev = tile.GetElevationAt(txf - (int)txf, tyf - (int)tyf);
+            {
+                _focusElev = tile.Biome?.Id == "water"
+                    ? Constants.SeaLevel - 0.8f // camera floats on the waterline
+                    : tile.GetElevationAt(txf - (int)txf, tyf - (int)tyf);
+            }
         }
     }
 

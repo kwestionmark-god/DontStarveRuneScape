@@ -37,6 +37,27 @@ public sealed class TileRenderer : IDisposable
     /// unified depth keys so elevated terrain occludes sprites behind it.
     /// </summary>
     /// <param name="drawables">Shared (depth, seq, draw) list; sort by depth then seq.</param>
+    /// <summary>
+    /// The volumetric sea: one fullscreen animated plane drawn FIRST, so all
+    /// terrain and sprites layer over it. Camera pan scrolls the flow texture
+    /// so the water reads as rooted in the world; time scrolls the current.
+    /// </summary>
+    public void DrawSeaSurface(PrimitiveBatch batch, Camera camera, int screenWidth, int screenHeight, float time)
+    {
+        uint tex = GetTerrainTexture("water");
+        if (tex == 0)
+        {
+            batch.DrawScreenQuad(screenWidth * 0.5f, screenHeight * 0.5f,
+                screenWidth * 0.5f, screenHeight * 0.5f, 35, 90, 150);
+            return;
+        }
+        float uOff = (camera.PanX / Constants.TileSize) * 0.25f + time * 0.18f;
+        float vOff = (camera.PanY / Constants.TileSize) * 0.25f + time * 0.11f;
+        batch.DrawScreenQuadCornersTexturedUV(
+            0, screenHeight, screenWidth, screenHeight, screenWidth, 0, 0, 0,
+            tex, uOff, vOff);
+    }
+
     public void Render(PrimitiveBatch batch, Camera camera, TileMap world,
         List<(float Depth, int Seq, Action Draw)> drawables, ref int seq,
         float time = 0f)
@@ -115,38 +136,42 @@ public sealed class TileRenderer : IDisposable
                 string? biomeId = tile.Biome?.Id;
                 bool isWater = biomeId == "water";
 
-                // Neighbor flags for coastline foam (computed now, cheap).
-                bool foamN = false, foamE = false, foamS = false, foamW = false;
-                if (isWater)
-                {
-                    foamN = world.GetTile(x, y - 1)?.Biome?.Id != "water";   // edge bl-br
-                    foamE = world.GetTile(x + 1, y)?.Biome?.Id != "water";   // edge br-tr
-                    foamS = world.GetTile(x, y + 1)?.Biome?.Id != "water";   // edge tr-tl
-                    foamW = world.GetTile(x - 1, y)?.Biome?.Id != "water";   // edge tl-bl
-                }
-
                 drawables.Add((depthPx, seq++, () =>
                 {
                     if (isWater)
                     {
-                        // Animated water: flat deep-blue base + scrolling texture
-                        // + foam on edges that touch land.
-                        float phase = (x * 0.37f + y * 0.23f + time * 0.35f) % 1f;
-                        float uOff = phase, vOff = (y * 0.13f + time * 0.2f) % 1f;
-                        batch.DrawScreenQuadCorners(bl.X, bl.Y, br.X, br.Y, tr.X, tr.Y, tl.X, tl.Y,
-                            35, 90, 150);
+                        // Volumetric water: seabed drawn darker (more depth) at
+                        // its own elevation; the surface quad is locked to sea
+                        // level so neighboring water tiles read as one plane.
+                        int depth = Math.Max(0, (int)(Constants.SeaLevel - tile.Elevation));
+                        byte dr = 30, dg = (byte)Math.Clamp(80 - depth * 5, 35, 80),
+                             db = (byte)Math.Clamp(140 - depth * 4, 90, 140);
+                        batch.DrawScreenQuadCorners(bl.X, bl.Y, br.X, br.Y, tr.X, tr.Y, tl.X, tl.Y, dr, dg, db);
+
+                        var sbl = camera.WorldToScreen(x * Constants.TileSize, y * Constants.TileSize, Constants.SeaLevel);
+                        var sbr = camera.WorldToScreen((x + 1) * Constants.TileSize, y * Constants.TileSize, Constants.SeaLevel);
+                        var str = camera.WorldToScreen((x + 1) * Constants.TileSize, (y + 1) * Constants.TileSize, Constants.SeaLevel);
+                        var stl = camera.WorldToScreen(x * Constants.TileSize, (y + 1) * Constants.TileSize, Constants.SeaLevel);
+                        batch.DrawScreenQuadCorners(sbl.X, sbl.Y, sbr.X, sbr.Y, str.X, str.Y, stl.X, stl.Y, 45, 110, 185, 150);
                         uint wt = GetTerrainTexture("water");
                         if (wt != 0)
+                        {
+                            float phase = (x * 0.37f + y * 0.23f + time * 0.35f) % 3f;
+                            float uOff = phase, vOff = (y * 0.13f + time * 0.2f) % 3f;
                             batch.DrawScreenQuadCornersTexturedUV(
-                                bl.X, bl.Y, br.X, br.Y, tr.X, tr.Y, tl.X, tl.Y,
+                                sbl.X, sbl.Y, sbr.X, sbr.Y, str.X, str.Y, stl.X, stl.Y,
                                 wt, uOff, vOff);
-                        float cx = (bl.X + br.X + tr.X + tl.X) * 0.25f;
-                        float cy = (bl.Y + br.Y + tr.Y + tl.Y) * 0.25f;
-                        if (foamN) DrawFoamEdge(batch, bl, br, cx, cy);
-                        if (foamE) DrawFoamEdge(batch, br, tr, cx, cy);
-                        if (foamS) DrawFoamEdge(batch, tr, tl, cx, cy);
-                        if (foamW) DrawFoamEdge(batch, tl, bl, cx, cy);
+                        }
                         return;
+                    }
+
+                    // Shoreline blend: land tiles within two levels of sea level
+                    // warm toward sand so banks read as natural beaches.
+                    if (tile.Elevation <= Constants.SeaLevel + 2f && TileTouchesWater(world, x, y))
+                    {
+                        r = (byte)Math.Clamp((int)(r * 0.55f + 205 * 0.45f), 0, 255);
+                        g = (byte)Math.Clamp((int)(g * 0.55f + 200 * 0.45f), 0, 255);
+                        b = (byte)Math.Clamp((int)(b * 0.55f + 160 * 0.45f), 0, 255);
                     }
 
                     // Draw colored base tile.
@@ -170,21 +195,16 @@ public sealed class TileRenderer : IDisposable
         }
     }
 
-    /// <summary>
-    /// Thin translucent foam sliver along the tile edge a→b, inset toward the
-    /// tile centroid so it hugs the coastline.
-    /// </summary>
-    private static void DrawFoamEdge(PrimitiveBatch batch,
-        Silk.NET.Maths.Vector2D<float> a, Silk.NET.Maths.Vector2D<float> b,
-        float centroidX, float centroidY)
+    /// <summary>Does this land tile share an edge or corner with water?</summary>
+    private static bool TileTouchesWater(TileMap world, int x, int y)
     {
-        const float Inset = 0.12f; // how far inward the foam band reaches
-        float iaX = a.X + (centroidX - a.X) * Inset;
-        float iaY = a.Y + (centroidY - a.Y) * Inset;
-        float ibX = b.X + (centroidX - b.X) * Inset;
-        float ibY = b.Y + (centroidY - b.Y) * Inset;
-        batch.DrawScreenQuadCorners(a.X, a.Y, b.X, b.Y, ibX, ibY, iaX, iaY,
-            235, 245, 255, 95);
+        for (int dx = -1; dx <= 1; dx++)
+            for (int dy = -1; dy <= 1; dy++)
+            {
+                if (dx == 0 && dy == 0) continue;
+                if (world.GetTile(x + dx, y + dy)?.Biome?.Id == "water") return true;
+            }
+        return false;
     }
 
     private uint GetTerrainTexture(string biomeId)
