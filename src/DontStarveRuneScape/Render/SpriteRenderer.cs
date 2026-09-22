@@ -41,7 +41,10 @@ public sealed class SpriteRenderer : IDisposable
 
     public void RenderResource(ResourceNode resource, PrimitiveBatch batch, Camera camera, float elevation, int tileX, int tileY)
     {
-        float half = 24f * (resource.ResourceDef?.DisplayScale > 0 ? resource.ResourceDef.DisplayScale : FallbackScale(resource)) * camera.Zoom;
+        float half = 24f
+            * (resource.ResourceDef?.DisplayScale > 0 ? resource.ResourceDef.DisplayScale : FallbackScale(resource))
+            * resource.SizeScale
+            * camera.Zoom;
 
         // Ground point at tile center — bottom-anchored billboard (same scheme
         // as the player sprite) so the resource keeps its tile placement under

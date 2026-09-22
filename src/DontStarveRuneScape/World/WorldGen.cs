@@ -237,7 +237,7 @@ public static class ResourcePlacer
     // Rarity density ranges from the Python version (RARITY_DENSITY_RANGE,
     // 0.35 global scale) with an additional world-feel dial: fewer, larger
     // landmarks instead of a dense scatter.
-    private const float DensityScaleAtmospheric = 0.45f;
+    private const float DensityScaleAtmospheric = 0.7f;
 
     private static readonly Dictionary<string, (float Min, float Max)> RarityDensityRange = new()
     {
@@ -288,11 +288,19 @@ public static class ResourcePlacer
                         density = Math.Clamp(density, band.Min, band.Max);
                     density *= DensityScaleAtmospheric;
 
-                    if (random.NextSingle() < density)
+                    // Generative size: most nodes near 1x, occasional giants.
+                    // Bigger nodes consume more visual space, so their density
+                    // is divided by area (scale^2) — one big tree instead of
+                    // three same-sized small ones.
+                    float scale = 0.9f + MathF.Pow(random.NextSingle(), 2.2f) * 2.1f;
+                    float scaledDensity = density / (scale * scale);
+
+                    if (random.NextSingle() < scaledDensity)
                     {
                         tile.ResourceNode = new ResourceNode(resourceId, def, 1.0f)
                         {
                             GrowthStage = 2, // Start mature
+                            SizeScale = scale,
                         };
                         occupied++;
                         break; // First successful placement wins; tile occupied.

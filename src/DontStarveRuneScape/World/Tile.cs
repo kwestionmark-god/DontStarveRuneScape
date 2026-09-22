@@ -18,6 +18,9 @@ public sealed class ResourceNode
     public int TotalHarvests { get; set; } = 0;
     public bool IsDepleted => Density <= 0f;
 
+    /// <summary>Per-node size multiplier, rolled at placement (bigger = rarer).</summary>
+    public float SizeScale { get; set; } = 1f;
+
     // Additional properties for action system compatibility
     public int XpReward => (int)(ResourceDef?.Xp ?? 0);
     public string YieldItem => ResourceDef?.Id ?? string.Empty;
