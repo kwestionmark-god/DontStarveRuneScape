@@ -189,7 +189,8 @@
       },
       "required_level": 1,
       "display_scale": 1.0,
-      "size_variance": 0.25
+      "size_variance": 0.15,
+      "ground_decal": true
     },
     {
       "id": "driftwood",
@@ -270,7 +271,8 @@
       },
       "required_level": 5,
       "display_scale": 0.6,
-      "size_variance": 0.1
+      "size_variance": 0.15,
+      "ground_decal": true
     },
     {
       "id": "salt_deposit",

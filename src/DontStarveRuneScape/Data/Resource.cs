@@ -64,6 +64,10 @@ public sealed class ResourceDef : DataRecord
     [JsonPropertyName("size_variance")]
     public float SizeVariance { get; set; } = 0.2f;
 
+    /// <summary>Drawn flat on the tile (puddles, fire pits) instead of billboarded.</summary>
+    [JsonPropertyName("ground_decal")]
+    public bool GroundDecal { get; set; }
+
     /// <summary>Whether this resource requires a tool to harvest.</summary>
     public bool RequiresTool => !string.IsNullOrEmpty(ToolRequirement);
 }

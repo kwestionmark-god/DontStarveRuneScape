@@ -73,6 +73,7 @@ public sealed class Bootstrap
                             case "rarity": def.Rarity = string.IsNullOrEmpty(v) ? "common" : v; break;
                             case "display_scale": def.DisplayScale = float.TryParse(v, out var ds) ? ds : 1f; break;
                             case "size_variance": def.SizeVariance = float.TryParse(v, out var sv) ? sv : 0.2f; break;
+                            case "ground_decal": def.GroundDecal = v is "true" or "True" or "1"; break;
                             case "required_level": def.RequiredLevel = int.TryParse(v, out var rl) ? rl : 1; break;
                         }
                     }

@@ -124,7 +124,6 @@
       "resource_spawns": [
         "grass_patch",
         "wheat_field",
-        "water_source",
         "loose_stones"
       ]
     },

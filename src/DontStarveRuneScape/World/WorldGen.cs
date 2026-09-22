@@ -33,7 +33,12 @@ public static class WorldGen
         progressCallback?.Invoke(0.4f);
         ClassifyBiomes(map, biomeRegistry, elevationMap, moistureMap);
 
-        // Step 3: Build corner elevations for 2.5D rendering
+        // Step 3: Water bodies (rivers/lakes from flow accumulation) —
+        // water tiles override the biome classification like the Python port.
+        progressCallback?.Invoke(0.45f);
+        ApplyWaterBodies(map, biomeRegistry, elevationMap);
+
+        // Step 4: Build corner elevations for 2.5D rendering
         progressCallback?.Invoke(0.5f);
         BuildCornerElevations(map);
 
@@ -164,6 +169,159 @@ public static class WorldGen
     /// <summary>
     /// Build corner elevations for 2.5D rendering (bilinear interpolation).
     /// </summary>
+    /// <summary>
+    /// Water body generation ported from the Python prototype: D8 flow
+    /// accumulation carves rivers, priority flood-fill fills lakes in closed
+    /// depressions, coasts smooth to ocean at the map edge, and steep downhill
+    /// paths connect nearby bodies into a network.
+    /// </summary>
+    private static void ApplyWaterBodies(
+        TileMap map, BiomeRegistry biomeRegistry, float[,] elevation)
+    {
+        int width = map.Width, height = map.Height;
+        var water = new bool[width, height];
+        var waterBiome = biomeRegistry.GetBiome("water");
+        if (waterBiome == null) return;
+
+        // --- 1. D8 flow accumulation (steepest-descent neighbor) ---
+        var flowTo = new sbyte[width, height]; // -1 = no downhill neighbor
+        var dirs = new (int dx, int dy)[] { (-1,-1),(0,-1),(1,-1),(-1,0),(1,0),(-1,1),(0,1),(1,1) };
+        for (int x = 0; x < width; x++)
+        {
+            for (int y = 0; y < height; y++)
+            {
+                float current = elevation[x, y];
+                float steepest = 0f;
+                int best = -1;
+                for (int d = 0; d < dirs.Length; d++)
+                {
+                    int nx = x + dirs[d].dx, ny = y + dirs[d].dy;
+                    if (nx < 0 || ny < 0 || nx >= width || ny >= height) continue;
+                    float slope = current - elevation[nx, ny];
+                    if (slope > steepest) { steepest = slope; best = d; }
+                }
+                flowTo[x, y] = (sbyte)best;
+            }
+        }
+
+        // Accumulate upstream tile counts, processing tiles high-to-low.
+        var accum = new float[width, height];
+        var byElev = new List<(float E, int X, int Y)>(width * height);
+        for (int x = 0; x < width; x++)
+            for (int y = 0; y < height; y++)
+                byElev.Add((elevation[x, y], x, y));
+        byElev.Sort((a, b) => b.E.CompareTo(a.E));
+        foreach (var (_, x, y) in byElev)
+        {
+            int d = flowTo[x, y];
+            if (d >= 0)
+            {
+                int nx = x + dirs[d].dx, ny = y + dirs[d].dy;
+                accum[nx, ny] += accum[x, y] + 1f;
+            }
+        }
+
+        // Rivers: any tile with enough upstream drainage.
+        for (int x = 0; x < width; x++)
+            for (int y = 0; y < height; y++)
+                if (accum[x, y] >= Constants.RiverThreshold)
+                    water[x, y] = true;
+
+        // --- 2. Lakes: closed depressions away from the map edge ---
+        var visited = new bool[width, height];
+        for (int x = 0; x < width; x++)
+        {
+            for (int y = 0; y < height; y++)
+            {
+                if (visited[x, y]) continue;
+                float basinElev = elevation[x, y];
+                var basin = new List<(int X, int Y)>();
+                var stack = new Stack<(int X, int Y)>();
+                stack.Push((x, y));
+                bool touchesEdge = false;
+                float spillElev = float.MaxValue;
+                while (stack.Count > 0)
+                {
+                    var (cx, cy) = stack.Pop();
+                    if (visited[cx, cy]) continue;
+                    visited[cx, cy] = true;
+                    basin.Add((cx, cy));
+                    if (cx == 0 || cy == 0 || cx == width - 1 || cy == height - 1)
+                        touchesEdge = true;
+                    foreach (var (dx, dy) in dirs)
+                    {
+                        int nx = cx + dx, ny = cy + dy;
+                        if (nx < 0 || ny < 0 || nx >= width || ny >= height) { touchesEdge = true; continue; }
+                        if (visited[nx, ny]) continue;
+                        float ne = elevation[nx, ny];
+                        if (ne <= basinElev + 1) stack.Push((nx, ny));
+                        else if (ne < spillElev) spillElev = ne;
+                    }
+                }
+                if (!touchesEdge && spillElev > basinElev && basinElev < 20 &&
+                    basin.Count >= Constants.LakeMinSize && basin.Count <= 200)
+                {
+                    foreach (var (bx, by) in basin) water[bx, by] = true;
+                }
+            }
+        }
+
+        // --- 3. Coastal smoothing ---
+        const int EdgeMargin = 4;
+        for (int x = 0; x < width; x++)
+            for (int y = 0; y < height; y++)
+            {
+                bool nearEdge = x < EdgeMargin || y < EdgeMargin ||
+                                x >= width - EdgeMargin || y >= height - EdgeMargin;
+                if (nearEdge && elevation[x, y] <= 2) water[x, y] = true;
+            }
+        // Majority smoothing: 5+ water neighbors becomes water.
+        var smoothed = (bool[,])water.Clone();
+        for (int x = 0; x < width; x++)
+            for (int y = 0; y < height; y++)
+            {
+                if (water[x, y]) continue;
+                int n = 0;
+                foreach (var (dx, dy) in dirs)
+                {
+                    int nx = x + dx, ny = y + dy;
+                    if (nx >= 0 && ny >= 0 && nx < width && ny < height && water[nx, ny]) n++;
+                }
+                if (n >= 5) smoothed[x, y] = true;
+            }
+        water = smoothed;
+
+        // --- 4. Connect nearby water bodies downhill (rivers to lakes/coast) ---
+        foreach (var (_, sx, sy) in byElev)
+        {
+            if (!water[sx, sy]) continue;
+            float current = elevation[sx, sy];
+            int cx = sx, cy = sy;
+            for (int step = 0; step < 20; step++)
+            {
+                float steepest = 0f; int best = -1;
+                for (int d = 0; d < dirs.Length; d++)
+                {
+                    int nx = cx + dirs[d].dx, ny = cy + dirs[d].dy;
+                    if (nx < 0 || ny < 0 || nx >= width || ny >= height) continue;
+                    float slope = current - elevation[nx, ny];
+                    if (slope > steepest) { steepest = slope; best = d; }
+                }
+                if (best < 0 || steepest <= 0) break;
+                cx += dirs[best].dx; cy += dirs[best].dy;
+                current = elevation[cx, cy];
+                if (water[cx, cy]) break; // reached existing water
+                if (steepest > 0.5f) water[cx, cy] = true;
+            }
+        }
+
+        // Reclassify: water wins.
+        for (int x = 0; x < width; x++)
+            for (int y = 0; y < height; y++)
+                if (water[x, y])
+                    map.Tiles[x, y].Biome = waterBiome;
+    }
+
     private static void BuildCornerElevations(TileMap map)
     {
         for (int x = 0; x < map.Width; x++)

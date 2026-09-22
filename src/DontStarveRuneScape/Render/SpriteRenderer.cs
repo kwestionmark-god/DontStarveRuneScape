@@ -39,7 +39,7 @@ public sealed class SpriteRenderer : IDisposable
 
     // ─── Resource rendering ───────────────────────────────────────────────
 
-    public void RenderResource(ResourceNode resource, PrimitiveBatch batch, Camera camera, float elevation, int tileX, int tileY)
+    public void RenderResource(ResourceNode resource, PrimitiveBatch batch, Camera camera, float elevation, int tileX, int tileY, World.Tile? tile = null)
     {
         float half = 24f
             * (resource.ResourceDef?.DisplayScale > 0 ? resource.ResourceDef.DisplayScale : FallbackScale(resource))
@@ -79,7 +79,23 @@ public sealed class SpriteRenderer : IDisposable
         }
         if (tex == 0)
             tex = GetSpriteTexture(spriteKey);
-        // Soft shadow grounds every sprite (Nearest only — dots don't cast).
+
+        // Ground-decal resources (water pools etc.) are drawn flat on their
+        // tile's projected footprint — never as billboards.
+        if (resource.ResourceDef?.GroundDecal == true && tile != null && tex != 0)
+        {
+            float ts = Constants.TileSize;
+            const float inset = 0.08f; // keep the sprite just inside the tile
+            var c00 = camera.WorldToScreen((tileX + inset) * ts, (tileY + inset) * ts, tile.CornerElevations?[0] ?? tile.Elevation);
+            var c10 = camera.WorldToScreen((tileX + 1 - inset) * ts, (tileY + inset) * ts, tile.CornerElevations?[1] ?? tile.Elevation);
+            var c11 = camera.WorldToScreen((tileX + 1 - inset) * ts, (tileY + 1 - inset) * ts, tile.CornerElevations?[2] ?? tile.Elevation);
+            var c01 = camera.WorldToScreen((tileX + inset) * ts, (tileY + 1 - inset) * ts, tile.CornerElevations?[3] ?? tile.Elevation);
+            batch.DrawScreenQuadCornersTextured(c00.X, c00.Y, c10.X, c10.Y, c11.X, c11.Y, c01.X, c01.Y, tex, 255, 255, 255, (byte)220);
+            return;
+        }
+
+        // Soft shadow grounds every sprite (Nearest only — dots don't cast,
+        // and neither does a flat ground decal).
         if (tier == Camera.LodTier.Nearest && !resource.IsDepleted)
             DrawShadow(batch, cx, screen.Y, half, 200);
         if (tex != 0)

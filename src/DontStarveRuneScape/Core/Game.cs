@@ -668,8 +668,9 @@ public sealed class Game
                         float sortY = GetDepthSort(wx, wy, elev);
                         var node = tile.ResourceNode;
                         int tx = x, ty = y;
+                        var tTile = tile;
                         drawables.Add((sortY, seq++, () => SpriteRenderer.RenderResource(
-                            node, batch, Camera, elev, tx, ty)));
+                            node, batch, Camera, elev, tx, ty, tTile)));
                     }
                 }
             }
