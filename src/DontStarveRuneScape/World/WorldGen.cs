@@ -241,7 +241,10 @@ public static class WorldGen
                 var tile = map.Tiles[x, y];
                 if (tile.Biome?.Id == "water") continue;
                 float depth = spill[x, y] - elevation[x, y];
-                if (depth >= 3.5f)
+                // Threshold ~1.6: any land tile sitting more than a modest lip
+                // below its depression's spill level IS underwater — marking it
+                // keeps the renderer from painting a water plane over land.
+                if (depth >= 1.6f)
                 {
                     tile.Biome = waterBiome;
                     tile.WaterLevel = spill[x, y];
@@ -307,6 +310,55 @@ public static class WorldGen
                 distD[nx, ny] = distD[c.X, c.Y] + 1;
                 distQ.Enqueue((nx, ny));
             }
+        }
+
+        // Land shore field: BFS outward from water over land, carrying the
+        // source body's surface elevation, capped at ring 8 — and blocked by
+        // banks: a tile much higher than the source surface is landlocked,
+        // so a pool's wash must never bleed over its rim into outside land.
+        const int LandShoreCap = 8;
+        const float ShoreRiseCap = 2.0f;
+        var lQ = new Queue<(int X, int Y)>();
+        var landSeen = new bool[width, height];
+        for (int x = 0; x < width; x++)
+            for (int y = 0; y < height; y++)
+            {
+                var t = map.Tiles[x, y];
+                if (t.Biome?.Id != "water") continue;
+                for (int dx = -1; dx <= 1; dx++)
+                    for (int dy = -1; dy <= 1; dy++)
+                    {
+                        int nx = x + dx, ny = y + dy;
+                        if (nx < 0 || ny < 0 || nx >= width || ny >= height) continue;
+                        var lt = map.Tiles[nx, ny];
+                        if (landSeen[nx, ny] || lt.Biome?.Id == "water") continue;
+                        float surf0 = t.GetSurfaceElevation();
+                        if (lt.Elevation > surf0 + ShoreRiseCap) continue;
+                        landSeen[nx, ny] = true;
+                        lt.LandDistToWater = 1;
+                        lt.ShoreSurface = surf0;
+                        lQ.Enqueue((nx, ny));
+                    }
+            }
+        while (lQ.Count > 0)
+        {
+            var c = lQ.Dequeue();
+            int d = map.Tiles[c.X, c.Y].LandDistToWater;
+            if (d >= LandShoreCap) continue;
+            for (int dx = -1; dx <= 1; dx++)
+                for (int dy = -1; dy <= 1; dy++)
+                {
+                    int nx = c.X + dx, ny = c.Y + dy;
+                    if (nx < 0 || ny < 0 || nx >= width || ny >= height) continue;
+                    var lt = map.Tiles[nx, ny];
+                    if (landSeen[nx, ny] || lt.Biome?.Id == "water") continue;
+                    float surf = map.Tiles[c.X, c.Y].ShoreSurface;
+                    if (lt.Elevation > surf + ShoreRiseCap) continue;
+                    landSeen[nx, ny] = true;
+                    lt.LandDistToWater = d + 1;
+                    lt.ShoreSurface = surf;
+                    lQ.Enqueue((nx, ny));
+                }
         }
     }
 
@@ -422,6 +474,19 @@ public static class ResourcePlacer
                 if (tile.ResourceNode != null) continue;
                 if (tile.Structure != null) continue;
                 if (tile.Biome == null) continue;
+
+                // Never root a resource below water: skip tiles submerged by
+                // the sea or by an adjacent water body (pool spill level).
+                if (tile.Elevation < Constants.SeaLevel) continue;
+                bool submerged = false;
+                for (int dx = -1; dx <= 1 && !submerged; dx++)
+                    for (int dy = -1; dy <= 1 && !submerged; dy++)
+                    {
+                        var n = map.GetTile(x + dx, y + dy);
+                        if (n?.Biome?.Id == "water" && n.GetSurfaceElevation() > tile.Elevation + 0.05f)
+                            submerged = true;
+                    }
+                if (submerged) continue;
 
                 foreach (var resourceId in tile.Biome.ResourceSpawns)
                 {

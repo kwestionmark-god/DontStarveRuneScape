@@ -191,6 +191,14 @@ public sealed class Tile
     /// </summary>
     public float ShoreDistance { get; set; } = 0f;
 
+    /// <summary>
+    /// Land tiles only: ring distance in tiles to the nearest water body
+    /// (1 = touching water, 0 = not near any), with the surface elevation of
+    /// that body. Computed once at worldgen so shading stays O(1) per tile.
+    /// </summary>
+    public int LandDistToWater { get; set; }
+    public float ShoreSurface { get; set; } = float.NaN;
+
     /// <summary>Effective water surface level of this tile (sea or pool).</summary>
     public float GetSurfaceElevation()
         => Biome?.Id != "water" ? float.NaN
