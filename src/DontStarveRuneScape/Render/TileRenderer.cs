@@ -181,7 +181,7 @@ public sealed class TileRenderer : IDisposable
                         // both hides the stitching gap against raised banks and
                         // reads as shallow water thinning onto the shore.
                         float lap = MathF.Sin(time * 1.7f + x * 0.9f + y * 0.6f);
-                        byte innerA = (byte)Math.Clamp(105 + (int)(25f * lap), 65, 140);
+                        byte innerA = (byte)Math.Clamp(85 + (int)(20f * lap), 55, 115);
                         bool wL = IsWaterAt(world, x - 1, y);
                         bool wR = IsWaterAt(world, x + 1, y);
                         bool wB = IsWaterAt(world, x, y - 1);
@@ -298,24 +298,35 @@ public sealed class TileRenderer : IDisposable
     /// a quad at surface level fading from shore-tinted alpha to transparent.
     /// (ax ay)-(bx by) is the tile edge in tile coords, (dirX dirY) points outward.
     /// </summary>
-    private const float ApronReach = 0.4f;
+    private const float ApronReach = 5f;
 
     private static void DrawWaterApron(PrimitiveBatch batch, Camera camera,
         float ax, float ay, float bx, float by, int dirX, int dirY, float surface, byte innerAlpha)
     {
         float ts = Constants.TileSize;
         var tint = WaterGradientColor(0.25f);
-        var i0 = camera.WorldToScreen(ax * ts, ay * ts, surface);
-        var i1 = camera.WorldToScreen(bx * ts, by * ts, surface);
-        var o0 = camera.WorldToScreen((ax + dirX * ApronReach) * ts, (ay + dirY * ApronReach) * ts, surface);
-        var o1 = camera.WorldToScreen((bx + dirX * ApronReach) * ts, (by + dirY * ApronReach) * ts, surface);
-        batch.DrawScreenPolygonGradient(new()
+        // Alpha steps down in bands so the wash hugs the true waterline but
+        // thins fast across the 5-tile reach: 0-1 strong, 1-2 medium, 2+ mist.
+        ReadOnlySpan<(float R, float A)> bands =
+        [
+            (0f, 1f), (1f, 0.55f), (2f, 0.22f), (ApronReach, 0f),
+        ];
+        for (int i = 0; i < bands.Length - 1; i++)
         {
-            (i0.X, i0.Y, tint.R, tint.G, tint.B, innerAlpha),
-            (i1.X, i1.Y, tint.R, tint.G, tint.B, innerAlpha),
-            (o1.X, o1.Y, tint.R, tint.G, tint.B, (byte)0),
-            (o0.X, o0.Y, tint.R, tint.G, tint.B, (byte)0),
-        });
+            var (r0, a0) = bands[i];
+            var (r1, a1) = bands[i + 1];
+            var p0 = camera.WorldToScreen((ax + dirX * r0) * ts, (ay + dirY * r0) * ts, surface);
+            var p1 = camera.WorldToScreen((bx + dirX * r0) * ts, (by + dirY * r0) * ts, surface);
+            var q0 = camera.WorldToScreen((ax + dirX * r1) * ts, (ay + dirY * r1) * ts, surface);
+            var q1 = camera.WorldToScreen((bx + dirX * r1) * ts, (by + dirY * r1) * ts, surface);
+            batch.DrawScreenPolygonGradient(new()
+            {
+                (p0.X, p0.Y, tint.R, tint.G, tint.B, (byte)(innerAlpha * a0)),
+                (p1.X, p1.Y, tint.R, tint.G, tint.B, (byte)(innerAlpha * a0)),
+                (q1.X, q1.Y, tint.R, tint.G, tint.B, (byte)(innerAlpha * a1)),
+                (q0.X, q0.Y, tint.R, tint.G, tint.B, (byte)(innerAlpha * a1)),
+            });
+        }
     }
 
     /// <summary>Diagonal corner apron closing the seam at convex shore corners.</summary>
@@ -324,10 +335,11 @@ public sealed class TileRenderer : IDisposable
     {
         float ts = Constants.TileSize;
         var tint = WaterGradientColor(0.25f);
+        const float cornerReach = 1.5f; // shorter than edge aprons: corner seams only
         var i0 = camera.WorldToScreen(cx * ts, cy * ts, surface);
-        var oX = camera.WorldToScreen((cx + dirX * ApronReach) * ts, cy * ts, surface);
-        var oXY = camera.WorldToScreen((cx + dirX * ApronReach) * ts, (cy + dirY * ApronReach) * ts, surface);
-        var oY = camera.WorldToScreen(cx * ts, (cy + dirY * ApronReach) * ts, surface);
+        var oX = camera.WorldToScreen((cx + dirX * cornerReach) * ts, cy * ts, surface);
+        var oXY = camera.WorldToScreen((cx + dirX * cornerReach) * ts, (cy + dirY * cornerReach) * ts, surface);
+        var oY = camera.WorldToScreen(cx * ts, (cy + dirY * cornerReach) * ts, surface);
         batch.DrawScreenPolygonGradient(new()
         {
             (i0.X, i0.Y, tint.R, tint.G, tint.B, innerAlpha),
