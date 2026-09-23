@@ -140,32 +140,29 @@ public sealed class TileRenderer : IDisposable
                 {
                     if (isWater)
                     {
-                        // Volumetric water: a single flat surface quad, tinted
-                        // per corner by bed depth so shallow shore water blends
-                        // gradiently into the deep blue. No seabed slab, so
-                        // nothing pokes through.
+                        // Volumetric water: the tile's intersection with its
+                        // own surface plane (here the full quad), tinted per
+                        // vertex by bed depth and shore distance. Shared tile
+                        // edges clip at identical world points, so neighboring
+                        // land wedges continue the same waterline seamlessly.
                         float surface = tile.GetSurfaceElevation();
-                        byte baseAlpha = 215;
                         float shoreDist = tile.ShoreDistance;
-                        // Blend in the neighbor-toward-shore distance at each
-                        // corner so edges facing land stay pale.
                         float eShore = Math.Max(0f, shoreDist - 1f);
-                        var c00 = WaterGradientColor(WaterGradientT(surface - e00, CornerShore(world, x, y, -1, -1, shoreDist, eShore)));
-                        var c10 = WaterGradientColor(WaterGradientT(surface - e10, CornerShore(world, x, y, 1, -1, shoreDist, eShore)));
-                        var c11 = WaterGradientColor(WaterGradientT(surface - e11, CornerShore(world, x, y, 1, 1, shoreDist, eShore)));
-                        var c01 = WaterGradientColor(WaterGradientT(surface - e01, CornerShore(world, x, y, -1, 1, shoreDist, eShore)));
+                        Span<float> cornerT =
+                        [
+                            WaterGradientT(surface - e00, CornerShore(world, x, y, -1, -1, shoreDist, eShore)),
+                            WaterGradientT(surface - e10, CornerShore(world, x, y, 1, -1, shoreDist, eShore)),
+                            WaterGradientT(surface - e11, CornerShore(world, x, y, 1, 1, shoreDist, eShore)),
+                            WaterGradientT(surface - e01, CornerShore(world, x, y, -1, 1, shoreDist, eShore)),
+                        ];
 
-                        var sbl = camera.WorldToScreen(x * Constants.TileSize, y * Constants.TileSize, surface);
-                        var sbr = camera.WorldToScreen((x + 1) * Constants.TileSize, y * Constants.TileSize, surface);
-                        var str = camera.WorldToScreen((x + 1) * Constants.TileSize, (y + 1) * Constants.TileSize, surface);
-                        var stl = camera.WorldToScreen(x * Constants.TileSize, (y + 1) * Constants.TileSize, surface);
-                        batch.DrawScreenPolygonGradient(new()
-                        {
-                            (sbl.X, sbl.Y, c00.R, c00.G, c00.B, baseAlpha),
-                            (sbr.X, sbr.Y, c10.R, c10.G, c10.B, baseAlpha),
-                            (str.X, str.Y, c11.R, c11.G, c11.B, baseAlpha),
-                            (stl.X, stl.Y, c01.R, c01.G, c01.B, baseAlpha),
-                        });
+                        float ts2 = Constants.TileSize;
+                        var sbl = camera.WorldToScreen(x * ts2, y * ts2, surface);
+                        var sbr = camera.WorldToScreen((x + 1) * ts2, y * ts2, surface);
+                        var str = camera.WorldToScreen((x + 1) * ts2, (y + 1) * ts2, surface);
+                        var stl = camera.WorldToScreen(x * ts2, (y + 1) * ts2, surface);
+                        DrawWaterPatch(batch, camera, x, y, surface,
+                            e00, e10, e11, e01, cornerT, time);
                         uint wt = GetTerrainTexture("water");
                         if (wt != 0)
                         {
@@ -176,39 +173,14 @@ public sealed class TileRenderer : IDisposable
                                 wt, uOff, vOff);
                         }
 
-                        // Shore aprons: extend the surface outward past tile edges
-                        // (and exposed corners) that face land. The gradient fade
-                        // both hides the stitching gap against raised banks and
-                        // reads as shallow water thinning onto the shore.
-                        float lap = MathF.Sin(time * 1.7f + x * 0.9f + y * 0.6f);
-                        byte innerA = (byte)Math.Clamp(215 + (int)(25f * lap), 180, 240);
-                        bool wL = IsWaterAt(world, x - 1, y);
-                        bool wR = IsWaterAt(world, x + 1, y);
-                        bool wB = IsWaterAt(world, x, y - 1);
-                        bool wT = IsWaterAt(world, x, y + 1);
-                        if (!wB) DrawWaterApron(batch, camera, x, y, x + 1, y, 0, -1, surface, innerA);
-                        if (!wT) DrawWaterApron(batch, camera, x, y + 1, x + 1, y + 1, 0, 1, surface, innerA);
-                        if (!wL) DrawWaterApron(batch, camera, x, y, x, y + 1, -1, 0, surface, innerA);
-                        if (!wR) DrawWaterApron(batch, camera, x + 1, y, x + 1, y + 1, 1, 0, surface, innerA);
-                        // Corner aprons where both edge neighbors are water but
-                        // the diagonal is land — closes the diagonal seam.
-                        if (wB && wL && !IsWaterAt(world, x - 1, y - 1))
-                            DrawWaterCornerApron(batch, camera, x, y, -1, -1, surface, innerA);
-                        if (wB && wR && !IsWaterAt(world, x + 1, y - 1))
-                            DrawWaterCornerApron(batch, camera, x + 1, y, 1, -1, surface, innerA);
-                        if (wT && wL && !IsWaterAt(world, x - 1, y + 1))
-                            DrawWaterCornerApron(batch, camera, x, y + 1, -1, 1, surface, innerA);
-                        if (wT && wR && !IsWaterAt(world, x + 1, y + 1))
-                            DrawWaterCornerApron(batch, camera, x + 1, y + 1, 1, 1, surface, innerA);
-
                         // Waterfall face: where the neighboring water tile's
                         // surface sits lower than ours, close the vertical
                         // slice between the two surface heights so sky never
                         // shows through the seam (reads as a small spill).
-                        if (wB) DrawWaterDrop(batch, camera, x, y, x + 1, y, surface, world.GetTile(x, y - 1)!.GetSurfaceElevation());
-                        if (wT) DrawWaterDrop(batch, camera, x, y + 1, x + 1, y + 1, surface, world.GetTile(x, y + 1)!.GetSurfaceElevation());
-                        if (wL) DrawWaterDrop(batch, camera, x, y, x, y + 1, surface, world.GetTile(x - 1, y)!.GetSurfaceElevation());
-                        if (wR) DrawWaterDrop(batch, camera, x + 1, y, x + 1, y + 1, surface, world.GetTile(x + 1, y)!.GetSurfaceElevation());
+                        if (IsWaterAt(world, x, y - 1)) DrawWaterDrop(batch, camera, x, y, x + 1, y, surface, world.GetTile(x, y - 1)!.GetSurfaceElevation());
+                        if (IsWaterAt(world, x, y + 1)) DrawWaterDrop(batch, camera, x, y + 1, x + 1, y + 1, surface, world.GetTile(x, y + 1)!.GetSurfaceElevation());
+                        if (IsWaterAt(world, x - 1, y)) DrawWaterDrop(batch, camera, x, y, x, y + 1, surface, world.GetTile(x - 1, y)!.GetSurfaceElevation());
+                        if (IsWaterAt(world, x + 1, y)) DrawWaterDrop(batch, camera, x + 1, y, x + 1, y + 1, surface, world.GetTile(x + 1, y)!.GetSurfaceElevation());
                         return;
                     }
 
@@ -238,14 +210,23 @@ public sealed class TileRenderer : IDisposable
                         }
                     }
 
-                    // Shore overlay: if any corner of this land tile dips below
-                    // the level of an adjacent water surface, fill the below-
-                    // water sub-region with an animated wedge (the "lap").
+                    // Shore overlay: fill the below-water sub-region of this
+                    // land tile against the adjacent water surface — the exact
+                    // geographic waterline, feathered at the shore.
                     float shoreSurface = NeighborWaterSurface(world, x, y);
                     float minCorner = Math.Min(Math.Min(e00, e10), Math.Min(e11, e01));
                     if (!float.IsNaN(shoreSurface) && minCorner < shoreSurface)
-                        DrawShorelineWedge(batch, camera, x, y, e00, e10, e11, e01,
-                            shoreSurface, time);
+                    {
+                        Span<float> landT =
+                        [
+                            WaterGradientT(shoreSurface - e00, 0f),
+                            WaterGradientT(shoreSurface - e10, 0f),
+                            WaterGradientT(shoreSurface - e11, 0f),
+                            WaterGradientT(shoreSurface - e01, 0f),
+                        ];
+                        DrawWaterPatch(batch, camera, x, y, shoreSurface,
+                            e00, e10, e11, e01, landT, time);
+                    }
                 }));
             }
         }
@@ -294,66 +275,57 @@ public sealed class TileRenderer : IDisposable
         => world.GetTile(x, y)?.Biome?.Id == "water";
 
     /// <summary>
-    /// Extend a water surface past one of its edges into a land neighbor:
-    /// a quad at surface level fading from shore-tinted alpha to transparent.
-    /// (ax ay)-(bx by) is the tile edge in tile coords, (dirX dirY) points outward.
+    /// Draw the portion of a tile that lies below a water surface: submerged
+    /// corners plus the interpolated points where tile edges cross the
+    /// surface, fan-triangulated at surface height. Because crossings are
+    /// computed on shared edges, adjacent tiles stitch one continuous
+    /// waterline that follows the terrain contour — no aprons, no gaps.
+    /// Per-vertex gradient factor t (0 = waterline pale teal, 1 = deep) is
+    /// interpolated along crossing edges; alpha feathers at the waterline.
     /// </summary>
-    private const float ApronReach = 5f;
-
-    private static void DrawWaterApron(PrimitiveBatch batch, Camera camera,
-        float ax, float ay, float bx, float by, int dirX, int dirY, float surface, byte innerAlpha)
+    private static void DrawWaterPatch(PrimitiveBatch batch, Camera camera,
+        int tileX, int tileY, float surface,
+        float e00, float e10, float e11, float e01,
+        ReadOnlySpan<float> cornerT, float time)
     {
         float ts = Constants.TileSize;
-        // Alpha steps down in bands so the wash hugs the true waterline but
-        // thins fast across the 5-tile reach: band 0 nearly matches the water
-        // edge in color and opacity, then it trails off to a faint mist.
-        ReadOnlySpan<(float R, float AFrac, float ShadeT)> bands =
-        [
-            (0f, 1.0f, 0.18f),
-            (1f, 0.68f, 0.3f),
-            (2f, 0.38f, 0.42f),
-            (ApronReach, 0f, 0.55f),
-        ];
-        for (int i = 0; i < bands.Length - 1; i++)
+        // Corners in consistent order: bl(0,0), br(1,0), tr(1,1), tl(0,1).
+        Span<(float Wx, float Wy, float E, float T)> c = stackalloc (float, float, float, float)[4];
+        c[0] = (tileX * ts, tileY * ts, e00, cornerT[0]);
+        c[1] = (tileX * ts + ts, tileY * ts, e10, cornerT[1]);
+        c[2] = (tileX * ts + ts, tileY * ts + ts, e11, cornerT[2]);
+        c[3] = (tileX * ts, tileY * ts + ts, e01, cornerT[3]);
+
+        // Gentle lapping shimmer on the waterline feather.
+        float lap = MathF.Sin(time * 1.7f + tileX * 0.9f + tileY * 0.6f);
+        byte shoreAlpha = (byte)Math.Clamp(150 + (int)(28f * lap), 105, 185);
+        const byte deepAlpha = 235;
+
+        var pts = new System.Collections.Generic.List<(float X, float Y, byte R, byte G, byte B, byte A)>(6);
+        for (int i = 0; i < 4; i++)
         {
-            var (r0, a0, s0) = bands[i];
-            var (r1, a1, s1) = bands[i + 1];
-            var t0 = WaterGradientColor(s0);
-            var t1 = WaterGradientColor(s1);
-            var p0 = camera.WorldToScreen((ax + dirX * r0) * ts, (ay + dirY * r0) * ts, surface);
-            var p1 = camera.WorldToScreen((bx + dirX * r0) * ts, (by + dirY * r0) * ts, surface);
-            var q0 = camera.WorldToScreen((ax + dirX * r1) * ts, (ay + dirY * r1) * ts, surface);
-            var q1 = camera.WorldToScreen((bx + dirX * r1) * ts, (by + dirY * r1) * ts, surface);
-            byte aIn = (byte)(innerAlpha * a0);
-            byte aOut = (byte)(innerAlpha * a1);
-            batch.DrawScreenPolygonGradient(new()
+            var a = c[i];
+            var b = c[(i + 1) % 4];
+            bool aIn = a.E < surface, bIn = b.E < surface;
+            if (aIn)
             {
-                (p0.X, p0.Y, t0.R, t0.G, t0.B, aIn),
-                (p1.X, p1.Y, t0.R, t0.G, t0.B, aIn),
-                (q1.X, q1.Y, t1.R, t1.G, t1.B, aOut),
-                (q0.X, q0.Y, t1.R, t1.G, t1.B, aOut),
-            });
+                var p = camera.WorldToScreen(a.Wx, a.Wy, surface);
+                var col = WaterGradientColor(a.T);
+                pts.Add((p.X, p.Y, col.R, col.G, col.B, deepAlpha));
+            }
+            if (aIn != bIn)
+            {
+                float t = (surface - a.E) / (b.E - a.E);
+                float wx = a.Wx + (b.Wx - a.Wx) * t;
+                float wy = a.Wy + (b.Wy - a.Wy) * t;
+                float tt = a.T + (b.T - a.T) * t;
+                var p = camera.WorldToScreen(wx, wy, surface);
+                var col = WaterGradientColor(tt);
+                pts.Add((p.X, p.Y, col.R, col.G, col.B, shoreAlpha));
+            }
         }
-    }
-
-    /// <summary>Diagonal corner apron closing the seam at convex shore corners.</summary>
-    private static void DrawWaterCornerApron(PrimitiveBatch batch, Camera camera,
-        float cx, float cy, int dirX, int dirY, float surface, byte innerAlpha)
-    {
-        float ts = Constants.TileSize;
-        var tint = WaterGradientColor(0.25f);
-        const float cornerReach = 1.5f; // shorter than edge aprons: corner seams only
-        var i0 = camera.WorldToScreen(cx * ts, cy * ts, surface);
-        var oX = camera.WorldToScreen((cx + dirX * cornerReach) * ts, cy * ts, surface);
-        var oXY = camera.WorldToScreen((cx + dirX * cornerReach) * ts, (cy + dirY * cornerReach) * ts, surface);
-        var oY = camera.WorldToScreen(cx * ts, (cy + dirY * cornerReach) * ts, surface);
-        batch.DrawScreenPolygonGradient(new()
-        {
-            (i0.X, i0.Y, tint.R, tint.G, tint.B, innerAlpha),
-            (oX.X, oX.Y, tint.R, tint.G, tint.B, (byte)0),
-            (oXY.X, oXY.Y, tint.R, tint.G, tint.B, (byte)0),
-            (oY.X, oY.Y, tint.R, tint.G, tint.B, (byte)0),
-        });
+        if (pts.Count < 3) return;
+        batch.DrawScreenPolygonGradient(pts);
     }
 
     /// <summary>
@@ -397,47 +369,6 @@ public sealed class TileRenderer : IDisposable
                 }
             }
         return best;
-    }
-
-    /// <summary>
-    /// Draw the below-water sub-polygon of a land tile against the adjacent
-    /// water surface: corners under the surface plus edge-crossing points, fan
-    /// triangulated, with a light shoreline lap (alpha + tiny scale pulse).
-    /// </summary>
-    private static void DrawShorelineWedge(PrimitiveBatch batch, Camera camera,
-        int tileX, int tileY, float e00, float e10, float e11, float e01,
-        float surface, float time)
-    {
-        float ts = Constants.TileSize;
-        // Corners in consistent order: bl(0,0), br(1,0), tr(1,1), tl(0,1).
-        Span<(float Wx, float Wy, float E)> c = stackalloc (float, float, float)[4];
-        c[0] = (tileX * ts, tileY * ts, e00);
-        c[1] = (tileX * ts + ts, tileY * ts, e10);
-        c[2] = (tileX * ts + ts, tileY * ts + ts, e11);
-        c[3] = (tileX * ts, tileY * ts + ts, e01);
-
-        var pts = new List<Silk.NET.Maths.Vector2D<float>>(6);
-        for (int i = 0; i < 4; i++)
-        {
-            var a = c[i];
-            var b2 = c[(i + 1) % 4];
-            if (a.E < surface)
-                pts.Add(camera.WorldToScreen(a.Wx, a.Wy, surface));
-            bool aIn = a.E < surface, bIn = b2.E < surface;
-            if (aIn != bIn)
-            {
-                float t = (surface - a.E) / (b2.E - a.E);
-                float wx = a.Wx + (b2.Wx - a.Wx) * t;
-                float wy = a.Wy + (b2.Wy - a.Wy) * t;
-                pts.Add(camera.WorldToScreen(wx, wy, surface));
-            }
-        }
-        if (pts.Count < 3) return;
-
-        // Lapping: gentle alpha shimmer plus a hairline push toward the water.
-        float lap = MathF.Sin(time * 1.7f + tileX * 0.9f + tileY * 0.6f);
-        byte alpha = (byte)Math.Clamp(120 + (int)(38f * lap), 70, 170);
-        batch.DrawScreenPolygon(pts, 52, 110, 175, alpha);
     }
 
     /// <summary>Does this land tile share an edge or corner with water?</summary>
