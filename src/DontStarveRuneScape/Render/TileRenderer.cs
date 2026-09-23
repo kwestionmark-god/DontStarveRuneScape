@@ -181,7 +181,7 @@ public sealed class TileRenderer : IDisposable
                         // both hides the stitching gap against raised banks and
                         // reads as shallow water thinning onto the shore.
                         float lap = MathF.Sin(time * 1.7f + x * 0.9f + y * 0.6f);
-                        byte innerA = (byte)Math.Clamp(85 + (int)(20f * lap), 55, 115);
+                        byte innerA = (byte)Math.Clamp(215 + (int)(25f * lap), 180, 240);
                         bool wL = IsWaterAt(world, x - 1, y);
                         bool wR = IsWaterAt(world, x + 1, y);
                         bool wB = IsWaterAt(world, x, y - 1);
@@ -304,27 +304,34 @@ public sealed class TileRenderer : IDisposable
         float ax, float ay, float bx, float by, int dirX, int dirY, float surface, byte innerAlpha)
     {
         float ts = Constants.TileSize;
-        var tint = WaterGradientColor(0.25f);
         // Alpha steps down in bands so the wash hugs the true waterline but
-        // thins fast across the 5-tile reach: 0-1 strong, 1-2 medium, 2+ mist.
-        ReadOnlySpan<(float R, float A)> bands =
+        // thins fast across the 5-tile reach: band 0 nearly matches the water
+        // edge in color and opacity, then it trails off to a faint mist.
+        ReadOnlySpan<(float R, float AFrac, float ShadeT)> bands =
         [
-            (0f, 1f), (1f, 0.55f), (2f, 0.22f), (ApronReach, 0f),
+            (0f, 1.0f, 0.18f),
+            (1f, 0.68f, 0.3f),
+            (2f, 0.38f, 0.42f),
+            (ApronReach, 0f, 0.55f),
         ];
         for (int i = 0; i < bands.Length - 1; i++)
         {
-            var (r0, a0) = bands[i];
-            var (r1, a1) = bands[i + 1];
+            var (r0, a0, s0) = bands[i];
+            var (r1, a1, s1) = bands[i + 1];
+            var t0 = WaterGradientColor(s0);
+            var t1 = WaterGradientColor(s1);
             var p0 = camera.WorldToScreen((ax + dirX * r0) * ts, (ay + dirY * r0) * ts, surface);
             var p1 = camera.WorldToScreen((bx + dirX * r0) * ts, (by + dirY * r0) * ts, surface);
             var q0 = camera.WorldToScreen((ax + dirX * r1) * ts, (ay + dirY * r1) * ts, surface);
             var q1 = camera.WorldToScreen((bx + dirX * r1) * ts, (by + dirY * r1) * ts, surface);
+            byte aIn = (byte)(innerAlpha * a0);
+            byte aOut = (byte)(innerAlpha * a1);
             batch.DrawScreenPolygonGradient(new()
             {
-                (p0.X, p0.Y, tint.R, tint.G, tint.B, (byte)(innerAlpha * a0)),
-                (p1.X, p1.Y, tint.R, tint.G, tint.B, (byte)(innerAlpha * a0)),
-                (q1.X, q1.Y, tint.R, tint.G, tint.B, (byte)(innerAlpha * a1)),
-                (q0.X, q0.Y, tint.R, tint.G, tint.B, (byte)(innerAlpha * a1)),
+                (p0.X, p0.Y, t0.R, t0.G, t0.B, aIn),
+                (p1.X, p1.Y, t0.R, t0.G, t0.B, aIn),
+                (q1.X, q1.Y, t1.R, t1.G, t1.B, aOut),
+                (q0.X, q0.Y, t1.R, t1.G, t1.B, aOut),
             });
         }
     }
