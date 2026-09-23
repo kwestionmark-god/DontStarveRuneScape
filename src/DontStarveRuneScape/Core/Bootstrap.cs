@@ -200,6 +200,18 @@ public sealed class Bootstrap
         _game.Camera.SetPlayer(player);
         _game.Camera.SetWorld(tileMap);
 
+        // Smoketest hooks: DSR_POS_X/DSR_POS_Y teleport the player (tile
+        // coords) before the first frame so captures can target any spot —
+        // e.g. a large lake — without keyboard input.
+        if (float.TryParse(System.Environment.GetEnvironmentVariable("DSR_POS_X"), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var tx)
+            && float.TryParse(System.Environment.GetEnvironmentVariable("DSR_POS_Y"), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var ty))
+        {
+            player.WorldX = tx * Constants.TileSize + Constants.TileSize / 2f;
+            player.WorldY = ty * Constants.TileSize + Constants.TileSize / 2f;
+            player.TargetX = player.WorldX;
+            player.TargetY = player.WorldY;
+        }
+
         // Smoketest hooks: DSR_CAM_PITCH/DSR_CAM_YAW/DSR_CAM_ZOOM override the
         // camera before the first rendered frame so headless captures can be
         // taken at specific angles.

@@ -184,6 +184,13 @@ public sealed class Tile
     /// </summary>
     public float WaterLevel { get; set; } = float.NaN;
 
+    /// <summary>
+    /// Water tiles: distance in tiles to the nearest land, from a multi-source
+    /// BFS at worldgen. Drives the shallow→deep surface gradient so the blend
+    /// spans several tiles even over steep lakebeds.
+    /// </summary>
+    public float ShoreDistance { get; set; } = 0f;
+
     /// <summary>Effective water surface level of this tile (sea or pool).</summary>
     public float GetSurfaceElevation()
         => Biome?.Id != "water" ? float.NaN

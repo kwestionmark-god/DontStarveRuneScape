@@ -276,6 +276,38 @@ public static class WorldGen
             foreach (var (x, y) in toCoastal)
                 map.Tiles[x, y].Biome = coastalBiome;
         }
+
+        // Shore-distance field: multi-source BFS over water starting from
+        // water tiles that border land. Rendered as the shallow→deep gradient.
+        var distQ = new Queue<(int X, int Y)>();
+        var distD = new int[width, height];
+        for (int x = 0; x < width; x++)
+            for (int y = 0; y < height; y++)
+            {
+                if (map.Tiles[x, y].Biome?.Id != "water") continue;
+                bool borderLand = false;
+                for (int dx = -1; dx <= 1 && !borderLand; dx++)
+                    for (int dy = -1; dy <= 1 && !borderLand; dy++)
+                        if (map.GetTile(x + dx, y + dy)?.Biome?.Id != "water")
+                            borderLand = true;
+                if (borderLand) { distQ.Enqueue((x, y)); distD[x, y] = 0; }
+            }
+        var distSeen = new bool[width, height];
+        foreach (var s in distQ) distSeen[s.X, s.Y] = true;
+        while (distQ.Count > 0)
+        {
+            var c = distQ.Dequeue();
+            map.Tiles[c.X, c.Y].ShoreDistance = distD[c.X, c.Y];
+            foreach (var (dx, dy) in new[] { (1, 0), (-1, 0), (0, 1), (0, -1) })
+            {
+                int nx = c.X + dx, ny = c.Y + dy;
+                if (nx < 0 || ny < 0 || nx >= width || ny >= height) continue;
+                if (distSeen[nx, ny] || map.Tiles[nx, ny].Biome?.Id != "water") continue;
+                distSeen[nx, ny] = true;
+                distD[nx, ny] = distD[c.X, c.Y] + 1;
+                distQ.Enqueue((nx, ny));
+            }
+        }
     }
 
     private static void BuildCornerElevations(TileMap map)
