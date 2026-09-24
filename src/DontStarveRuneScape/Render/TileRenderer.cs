@@ -204,16 +204,21 @@ public sealed class TileRenderer : IDisposable
                     }
                     if (straddlesSea)
                         DrawSeaSheetPatch(batch, camera, world, tile, Constants.SeaLevel, time);
-                    // Wave crests ride every land tile edge that faces water,
-                    // projected at that water's surface — the waterline is the
-                    // tile boundary (terrain occludes the water there), so the
-                    // crests sit right on the visible shore.
-                    if (tile.LandDistToWater == 1)
-                        DrawEdgeWaves(batch, camera, x, y, world, time);
 
-                    // (The old ring-band wash was removed: per-tile quads made
-                    // the shore read as square steps. The layered blanket above
-                    // supplies the wet-slope gradient contour-exactly.)
+                    // Bank faces: where this land tile edges water, close the
+                    // vertical band from the terrain lip down to the sea plane.
+                    // Elevation parallax would otherwise show the pale sheet
+                    // THROUGH that band, making banks look like floating slabs.
+                    if (TileTouchesWater(world, x, y))
+                    {
+                        DrawBankFace(batch, camera, world, x, y - 1, x, y, x + 1, y, e00, e10, r, g, b);          // north edge
+                        DrawBankFace(batch, camera, world, x, y + 1, x, y + 1, x + 1, y + 1, e01, e11, r, g, b);  // south edge
+                        DrawBankFace(batch, camera, world, x - 1, y, x, y, x, y + 1, e00, e01, r, g, b);          // west edge
+                        DrawBankFace(batch, camera, world, x + 1, y, x + 1, y, x + 1, y + 1, e10, e11, r, g, b);  // east edge
+                    }
+                    // Foam crests ride the true waterline contour inside
+                    // straddling tiles (DrawSeaSheetPatch) rather than tile
+                    // edges.
                 })));
             }
         }
@@ -229,9 +234,9 @@ public sealed class TileRenderer : IDisposable
         // Shallow: saturated teal (reads as water, not haze). Deep endpoint is
         // exactly the fullscreen sea-plane fallback color so per-tile water
         // meets the surrounding sea seamlessly.
-        return ((byte)(80 + (35 - 80) * t),
-                (byte)(150 + (90 - 150) * t),
-                (byte)(205 + (150 - 205) * t));
+        return ((byte)(58 + (35 - 58) * t),
+                (byte)(145 + (90 - 145) * t),
+                (byte)(212 + (150 - 212) * t));
     }
 
     /// <summary>
@@ -244,7 +249,10 @@ public sealed class TileRenderer : IDisposable
     {
         float t = WaterGradientT(bedDepth);
         var col = WaterGradientColor(t);
-        byte a = (byte)Math.Clamp(128 + 127f * t, 0f, 255f);
+        // Opacity eases from near-clear at the waterline to opaque in the
+        // deeps — barely-submerged terrain should read as wet ground, not a
+        // milky apron.
+        byte a = (byte)Math.Clamp(110 + 145f * t, 0f, 255f);
         return (col, a);
     }
 
@@ -307,42 +315,6 @@ public sealed class TileRenderer : IDisposable
         return _waveTex;
     }
 
-    /// <summary>
-    /// Oscillating wave-crest billboards on every edge of this land tile that
-    /// borders water: the crest sits at the shared edge midpoint, projected at
-    /// the water surface, pulsing in size and alpha with a per-edge phase so
-    /// crests wash in staggered along the visible shoreline.
-    /// </summary>
-    private void DrawEdgeWaves(PrimitiveBatch batch, Camera camera,
-        int tileX, int tileY, TileMap world, float time)
-    {
-        if (camera.Zoom < 0.75f) return; // far LOD: no waves
-        uint tex = GetWaveTexture();
-        if (tex == 0) return;
-
-        float ts = Constants.TileSize;
-        for (int k = 0; k < 4; k++)
-        {
-            int dx = k == 0 ? 0 : k == 1 ? 1 : k == 2 ? 0 : -1;
-            int dy = k == 0 ? -1 : k == 1 ? 0 : k == 2 ? 1 : 0;
-            var n = world.GetTile(tileX + dx, tileY + dy);
-            if (n == null || !n.HasWater) continue;
-            float surface = Constants.SeaLevel;
-
-            // Edge midpoint in world coords.
-            float mx = (tileX + 0.5f + dx * 0.5f) * ts;
-            float my = (tileY + 0.5f + dy * 0.5f) * ts;
-            float phase = ((tileX * 73856093) ^ (tileY * 19349663) ^ (k * 83492791)) * 0.00061f;
-            float s = (MathF.Sin(time * 2.0f + phase) + 1f) * 0.5f;
-            byte alpha = (byte)(30 + 120 * s * s);
-            var m = camera.WorldToScreen(mx, my, surface);
-            float halfW = ts * camera.Zoom * (0.26f + 0.15f * s);
-            float halfH = halfW * 0.42f;
-            batch.DrawTexturedScreenQuad(m.X, m.Y - halfH * (0.5f + 0.5f * s),
-                halfW, halfH, tex, 255, 255, 255, alpha);
-        }
-    }
-
     /// <summary>Sub-cell resolution of the clipped water patch.</summary>
     private const int PatchSub = 4;
 
@@ -383,6 +355,47 @@ public sealed class TileRenderer : IDisposable
         float a = bed[x0, y0] * (1 - fx) + bed[x1, y0] * fx;
         float b = bed[x0, y1] * (1 - fx) + bed[x1, y1] * fx;
         return a * (1 - fy) + b * fy;
+    }
+
+    /// <summary>
+    /// Vertical bank face between a land tile edge and the sea plane: fills the
+    /// projection band between the terrain lip and the water surface so banks
+    /// physically meet the water at any camera angle. Bottom dips just below
+    /// the surface so no crack can show. Drawn by the LAND tile (painter's
+    /// order puts land after water, which is exactly the occlusion we want).
+    /// </summary>
+    private static void DrawBankFace(PrimitiveBatch batch, Camera camera, TileMap world,
+        int nx, int ny, float ax, float ay, float bx, float by,
+        float eA, float eB, byte r, byte g, byte b)
+    {
+        var n = world.GetTile(nx, ny);
+        if (n == null || !n.HasWater) return;
+        const float sea = Constants.SeaLevel;
+        // Only where this edge sits above the surface (clamped: a corner that
+        // dips below the plane is the contact patch's territory).
+        float topA = Math.Max(eA, sea + 0.02f), topB = Math.Max(eB, sea + 0.02f);
+        if (eA <= sea + 0.03f && eB <= sea + 0.03f) return;
+
+        float ts = Constants.TileSize;
+        var ta = camera.WorldToScreen(ax * ts, ay * ts, topA);
+        var tb = camera.WorldToScreen(bx * ts, by * ts, topB);
+        var ba = camera.WorldToScreen(ax * ts, ay * ts, sea - 0.04f);
+        var bb = camera.WorldToScreen(bx * ts, by * ts, sea - 0.04f);
+
+        // Shaded bank dirt at the lip, darkening toward the waterline.
+        byte tr2 = (byte)Math.Clamp((int)(r * 0.78f), 0, 255);
+        byte tg2 = (byte)Math.Clamp((int)(g * 0.78f), 0, 255);
+        byte tb2 = (byte)Math.Clamp((int)(b * 0.78f), 0, 255);
+        byte mr = (byte)Math.Clamp((int)(r * 0.5f + 40 * 0.5f), 0, 255);
+        byte mg = (byte)Math.Clamp((int)(g * 0.5f + 95 * 0.5f), 0, 255);
+        byte mb = (byte)Math.Clamp((int)(b * 0.5f + 125 * 0.5f), 0, 255);
+        batch.DrawScreenPolygonGradient(new()
+        {
+            (ta.X, ta.Y, tr2, tg2, tb2, (byte)255),
+            (tb.X, tb.Y, tr2, tg2, tb2, (byte)255),
+            (bb.X, bb.Y, mr, mg, mb, (byte)255),
+            (ba.X, ba.Y, mr, mg, mb, (byte)255),
+        });
     }
 
     /// <summary>
@@ -479,6 +492,9 @@ public sealed class TileRenderer : IDisposable
 
         uint tex = GetTerrainTexture("water");
         var pts = new System.Collections.Generic.List<(float X, float Y, float U, float V, byte R, byte G, byte B, byte A)>(6);
+        // Crossing segments of the true waterline contour inside this tile —
+        // foam crests run along these, so waves hug the real shoreline curve.
+        var crossings = new System.Collections.Generic.List<(float X1, float Y1, float X2, float Y2)>();
         void Vertex(float wx, float wy, float e)
         {
             var p = camera.WorldToScreen(wx, wy, surface);
@@ -504,6 +520,8 @@ public sealed class TileRenderer : IDisposable
                 c[3] = (wx0, wy1, e01);
 
                 pts.Clear();
+                float cx1 = 0, cy1 = 0, cx2 = 0, cy2 = 0;
+                int nCross = 0;
                 for (int k = 0; k < 4; k++)
                 {
                     var a = c[k];
@@ -513,9 +531,15 @@ public sealed class TileRenderer : IDisposable
                     if (aIn != bIn)
                     {
                         float t = (clipLevel - a.E) / (b2.E - a.E);
-                        Vertex(a.Wx + (b2.Wx - a.Wx) * t, a.Wy + (b2.Wy - a.Wy) * t, a.E + (b2.E - a.E) * t);
+                        float wx = a.Wx + (b2.Wx - a.Wx) * t;
+                        float wy = a.Wy + (b2.Wy - a.Wy) * t;
+                        Vertex(wx, wy, a.E + (b2.E - a.E) * t);
+                        if (nCross == 0) { cx1 = wx; cy1 = wy; }
+                        else if (nCross == 1) { cx2 = wx; cy2 = wy; }
+                        nCross++;
                     }
                 }
+                if (nCross == 2) crossings.Add((cx1, cy1, cx2, cy2));
                 if (pts.Count >= 3)
                 {
                     if (tex != 0) batch.DrawScreenPolygonGradientTextured(pts, tex);
@@ -527,6 +551,51 @@ public sealed class TileRenderer : IDisposable
                     }
                 }
             }
+
+        DrawContourFoam(batch, camera, tile, crossings, surface, time, cameraZoom: camera.Zoom);
+    }
+
+    /// <summary>
+    /// Foam crests along the true waterline contour: small oriented bands laid
+    /// on the marching-squares crossing segments of a straddling tile, so the
+    /// foam follows the curving shore instead of stair-stepping tile edges.
+    /// </summary>
+    private void DrawContourFoam(PrimitiveBatch batch, Camera camera, Tile tile,
+        System.Collections.Generic.List<(float X1, float Y1, float X2, float Y2)> crossings,
+        float surface, float time, float cameraZoom)
+    {
+        if (cameraZoom < 0.75f || crossings.Count == 0) return;
+        uint foam = GetWaveTexture();
+        float ts = Constants.TileSize;
+        for (int i = 0; i < crossings.Count; i++)
+        {
+            var (x1, y1, x2, y2) = crossings[i];
+            uint hash = (uint)(tile.X * 73856093 ^ tile.Y * 19349663 ^ i * 83492791);
+            if ((hash & 1) == 0) continue; // thin the foam out along the contour
+            float phase = hash * 0.00061f;
+            float s = (MathF.Sin(time * 2.0f + phase) + 1f) * 0.5f;
+            byte alpha = (byte)(25 + 95 * s * s);
+
+            // World-space perpendicular of the contour segment.
+            float dx = x2 - x1, dy = y2 - y1;
+            float len = MathF.Sqrt(dx * dx + dy * dy);
+            if (len < 1f) continue;
+            float nx = -dy / len, ny = dx / len;
+            float w = ts * (0.10f + 0.06f * s);
+
+            var p1 = camera.WorldToScreen(x1, y1, surface);
+            var p2 = camera.WorldToScreen(x2, y2, surface);
+            var p3 = camera.WorldToScreen(x2 + nx * w * 2, y2 + ny * w * 2, surface);
+            var p4 = camera.WorldToScreen(x1 + nx * w * 2, y1 + ny * w * 2, surface);
+
+            batch.DrawScreenPolygonGradientTextured(new()
+            {
+                (p1.X, p1.Y, 0f, 0f, (byte)255, (byte)255, (byte)255, alpha),
+                (p2.X, p2.Y, 1f, 0f, (byte)255, (byte)255, (byte)255, alpha),
+                (p3.X, p3.Y, 1f, 1f, (byte)255, (byte)255, (byte)255, alpha),
+                (p4.X, p4.Y, 0f, 1f, (byte)255, (byte)255, (byte)255, alpha),
+            }, foam);
+        }
     }
 
     /// <summary>Does this land tile share an edge or corner with water?</summary>
