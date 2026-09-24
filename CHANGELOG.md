@@ -8,6 +8,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Changed
+- **Sea rendering is now one continuous water layer**: a single flat mesh at
+  SeaLevel spans the visible map each frame (painter class between submerged
+  beds and dry land), per-vertex tinted and faded by the smoothed bed depth —
+  replacing all per-tile water quads, so tile-grid seams, waffling, and
+  yaw-dependent artifacts are gone. Land that dips below the plane is clipped
+  against it (marching squares), so waterline contours come from one terrain
+  field at every yaw/pitch, and terrain dips fill with water as natural
+  inlets. Foam crests ride the same contour. Perf ~8.3ms at a busy shore.
+
+### Changed
 - **Sea level raised to a permanent 11.5** (was 6.5): the old flood system was
   manufacturing ~25% water coverage from a heightmap that almost never dips
   below 6.5; at 11.5 about a quarter of the world is genuinely below the sea
