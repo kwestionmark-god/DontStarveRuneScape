@@ -197,6 +197,13 @@ public static class WorldGen
                 {
                     var t = map.Tiles[x, y];
                     if (t.HasWater) continue;
+                    // Everything at sea level and just above is sandy coastal
+                    // ground — grass at that altitude reads wrong by the water.
+                    if (t.Elevation <= Constants.SeaLevel + 1.2f)
+                    {
+                        toCoastal.Add((x, y));
+                        continue;
+                    }
                     // Coastal when near submerged terrain at sea-level reach.
                     bool touchesWater = false;
                     for (int dx = -2; dx <= 2 && !touchesWater; dx++)

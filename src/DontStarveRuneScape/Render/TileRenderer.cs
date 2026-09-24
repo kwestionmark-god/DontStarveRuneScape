@@ -231,30 +231,36 @@ public sealed class TileRenderer : IDisposable
             for (int i = 0; i < SUB; i++)
             {
                 float gx0 = tx + i / (float)SUB, gy0 = ty + j / (float)SUB;
-                // Skip where all four corners stand dry — dry land is painted
-                // over the layer anyway, this just saves fill rate.
-                float s00 = SmoothBed(world, gx0, gy0, 99f);
-                float s10 = SmoothBed(world, gx0 + 1f / SUB, gy0, 99f);
-                float s11 = SmoothBed(world, gx0 + 1f / SUB, gy0 + 1f / SUB, 99f);
-                float s01 = SmoothBed(world, gx0, gy0 + 1f / SUB, 99f);
-                float minS = Math.Min(Math.Min(s00, s10), Math.Min(s11, s01));
-                // Skip where the smoothed bed is surely above the plane —
-                // dry land is painted over the layer anyway.
-                if (minS > Constants.SeaLevel + 0.1f) continue;
+                var tile = world.Tiles[tx, ty];
+                // Depth grading uses the SHALLOWER of the smoothed bed and the
+                // tile's local heightfield: smoothing never overstates depth at
+                // a dry lip (that showed saturated water through the parallax
+                // band under the last sand edge).
+                float Dep(float gx, float gy, float lu, float lv)
+                {
+                    float raw = tile?.GetElevationAt(lu, lv) ?? Constants.SeaLevel;
+                    return Constants.SeaLevel - Math.Min(SmoothBed(world, gx, gy, raw), raw);
+                }
+                float d00 = Dep(gx0, gy0, i / (float)SUB, j / (float)SUB);
+                float d10 = Dep(gx0 + 1f / SUB, gy0, (i + 1f) / SUB, j / (float)SUB);
+                float d11 = Dep(gx0 + 1f / SUB, gy0 + 1f / SUB, (i + 1f) / SUB, (j + 1f) / SUB);
+                float d01 = Dep(gx0, gy0 + 1f / SUB, i / (float)SUB, (j + 1f) / SUB);
+                // Skip where all four corners stand dry and deep-free.
+                if (Math.Max(Math.Max(d00, d10), Math.Max(d11, d01)) < -0.1f) continue;
 
                 pts.Clear();
-                void V(float gx, float gy, float s)
+                void V(float gx, float gy, float d)
                 {
                     float wx = gx * ts, wy = gy * ts;
                     var p = camera.WorldToScreen(wx, wy, Constants.SeaLevel);
                     var (u, v) = SheetUv(wx, wy, time);
-                    var (col, a) = SheetColor(Constants.SeaLevel - s);
+                    var (col, a) = SheetColor(d);
                     pts.Add((p.X, p.Y, u, v, col.R, col.G, col.B, a));
                 }
-                V(gx0, gy0, s00);
-                V(gx0 + 1f / SUB, gy0, s10);
-                V(gx0 + 1f / SUB, gy0 + 1f / SUB, s11);
-                V(gx0, gy0 + 1f / SUB, s01);
+                V(gx0, gy0, d00);
+                V(gx0 + 1f / SUB, gy0, d10);
+                V(gx0 + 1f / SUB, gy0 + 1f / SUB, d11);
+                V(gx0, gy0 + 1f / SUB, d01);
                 if (tex != 0) batch.DrawScreenPolygonGradientTextured(pts, tex);
                 else
                 {
