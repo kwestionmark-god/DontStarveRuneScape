@@ -8,6 +8,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Changed
+- **Sea level raised to a permanent 11.5** (was 6.5): the old flood system was
+  manufacturing ~25% water coverage from a heightmap that almost never dips
+  below 6.5; at 11.5 about a quarter of the world is genuinely below the sea
+  plane (deepest beds ~7 levels down). Spawn search now requires dry ground
+  above the sea.
+- **Land is never clipped — water is a contact layer**: dry tiles always draw
+  whole (fixing the missing wedges at shorelines); where a tile's terrain dips
+  below the sea plane, the sheet is painted over the dipped region via sub-tile
+  marching squares (DrawSeaSheetPatch) with world-anchored UVs and
+  depth-ramped tint and opacity, so water visibly meets land along the true
+  contour. Perf at a shoreline spot: 5.39ms avg / 6.49ms p95.
 - **Water is now a physical sea-level layer, not a tile class**: worldgen no
   longer converts low tiles to a water biome; any terrain at or below the
   constant `SeaLevel` simply intersects the flat sea plane. The renderer draws

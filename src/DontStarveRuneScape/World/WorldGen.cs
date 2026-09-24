@@ -345,10 +345,11 @@ public static class WorldGen
                     var tile = map.GetTile(x, y);
                     if (tile == null) continue;
 
-                    // Check if biome is safe and elevation is reasonable.
-                    // Forest spans 5–27; spawn in the lowland fringe.
+                    // Check if biome is safe and the tile stays comfortably
+                    // above the permanent sea plane (dry spawn).
                     if (safeBiomes.Contains(tile.Biome?.Id ?? "") &&
-                        tile.Elevation >= 4.0f && tile.Elevation <= 7.0f &&
+                        tile.Elevation >= Constants.SeaLevel + 1.0f &&
+                        tile.Elevation <= Constants.SeaLevel + 5.0f &&
                         tile.ResourceNode == null) // Don't spawn on resource
                     {
                         spawnX = x;

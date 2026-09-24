@@ -118,7 +118,12 @@ public static class Constants
     public const int LakeMinSize = 5;                 // Minimum tiles for a lake
 
     /// <summary>World sea level: any tile at or below this elevation is water.</summary>
-    public const float SeaLevel = 6.5f;
+    /// <summary>
+    /// The permanent sea level: a flat world-water plane at this elevation.
+    /// Set from the elevation histogram (seed 42) so ~20-25% of the world is
+    /// reliably underwater — anything at or below this height IS the sea.
+    /// </summary>
+    public const float SeaLevel = 11.5f;
 
     // ─── Survival ─────────────────────────────────────────────────────────
 
