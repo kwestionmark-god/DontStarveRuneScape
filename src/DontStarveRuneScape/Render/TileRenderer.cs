@@ -160,12 +160,22 @@ public sealed class TileRenderer : IDisposable
                         // depth drives both tint and opacity, and every corner of
                         // the sheet sits at the same world height with
                         // world-anchored UVs, so the body reads as one seamless
-                        // continuous ocean.
-                        batch.DrawScreenQuadCorners(bl.X, bl.Y, br.X, br.Y, tr.X, tr.Y, tl.X, tl.Y, r, g, b);
-                        if (overlayTex != 0)
-                            batch.DrawScreenQuadCornersTextured(
-                                bl.X, bl.Y, br.X, br.Y, tr.X, tr.Y, tl.X, tl.Y,
-                                overlayTex, tint, tint, tint);
+                        // continuous ocean. Beds are flat untextured color —
+                        // biome overlay patterns would print through the
+                        // translucent water as patchy rectangles — and are
+                        // skipped entirely once the sheet is opaque over them.
+                        bool bedVisible = Constants.SeaLevel - maxC < 4.4f;
+                        if (bedVisible)
+                        {
+                            // Underwater ground is graded by depth only — biome
+                            // colors would read as patchy rectangles through
+                            // the translucent shallows.
+                            float bedT = WaterGradientT(Constants.SeaLevel - tile.Elevation);
+                            byte br2 = (byte)(198 + (55 - 198) * bedT);
+                            byte bg2 = (byte)(186 + (80 - 186) * bedT);
+                            byte bb2 = (byte)(150 + (115 - 150) * bedT);
+                            batch.DrawScreenQuadCorners(bl.X, bl.Y, br.X, br.Y, tr.X, tr.Y, tl.X, tl.Y, br2, bg2, bb2);
+                        }
                         if (straddlesSea)
                             // Bed breaks the surface inside this tile: sheet
                             // goes only where terrain is below the plane.
@@ -229,6 +239,20 @@ public sealed class TileRenderer : IDisposable
         return ((byte)(80 + (35 - 80) * t),
                 (byte)(150 + (90 - 150) * t),
                 (byte)(205 + (150 - 205) * t));
+    }
+
+    /// <summary>
+    /// The sea's depth grading, shared by the full sheet quads and the shore
+    /// contact patches so they meet invisibly: tint eases pale-teal → deep
+    /// blue and opacity eases glassy → fully opaque over the first few levels
+    /// of depth below the sea plane.
+    /// </summary>
+    private static ((byte R, byte G, byte B) Col, byte A) SheetColor(float bedDepth)
+    {
+        float t = WaterGradientT(bedDepth);
+        var col = WaterGradientColor(t);
+        byte a = (byte)Math.Clamp(128 + 127f * t, 0f, 255f);
+        return (col, a);
     }
 
     /// <summary>
@@ -368,11 +392,7 @@ public sealed class TileRenderer : IDisposable
         void AddCorner(float sx, float sy, float wx, float wy, float e)
         {
             var (u, v) = SheetUv(wx, wy, time);
-            float t = WaterGradientT(surface - e);
-            var col = WaterGradientColor(t);
-            // Opacity ramps with depth: glassy shallows over the first levels,
-            // fully opaque once the bed drops away.
-            byte a = (byte)Math.Clamp(168 + 87f * t, 0f, 255f);
+            var (col, a) = SheetColor(surface - e);
             pts.Add((sx, sy, u, v, col.R, col.G, col.B, a));
         }
         AddCorner(bl.X, bl.Y, tile.X * ts, tile.Y * ts, e00);
@@ -418,9 +438,7 @@ public sealed class TileRenderer : IDisposable
         void Vertex(float wx, float wy, float e)
         {
             var p = camera.WorldToScreen(wx, wy, surface);
-            float t = WaterGradientT(surface - e);
-            var col = WaterGradientColor(t);
-            byte a = (byte)Math.Clamp(150 + 105f * t, 0f, 255f);
+            var (col, a) = SheetColor(surface - e);
             var (u, v) = SheetUv(wx, wy, time);
             pts.Add((p.X, p.Y, u, v, col.R, col.G, col.B, a));
         }

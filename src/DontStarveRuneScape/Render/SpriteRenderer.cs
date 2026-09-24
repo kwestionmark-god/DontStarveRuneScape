@@ -139,7 +139,7 @@ public sealed class SpriteRenderer : IDisposable
 
     private float _playerAnimTime;
 
-    public void RenderPlayer(Player player, PrimitiveBatch batch, Camera camera, float elevation, float dt)
+    public void RenderPlayer(Player player, PrimitiveBatch batch, Camera camera, float elevation, float dt, float waterDepth = 0f)
     {
         _playerAnimTime += dt;
         bool moving = player.Moving;
@@ -166,6 +166,16 @@ public sealed class SpriteRenderer : IDisposable
         else
         {
             batch.DrawScreenQuad(cx, cy, half, half, 60, 120, 220);
+        }
+
+        // Waterline overlay: the submerged lower body sits under a translucent
+        // band of sea-colored water, taller the deeper the water.
+        if (waterDepth > 0.2f)
+        {
+            float frac = Math.Clamp(waterDepth / 2.6f, 0f, 0.45f);
+            float stripHalf = half * frac;
+            byte a = (byte)Math.Clamp(45 + waterDepth * 22f, 0f, 100f);
+            batch.DrawScreenQuad(cx, cy + half - stripHalf, half * 0.6f, stripHalf, 70, 130, 195, a);
         }
     }
 

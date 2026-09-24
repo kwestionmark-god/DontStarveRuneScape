@@ -684,12 +684,18 @@ public sealed class Game
                 float fx = Player.WorldX / Constants.TileSize - ptx;
                 float fy = Player.WorldY / Constants.TileSize - pty;
                 float elev = tile?.GetElevationAt(fx, fy) ?? 0f;
-                // Wading: in water, sink to just above the surface plane.
+                // Submergible: below the sea plane the player sinks with depth
+                // (ankle-deep at the shore, swimming in open water).
+                float immersion = 0f;
                 if (tile != null && tile.HasWater)
-                    elev = tile.GetSurfaceElevation() - 0.8f;
+                {
+                    immersion = Constants.SeaLevel - elev; // water depth at feet
+                    elev = Constants.SeaLevel - Math.Clamp(immersion, 0.8f, 2.2f);
+                }
                 float sortY = GetDepthSort(Player.WorldX, Player.WorldY, elev);
+                float imm = immersion;
                 drawables.Add((sortY, seq++, () => SpriteRenderer.RenderPlayer(
-                    Player, batch, Camera, elev, Dt)));
+                    Player, batch, Camera, elev, Dt, imm)));
             }
 
             if (CombatSystem != null)
