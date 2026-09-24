@@ -227,9 +227,20 @@ public sealed class TileRenderer : IDisposable
                         }
                     }
 
-                    // Waterline is owned by the water side: sea tiles are the
-                    // fullscreen plane; pools draw their own clipped patch.
-                    // Land tiles carry the wash (below) and wave crests.
+                    // Sea blanket over low land: where this land tile's ground
+                    // dips toward the sea (tiles adjacent to sea-level water),
+                    // lay the translucent sea-level blanket across the dipped
+                    // region — terrain visibly continues INTO the water at
+                    // exactly the sea's height. Translucent so the terrain
+                    // shows through (wading shallows, dangerous-to-swim zone).
+                    float minC = Math.Min(Math.Min(e00, e10), Math.Min(e11, e01));
+                    if (tile.LandDistToWater > 0 && tile.LandDistToWater <= 3
+                        && !float.IsNaN(tile.ShoreSurface)
+                        && tile.ShoreSurface <= Constants.SeaLevel + 0.05f
+                        && minC < Constants.SeaLevel)
+                    {
+                        DrawWaterPatch(batch, camera, tile, Constants.SeaLevel, time, alphaMul: 0.68f);
+                    }
                     // Wave crests ride every land tile edge that faces water,
                     // projected at that water's surface — the waterline is the
                     // tile boundary (terrain occludes the water there), so the
@@ -412,7 +423,7 @@ public sealed class TileRenderer : IDisposable
     /// alpha feathers at crossing points with a gentle lapping shimmer.
     /// </summary>
     private static void DrawWaterPatch(PrimitiveBatch batch, Camera camera,
-        Tile tile, float surface, float time)
+        Tile tile, float surface, float time, float alphaMul = 1f)
     {
         float ts = Constants.TileSize;
         const int N = PatchSub + 1;
@@ -428,8 +439,8 @@ public sealed class TileRenderer : IDisposable
         if (!anyBelow) return;
 
         float lap = MathF.Sin(time * 1.7f + tile.X * 0.9f + tile.Y * 0.6f);
-        byte shoreAlpha = (byte)Math.Clamp(150 + (int)(28f * lap), 105, 185);
-        const byte deepAlpha = 235;
+        byte shoreAlpha = (byte)(Math.Clamp(150 + (int)(28f * lap), 105, 185) * alphaMul);
+        byte deepAlpha = (byte)(235f * alphaMul);
 
         var pts = new System.Collections.Generic.List<(float X, float Y, byte R, byte G, byte B, byte A)>(6);
         float cell = 1f / PatchSub;
