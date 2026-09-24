@@ -227,19 +227,20 @@ public sealed class TileRenderer : IDisposable
                         }
                     }
 
-                    // Sea blanket over low land: where this land tile's ground
-                    // dips toward the sea (tiles adjacent to sea-level water),
-                    // lay the translucent sea-level blanket across the dipped
-                    // region — terrain visibly continues INTO the water at
-                    // exactly the sea's height. Translucent so the terrain
-                    // shows through (wading shallows, dangerous-to-swim zone).
+                    // Lapping sea blanket over low land: layered translucent
+                    // patches at slightly raised virtual sea levels. Each layer
+                    // is contour-exact (marching squares), so the shallows and
+                    // tide edge hug the terrain's actual shape — never a square.
+                    // Translucent everywhere, so dipped terrain shows through.
                     float minC = Math.Min(Math.Min(e00, e10), Math.Min(e11, e01));
-                    if (tile.LandDistToWater > 0 && tile.LandDistToWater <= 3
+                    if (tile.LandDistToWater > 0 && tile.LandDistToWater <= 4
                         && !float.IsNaN(tile.ShoreSurface)
                         && tile.ShoreSurface <= Constants.SeaLevel + 0.05f
-                        && minC < Constants.SeaLevel)
+                        && minC < Constants.SeaLevel + 0.9f)
                     {
-                        DrawWaterPatch(batch, camera, tile, Constants.SeaLevel, time, alphaMul: 0.68f);
+                        DrawWaterPatch(batch, camera, tile, Constants.SeaLevel, time, alphaMul: 0.62f);
+                        DrawWaterPatch(batch, camera, tile, Constants.SeaLevel + 0.45f, time, alphaMul: 0.30f);
+                        DrawWaterPatch(batch, camera, tile, Constants.SeaLevel + 0.9f, time, alphaMul: 0.13f);
                     }
                     // Wave crests ride every land tile edge that faces water,
                     // projected at that water's surface — the waterline is the
@@ -248,35 +249,9 @@ public sealed class TileRenderer : IDisposable
                     if (tile.LandDistToWater == 1)
                         DrawEdgeWaves(batch, camera, x, y, world, time);
 
-                    // Shore wash, read from the worldgen land-shore field:
-                    // ring distance drives the band alpha; each corner's height
-                    // above the source body's surface fades it out upslope, so
-                    // the wash drapes over banks and can never hang over land
-                    // that's higher than the water body.
-                    int shoreDist = tile.LandDistToWater;
-                    // Skip submerged-or-nearly-submerged land: the water side
-                    // owns anything below the surface; wash is for dry banks.
-                    if (shoreDist > 0 && !float.IsNaN(tile.ShoreSurface)
-                        && tile.Elevation > tile.ShoreSurface + 0.2f)
-                    {
-                        ReadOnlySpan<float> band = [0.85f, 0.50f, 0.30f, 0.18f, 0.10f, 0.06f, 0.03f, 0.015f];
-                        byte ringA = (byte)(200f * band[shoreDist - 1]);
-                        float surf = tile.ShoreSurface;
-                        const float WashH = 3.5f; // elevation fade over this many levels
-                        byte Wa(float e)
-                        {
-                            float hf = Math.Clamp(1f - (e - surf) / WashH, 0f, 1f);
-                            return (byte)(ringA * hf);
-                        }
-                        var wash = WaterGradientColor(0.08f);
-                        batch.DrawScreenPolygonGradient(new()
-                        {
-                            (bl.X, bl.Y, wash.R, wash.G, wash.B, Wa(e00)),
-                            (br.X, br.Y, wash.R, wash.G, wash.B, Wa(e10)),
-                            (tr.X, tr.Y, wash.R, wash.G, wash.B, Wa(e11)),
-                            (tl.X, tl.Y, wash.R, wash.G, wash.B, Wa(e01)),
-                        });
-                    }
+                    // (The old ring-band wash was removed: per-tile quads made
+                    // the shore read as square steps. The layered blanket above
+                    // supplies the wet-slope gradient contour-exactly.)
                 }));
             }
         }
