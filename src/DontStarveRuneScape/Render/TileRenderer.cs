@@ -149,39 +149,32 @@ public sealed class TileRenderer : IDisposable
                 {
                     float minC = Math.Min(Math.Min(e00, e10), Math.Min(e11, e01));
                     float maxC = Math.Max(Math.Max(e00, e10), Math.Max(e11, e01));
-                    bool straddlesSea = minC < Constants.SeaLevel && maxC > Constants.SeaLevel;
+                    // The contact clip runs epsilon ABOVE the plane so the
+                    // sheet wins slivers of terrain that barely break the
+                    // surface (they'd render as floating confetti otherwise).
+                    bool straddlesSea = minC < Constants.SeaLevel + 0.22f && maxC > Constants.SeaLevel;
                     byte tint = (byte)Math.Clamp((int)(shade * 255f), 0, 255);
                     uint overlayTex = (biomeId != null && drawTerrainTexture) ? GetTerrainTexture(biomeId) : 0;
 
                     if (isWater)
                     {
                         // Bed first (it shows through the translucent shallows),
-                        // then the flat sea sheet at exactly SeaLevel: per-corner
-                        // depth drives both tint and opacity, and every corner of
-                        // the sheet sits at the same world height with
+                        // then the flat sea sheet at exactly SeaLevel: every
+                        // corner of the sheet sits at the same world height with
                         // world-anchored UVs, so the body reads as one seamless
-                        // continuous ocean. Beds are flat untextured color —
-                        // biome overlay patterns would print through the
-                        // translucent water as patchy rectangles — and are
-                        // skipped entirely once the sheet is opaque over them.
-                        bool bedVisible = Constants.SeaLevel - maxC < 4.4f;
-                        if (bedVisible)
-                        {
-                            // Underwater ground is graded by depth only — biome
-                            // colors would read as patchy rectangles through
-                            // the translucent shallows.
-                            float bedT = WaterGradientT(Constants.SeaLevel - tile.Elevation);
-                            byte br2 = (byte)(198 + (55 - 198) * bedT);
-                            byte bg2 = (byte)(186 + (80 - 186) * bedT);
-                            byte bb2 = (byte)(150 + (115 - 150) * bedT);
-                            batch.DrawScreenQuadCorners(bl.X, bl.Y, br.X, br.Y, tr.X, tr.Y, tl.X, tl.Y, br2, bg2, bb2);
-                        }
-                        if (straddlesSea)
+                        // continuous ocean. The bed is ALWAYS drawn (skipping it
+                        // under semi-opaque sheet showed tile-bordered patches
+                        // of the darker backdrop — the "accordion" quilt), and
+                        // it's graded per vertex over the same smoothed bed
+                        // grid so the sand→slate color transitions without
+                        // per-tile creases.
+                        DrawBedQuad(batch, camera, world, tile, bl, br, tr, tl);
+                        if (maxC > Constants.SeaLevel + 0.22f)
                             // Bed breaks the surface inside this tile: sheet
                             // goes only where terrain is below the plane.
-                            DrawSeaSheetPatch(batch, camera, tile, Constants.SeaLevel, time);
+                            DrawSeaSheetPatch(batch, camera, world, tile, Constants.SeaLevel, time);
                         else
-                            DrawSeaSheetQuad(batch, camera, tile, Constants.SeaLevel, time);
+                            DrawSeaSheetQuad(batch, camera, world, tile, Constants.SeaLevel, time);
                         return;
                     }
 
@@ -210,7 +203,7 @@ public sealed class TileRenderer : IDisposable
                             overlayTex, tint, tint, tint);
                     }
                     if (straddlesSea)
-                        DrawSeaSheetPatch(batch, camera, tile, Constants.SeaLevel, time);
+                        DrawSeaSheetPatch(batch, camera, world, tile, Constants.SeaLevel, time);
                     // Wave crests ride every land tile edge that faces water,
                     // projected at that water's surface — the waterline is the
                     // tile boundary (terrain occludes the water there), so the
@@ -341,9 +334,9 @@ public sealed class TileRenderer : IDisposable
             float my = (tileY + 0.5f + dy * 0.5f) * ts;
             float phase = ((tileX * 73856093) ^ (tileY * 19349663) ^ (k * 83492791)) * 0.00061f;
             float s = (MathF.Sin(time * 2.0f + phase) + 1f) * 0.5f;
-            byte alpha = (byte)(45 + 185 * s * s);
+            byte alpha = (byte)(30 + 120 * s * s);
             var m = camera.WorldToScreen(mx, my, surface);
-            float halfW = ts * camera.Zoom * (0.34f + 0.22f * s);
+            float halfW = ts * camera.Zoom * (0.26f + 0.15f * s);
             float halfH = halfW * 0.42f;
             batch.DrawTexturedScreenQuad(m.X, m.Y - halfH * (0.5f + 0.5f * s),
                 halfW, halfH, tex, 255, 255, 255, alpha);
@@ -353,10 +346,12 @@ public sealed class TileRenderer : IDisposable
     /// <summary>Sub-cell resolution of the clipped water patch.</summary>
     private const int PatchSub = 4;
 
-    /// <summary>Texture repeats per tile for the sea sheet.</summary>
-    private const float SheetUvScale = 0.10f;
-    private const float SheetFlowU = 0.18f;
-    private const float SheetFlowV = 0.11f;
+    /// <summary>Texture repeats per tile for the sea sheet — small, so each
+    /// portion of the flow texture spans many tiles and the ocean reads as
+    /// broad currents instead of tile-sized streaks.</summary>
+    private const float SheetUvScale = 0.045f;
+    private const float SheetFlowU = 0.07f;
+    private const float SheetFlowV = 0.045f;
 
     /// <summary>
     /// World-anchored animated UV for a point on the sea sheet, so the flow
@@ -373,8 +368,53 @@ public sealed class TileRenderer : IDisposable
     /// flow texture at world-anchored UVs. Shared corners sit at identical
     /// world positions, heights and UVs, so adjacent tiles join seamlessly.
     /// </summary>
+    /// <summary>
+    /// Smoothed bed elevation at a fractional grid position (bilinear over the
+    /// vertex-averaged bed grid). Falls back to the raw value when unavailable.
+    /// </summary>
+    private static float SmoothBed(TileMap world, float gx, float gy, float fallback)
+    {
+        var bed = world.SmoothedBed;
+        if (bed == null) return fallback;
+        int x0 = Math.Clamp((int)MathF.Floor(gx), 0, world.Width - 1);
+        int y0 = Math.Clamp((int)MathF.Floor(gy), 0, world.Height - 1);
+        float fx = gx - x0, fy = gy - y0;
+        int x1 = Math.Min(x0 + 1, world.Width), y1 = Math.Min(y0 + 1, world.Height);
+        float a = bed[x0, y0] * (1 - fx) + bed[x1, y0] * fx;
+        float b = bed[x0, y1] * (1 - fx) + bed[x1, y1] * fx;
+        return a * (1 - fy) + b * fy;
+    }
+
+    /// <summary>
+    /// Underwater ground quad: per-vertex depth-graded color (sand → slate)
+    /// over the smoothed bed grid, so tiles blend into one continuous seabed
+    /// and nothing tile-aligned ever shows through the translucent shallows.
+    /// </summary>
+    private static void DrawBedQuad(PrimitiveBatch batch, Camera camera,
+        TileMap world, Tile tile,
+        Silk.NET.Maths.Vector2D<float> bl, Silk.NET.Maths.Vector2D<float> br,
+        Silk.NET.Maths.Vector2D<float> tr, Silk.NET.Maths.Vector2D<float> tl)
+    {
+        float ts = Constants.TileSize;
+        var pts = new System.Collections.Generic.List<(float X, float Y, byte R, byte G, byte B, byte A)>(4);
+        void Corner(float sx, float sy, float gx, float gy)
+        {
+            float t = WaterGradientT(Constants.SeaLevel - SmoothBed(world, gx, gy, Constants.SeaLevel));
+            pts.Add((sx, sy,
+                (byte)(196 + (35 - 196) * t),
+                (byte)(182 + (90 - 182) * t),
+                (byte)(146 + (150 - 146) * t),
+                (byte)255));
+        }
+        Corner(bl.X, bl.Y, tile.X, tile.Y);
+        Corner(br.X, br.Y, tile.X + 1, tile.Y);
+        Corner(tr.X, tr.Y, tile.X + 1, tile.Y + 1);
+        Corner(tl.X, tl.Y, tile.X, tile.Y + 1);
+        batch.DrawScreenPolygonGradient(pts);
+    }
+
     private void DrawSeaSheetQuad(PrimitiveBatch batch, Camera camera,
-        Tile tile, float surface, float time)
+        TileMap world, Tile tile, float surface, float time)
     {
         uint tex = GetTerrainTexture("water");
         float ts = Constants.TileSize;
@@ -392,7 +432,10 @@ public sealed class TileRenderer : IDisposable
         void AddCorner(float sx, float sy, float wx, float wy, float e)
         {
             var (u, v) = SheetUv(wx, wy, time);
-            var (col, a) = SheetColor(surface - e);
+            // Tint/fade from the vertex-averaged bed so the depth grade flows
+            // across tile borders instead of creasing per tile.
+            float smooth = SmoothBed(world, wx / ts, wy / ts, e);
+            var (col, a) = SheetColor(surface - smooth);
             pts.Add((sx, sy, u, v, col.R, col.G, col.B, a));
         }
         AddCorner(bl.X, bl.Y, tile.X * ts, tile.Y * ts, e00);
@@ -418,8 +461,9 @@ public sealed class TileRenderer : IDisposable
     /// is the true terrain/plane contour.
     /// </summary>
     private void DrawSeaSheetPatch(PrimitiveBatch batch, Camera camera,
-        Tile tile, float surface, float time)
+        TileMap world, Tile tile, float surface, float time)
     {
+        const float clipLevel = Constants.SeaLevel + 0.22f;
         float ts = Constants.TileSize;
         const int N = PatchSub + 1;
         Span<float> g = stackalloc float[N * N];
@@ -429,7 +473,7 @@ public sealed class TileRenderer : IDisposable
             {
                 float e = tile.GetElevationAt(i / (float)PatchSub, j / (float)PatchSub);
                 g[j * N + i] = e;
-                if (e < surface) anyBelow = true;
+                if (e < clipLevel) anyBelow = true;
             }
         if (!anyBelow) return;
 
@@ -438,7 +482,8 @@ public sealed class TileRenderer : IDisposable
         void Vertex(float wx, float wy, float e)
         {
             var p = camera.WorldToScreen(wx, wy, surface);
-            var (col, a) = SheetColor(surface - e);
+            float smooth = SmoothBed(world, wx / ts, wy / ts, e);
+            var (col, a) = SheetColor(surface - smooth);
             var (u, v) = SheetUv(wx, wy, time);
             pts.Add((p.X, p.Y, u, v, col.R, col.G, col.B, a));
         }
@@ -449,7 +494,7 @@ public sealed class TileRenderer : IDisposable
             for (int i = 0; i < PatchSub; i++)
             {
                 float e00 = g[j * N + i], e10 = g[j * N + i + 1], e11 = g[(j + 1) * N + i + 1], e01 = g[(j + 1) * N + i];
-                if (e00 >= surface && e10 >= surface && e11 >= surface && e01 >= surface) continue;
+                if (e00 >= clipLevel && e10 >= clipLevel && e11 >= clipLevel && e01 >= clipLevel) continue;
 
                 float wx0 = (tile.X + i * cell) * ts, wy0 = (tile.Y + j * cell) * ts;
                 float wx1 = wx0 + cell * ts, wy1 = wy0 + cell * ts;
@@ -463,11 +508,11 @@ public sealed class TileRenderer : IDisposable
                 {
                     var a = c[k];
                     var b2 = c[(k + 1) % 4];
-                    bool aIn = a.E < surface, bIn = b2.E < surface;
+                    bool aIn = a.E < clipLevel, bIn = b2.E < clipLevel;
                     if (aIn) Vertex(a.Wx, a.Wy, a.E);
                     if (aIn != bIn)
                     {
-                        float t = (surface - a.E) / (b2.E - a.E);
+                        float t = (clipLevel - a.E) / (b2.E - a.E);
                         Vertex(a.Wx + (b2.Wx - a.Wx) * t, a.Wy + (b2.Wy - a.Wy) * t, a.E + (b2.E - a.E) * t);
                     }
                 }

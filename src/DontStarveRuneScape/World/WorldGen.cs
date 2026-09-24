@@ -317,6 +317,24 @@ public static class WorldGen
                 tile.CornerElevations = [e00, e10, e11, e01];
             }
         }
+
+        // Vertex-averaged bed field for the sea sheet's depth tint: raw tile
+        // centers crease at every tile edge; averaging the four tiles around
+        // each grid vertex lets the shallow→deep grade flow smoothly.
+        var bed = new float[map.Width + 1, map.Height + 1];
+        for (int x = 0; x <= map.Width; x++)
+            for (int y = 0; y <= map.Height; y++)
+            {
+                float sum = 0f; int n = 0;
+                for (int dx = -1; dx <= 0; dx++)
+                    for (int dy = -1; dy <= 0; dy++)
+                    {
+                        var t = map.GetTile(x + dx, y + dy);
+                        if (t != null) { sum += t.Elevation; n++; }
+                    }
+                bed[x, y] = sum / Math.Max(1, n);
+            }
+        map.SmoothedBed = bed;
     }
 
     /// <summary>

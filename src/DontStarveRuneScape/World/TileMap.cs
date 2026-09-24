@@ -15,6 +15,13 @@ public sealed class TileMap
     public int SpawnX { get; set; }
     public int SpawnY { get; set; }
     public Tile[,] Tiles { get; }
+
+    /// <summary>
+    /// Vertex-averaged ground elevation grid ((Width+1) x (Height+1)): each
+    /// entry is the mean of the tiles around that grid vertex. Used by the sea
+    /// sheet for smooth depth tinting so per-tile facets don't quilt the ocean.
+    /// </summary>
+    public float[,]? SmoothedBed { get; set; }
     public SeasonSystem? SeasonSystem { get; set; }
     public BiomeRegistry? BiomeRegistry { get; set; }
 
