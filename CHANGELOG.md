@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- **Water is now a physical sea-level layer, not a tile class**: worldgen no
+  longer converts low tiles to a water biome; any terrain at or below the
+  constant `SeaLevel` simply intersects the flat sea plane. The renderer draws
+  each submerged tile as bed terrain plus a flat sheet quad at exactly
+  SeaLevel whose per-corner tint and opacity ramp with depth (glassy shallows,
+  opaque deeps), with world-anchored scrolling flow texture so the ocean reads
+  as one seamless body. Dry land tiles straddling the plane are clipped
+  against it with sub-tile marching squares, so the visible waterline is the
+  true terrain/plane contour from every camera yaw — no tile-stepped shores.
+  Corner elevations are floats now (was int-terraced), so slopes are smooth
+  ramps and contours curve. Removed the priority-flood pool system,
+  per-tile pool quads, drop faces, and the banded lapping-blanket overlays.
+- Sea flow texture is Repeat-wrapped and its contrast is flattened toward the
+  mean at load, replacing the harsh white speckle with a gentle current.
+
 ### Fixed
 - **Flattened world / mountain-only biomes**: Perlin2D simplex attenuation used
   t^2 instead of t^4, pushing noise to ±6; combined with min-max normalization

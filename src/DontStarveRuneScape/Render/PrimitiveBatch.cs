@@ -253,6 +253,33 @@ public sealed class PrimitiveBatch : IDisposable
         }
     }
 
+    /// <summary>
+    /// Draw a convex polygon fan with per-vertex UVs and colors (used for the
+    /// sea sheet: one animated texture per-vertex tinted and alpha-faded).
+    /// UVs are unbounded; the bound texture must use Repeat wrap.
+    /// </summary>
+    public void DrawScreenPolygonGradientTextured(
+        System.Collections.Generic.List<(float X, float Y, float U, float V, byte R, byte G, byte B, byte A)> pts,
+        uint texture)
+    {
+        if (!_textureMode || _boundTexture != texture) Flush();
+        if (pts.Count < 3) return;
+
+        for (int i = 2; i < pts.Count; i++)
+        {
+            if (_vertexCount + 3 * Stride > _vertices.Length) Flush();
+            var p0 = pts[0];
+            var p1 = pts[i - 1];
+            var p2 = pts[i];
+            AddVertex(ToNdcX(p0.X), ToNdcY(p0.Y), p0.U, p0.V, p0.R / 255f, p0.G / 255f, p0.B / 255f, p0.A / 255f);
+            AddVertex(ToNdcX(p1.X), ToNdcY(p1.Y), p1.U, p1.V, p1.R / 255f, p1.G / 255f, p1.B / 255f, p1.A / 255f);
+            AddVertex(ToNdcX(p2.X), ToNdcY(p2.Y), p2.U, p2.V, p2.R / 255f, p2.G / 255f, p2.B / 255f, p2.A / 255f);
+        }
+
+        _textureMode = true;
+        _boundTexture = texture;
+    }
+
     public void End()
     {
         if (_vertexCount == 0)

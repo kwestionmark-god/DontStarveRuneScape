@@ -176,13 +176,14 @@ public sealed class Tile
     public bool HasStructure => Structure != null;
     public float Temperature { get; set; } = 20f;     // Celsius
     public float Fertility { get; set; } = 1.0f;      // 0-1, affects regrowth
-    public int[]? CornerElevations { get; set; }      // 4 corners for 2.5D rendering
+    public float[]? CornerElevations { get; set; }    // 4 corners for 2.5D rendering
 
     /// <summary>
-    /// Water surface level for water tiles: NaN = Constants.SeaLevel (the sea).
-    /// Pooled depressions above sea level store their own fill level here.
+    /// Water is not a tile classification — it is a physical layer. Any tile
+    /// whose ground sits at or below the constant sea level is underwater;
+    /// the water surface is always exactly Constants.SeaLevel.
     /// </summary>
-    public float WaterLevel { get; set; } = float.NaN;
+    public bool HasWater => Elevation <= Constants.SeaLevel;
 
     /// <summary>
     /// Water tiles: distance in tiles to the nearest land, from a multi-source
@@ -199,10 +200,11 @@ public sealed class Tile
     public int LandDistToWater { get; set; }
     public float ShoreSurface { get; set; } = float.NaN;
 
-    /// <summary>Effective water surface level of this tile (sea or pool).</summary>
-    public float GetSurfaceElevation()
-        => Biome?.Id != "water" ? float.NaN
-           : float.IsNaN(WaterLevel) ? Constants.SeaLevel : WaterLevel;
+    /// <summary>Water surface level of this tile, or NaN when dry.</summary>
+    public float GetSurfaceElevation() => HasWater ? Constants.SeaLevel : float.NaN;
+
+    /// <summary>Water depth over this tile's ground (0 when dry).</summary>
+    public float WaterDepth => HasWater ? Constants.SeaLevel - Elevation : 0f;
 
     public Tile(int x, int y)
     {

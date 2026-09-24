@@ -178,82 +178,15 @@ public static class WorldGen
     private static void ApplySeaLevel(
         TileMap map, BiomeRegistry biomeRegistry, float[,] elevation)
     {
-        var waterBiome = biomeRegistry.GetBiome("water");
-        if (waterBiome == null) return;
-
+        // Water is no longer a tile classification: it is a physical layer at
+        // the constant SeaLevel. Any tile at or below SeaLevel is underwater
+        // (Tile.HasWater); the renderer draws the flat sea plane through them
+        // and clips straddling land tiles against it. This pass only derives
+        // the shore fields the renderer needs (distance/gradient + beaches).
         int width = map.Width, height = map.Height;
-        for (int x = 0; x < width; x++)
-        {
-            for (int y = 0; y < height; y++)
-            {
-                if (elevation[x, y] <= Constants.SeaLevel)
-                {
-                    // Biome switches to water; elevation stays as the seabed —
-                    // the sea sits at SeaLevel above increasingly deep floor.
-                    map.Tiles[x, y].Biome = waterBiome;
-                }
-            }
-        }
 
-        // Priority-flood pooling: closed depressions above sea level fill up
-        // to their spill elevation and become pools. This is the classic
-        // hydrology fill — tiles below sea level are seeded from the map edge
-        // so the sea drains downhill correctly.
-        float[,] spill = new float[width, height];
-        for (int x = 0; x < width; x++)
-            for (int y = 0; y < height; y++)
-                spill[x, y] = float.PositiveInfinity;
-
-        var pq = new PriorityQueue<(int X, int Y), float>();
-        var done = new bool[width, height];
-        for (int x = 0; x < width; x++)
-        {
-            pq.Enqueue((x, 0), elevation[x, 0]);
-            pq.Enqueue((x, height - 1), elevation[x, height - 1]);
-        }
-        for (int y = 0; y < height; y++)
-        {
-            pq.Enqueue((0, y), elevation[0, y]);
-            pq.Enqueue((width - 1, y), elevation[width - 1, y]);
-        }
-
-        while (pq.TryDequeue(out var cell, out float h))
-        {
-            if (done[cell.X, cell.Y]) continue;
-            done[cell.X, cell.Y] = true;
-            float self = elevation[cell.X, cell.Y];
-            spill[cell.X, cell.Y] = Math.Max(self, h); // depression: h > self
-            foreach (var (dx, dy) in new[] { (1, 0), (-1, 0), (0, 1), (0, -1) })
-            {
-                int nx = cell.X + dx, ny = cell.Y + dy;
-                if (nx < 0 || ny < 0 || nx >= width || ny >= height) continue;
-                if (!done[nx, ny])
-                    pq.Enqueue((nx, ny), spill[cell.X, cell.Y]);
-            }
-        }
-
-        // Where a depression pools at least one full level deep (and extends a
-        // few tiles), it's a standing pool with its own water level.
-        for (int x = 0; x < width; x++)
-        {
-            for (int y = 0; y < height; y++)
-            {
-                var tile = map.Tiles[x, y];
-                if (tile.Biome?.Id == "water") continue;
-                float depth = spill[x, y] - elevation[x, y];
-                // Threshold ~1.6: any land tile sitting more than a modest lip
-                // below its depression's spill level IS underwater — marking it
-                // keeps the renderer from painting a water plane over land.
-                if (depth >= 1.6f)
-                {
-                    tile.Biome = waterBiome;
-                    tile.WaterLevel = spill[x, y];
-                }
-            }
-        }
-
-        // Shoreline ring: land tiles within two steps of water and close to
-        // sea level become coastal — beach transitions around every edge.
+        // Shoreline ring: land tiles within two steps of the waterline and
+        // close to sea level become coastal — beaches around every edge.
         var coastalBiome = biomeRegistry.GetBiome("coastal");
         if (coastalBiome != null)
         {
@@ -263,14 +196,14 @@ public static class WorldGen
                 for (int y = 0; y < height; y++)
                 {
                     var t = map.Tiles[x, y];
-                    if (t.Biome?.Id == "water") continue;
-                    // Coastal when adjacent to water whose surface is near this tile.
+                    if (t.HasWater) continue;
+                    // Coastal when near submerged terrain at sea-level reach.
                     bool touchesWater = false;
                     for (int dx = -2; dx <= 2 && !touchesWater; dx++)
                         for (int dy = -2; dy <= 2 && !touchesWater; dy++)
                         {
                             var w = map.GetTile(x + dx, y + dy);
-                            if (w?.Biome?.Id == "water" && t.Elevation <= w.GetSurfaceElevation() + 2.5f)
+                            if (w != null && w.HasWater && t.Elevation <= w.GetSurfaceElevation() + 2.5f)
                                 touchesWater = true;
                         }
                     if (touchesWater) toCoastal.Add((x, y));
@@ -280,19 +213,22 @@ public static class WorldGen
                 map.Tiles[x, y].Biome = coastalBiome;
         }
 
-        // Shore-distance field: multi-source BFS over water starting from
-        // water tiles that border land. Rendered as the shallow→deep gradient.
+        // Shore-distance field: multi-source BFS over submerged tiles starting
+        // from those bordering dry land. Rendered as the shallow→deep gradient.
         var distQ = new Queue<(int X, int Y)>();
         var distD = new int[width, height];
         for (int x = 0; x < width; x++)
             for (int y = 0; y < height; y++)
             {
-                if (map.Tiles[x, y].Biome?.Id != "water") continue;
+                if (!map.Tiles[x, y].HasWater) continue;
                 bool borderLand = false;
                 for (int dx = -1; dx <= 1 && !borderLand; dx++)
                     for (int dy = -1; dy <= 1 && !borderLand; dy++)
-                        if (map.GetTile(x + dx, y + dy)?.Biome?.Id != "water")
+                    {
+                        var n = map.GetTile(x + dx, y + dy);
+                        if (n == null || !n.HasWater)
                             borderLand = true;
+                    }
                 if (borderLand) { distQ.Enqueue((x, y)); distD[x, y] = 0; }
             }
         var distSeen = new bool[width, height];
@@ -305,17 +241,16 @@ public static class WorldGen
             {
                 int nx = c.X + dx, ny = c.Y + dy;
                 if (nx < 0 || ny < 0 || nx >= width || ny >= height) continue;
-                if (distSeen[nx, ny] || map.Tiles[nx, ny].Biome?.Id != "water") continue;
+                if (distSeen[nx, ny] || !map.Tiles[nx, ny].HasWater) continue;
                 distSeen[nx, ny] = true;
                 distD[nx, ny] = distD[c.X, c.Y] + 1;
                 distQ.Enqueue((nx, ny));
             }
         }
 
-        // Land shore field: BFS outward from water over land, carrying the
-        // source body's surface elevation, capped at ring 8 — and blocked by
-        // banks: a tile much higher than the source surface is landlocked,
-        // so a pool's wash must never bleed over its rim into outside land.
+        // Land shore field: BFS outward from the waterline over land, capped
+        // at ring 8 and blocked by banks rising more than a couple of levels
+        // above the sea surface.
         const int LandShoreCap = 8;
         const float ShoreRiseCap = 2.0f;
         var lQ = new Queue<(int X, int Y)>();
@@ -324,14 +259,14 @@ public static class WorldGen
             for (int y = 0; y < height; y++)
             {
                 var t = map.Tiles[x, y];
-                if (t.Biome?.Id != "water") continue;
+                if (!t.HasWater) continue;
                 for (int dx = -1; dx <= 1; dx++)
                     for (int dy = -1; dy <= 1; dy++)
                     {
                         int nx = x + dx, ny = y + dy;
                         if (nx < 0 || ny < 0 || nx >= width || ny >= height) continue;
                         var lt = map.Tiles[nx, ny];
-                        if (landSeen[nx, ny] || lt.Biome?.Id == "water") continue;
+                        if (landSeen[nx, ny] || lt.HasWater) continue;
                         float surf0 = t.GetSurfaceElevation();
                         if (lt.Elevation > surf0 + ShoreRiseCap) continue;
                         landSeen[nx, ny] = true;
@@ -351,7 +286,7 @@ public static class WorldGen
                     int nx = c.X + dx, ny = c.Y + dy;
                     if (nx < 0 || ny < 0 || nx >= width || ny >= height) continue;
                     var lt = map.Tiles[nx, ny];
-                    if (landSeen[nx, ny] || lt.Biome?.Id == "water") continue;
+                    if (landSeen[nx, ny] || lt.HasWater) continue;
                     float surf = map.Tiles[c.X, c.Y].ShoreSurface;
                     if (lt.Elevation > surf + ShoreRiseCap) continue;
                     landSeen[nx, ny] = true;
@@ -376,7 +311,10 @@ public static class WorldGen
                 float e11 = map.GetTile(x + 1, y + 1)?.Elevation ?? tile.Elevation;
                 float e01 = map.GetTile(x, y + 1)?.Elevation ?? tile.Elevation;
 
-                tile.CornerElevations = [(int)e00, (int)e10, (int)e11, (int)e01];
+                // Float corner heights: smooth slopes mean the sea plane /
+                // terrain intersection is a curving contour, never a terraced
+                // straight line.
+                tile.CornerElevations = [e00, e10, e11, e01];
             }
         }
     }
@@ -475,15 +413,15 @@ public static class ResourcePlacer
                 if (tile.Structure != null) continue;
                 if (tile.Biome == null) continue;
 
-                // Never root a resource below water: skip tiles submerged by
-                // the sea or by an adjacent water body (pool spill level).
+                // Never root a resource at or below the sea plane — the tile
+                // would sit submerged under the water layer.
                 if (tile.Elevation < Constants.SeaLevel) continue;
                 bool submerged = false;
                 for (int dx = -1; dx <= 1 && !submerged; dx++)
                     for (int dy = -1; dy <= 1 && !submerged; dy++)
                     {
                         var n = map.GetTile(x + dx, y + dy);
-                        if (n?.Biome?.Id == "water" && n.GetSurfaceElevation() > tile.Elevation + 0.05f)
+                        if (n != null && n.HasWater && n.GetSurfaceElevation() > tile.Elevation + 0.05f)
                             submerged = true;
                     }
                 if (submerged) continue;
