@@ -5,7 +5,7 @@ using DontStarveRuneScape.Config;
 using DontStarveRuneScape.Core;
 
 /// <summary>
-/// SkillManager — Manages all 8 skills with OSRS XP formula and sub-stats.
+/// SkillManager — Manages all skills with OSRS XP formula and sub-stats.
 /// </summary>
 public sealed class SkillManager
 {
@@ -13,7 +13,6 @@ public sealed class SkillManager
 
     public SkillManager()
     {
-        // Initialize 8 skills
         var skillIds = new[]
         {
             "woodcutting", "mining", "foraging", "cooking",
@@ -75,10 +74,14 @@ public sealed class SkillManager
         int newLevel = CalculateLevelFromXp(skill.Xp);
         if (newLevel > oldLevel)
         {
+            // One message + points per level gained; a single big XP award (e.g. quest
+            // reward) must grant points for every level crossed.
+            for (int lvl = oldLevel + 1; lvl <= newLevel; lvl++)
+            {
+                messages.Add($"Congratulations! Your {skillId} level is now {lvl}!");
+                skill.UnallocatedPoints += Constants.StatPointsPerLevel;
+            }
             skill.Level = newLevel;
-            messages.Add($"Congratulations! Your {skillId} level is now {newLevel}!");
-            // Grant stat points
-            skill.UnallocatedPoints += Constants.StatPointsPerLevel;
         }
 
         return messages;
@@ -91,20 +94,47 @@ public sealed class SkillManager
             skill.Xp += xp;
     }
 
-    /// <summary>Calculate level from XP using OSRS formula.</summary>
-    private int CalculateLevelFromXp(float xp)
+    /// <summary>Spend an unallocated stat point on a sub-stat. Returns false for unknown
+    /// skill, unknown sub-stat, or no points available.</summary>
+    public bool SpendPoint(string skillId, string statName)
     {
-        // Simplified OSRS formula
+        if (!_skills.TryGetValue(skillId, out var skill)) return false;
+        if (skill.UnallocatedPoints <= 0) return false;
+        if (!skill.SubStats.ContainsKey(statName)) return false;
+        skill.UnallocatedPoints--;
+        skill.SubStats[statName]++;
+        return true;
+    }
+
+    /// <summary>Progress within the current level: xp earned into the level and xp needed
+    /// to reach the next.</summary>
+    public void ProgressToNext(string skillId, out float into, out float needed)
+    {
+        into = 0f; needed = 1f;
+        if (!_skills.TryGetValue(skillId, out var skill)) return;
+        float floor = XpForLevel(skill.Level);
+        float ceil = skill.Level >= 99 ? floor : XpForLevel(skill.Level + 1);
+        into = skill.Xp - floor;
+        needed = ceil - floor;
+    }
+
+    /// <summary>Cumulative XP required to be at the given level (OSRS table; level 1 = 0).</summary>
+    public static float XpForLevel(int level)
+    {
+        if (level <= 1) return 0f;
+        double sum = 0;
+        for (int i = 1; i <= level - 1; i++)
+            sum += System.Math.Floor(i + 300 * System.Math.Pow(2, i / 7.0));
+        return (float)System.Math.Floor(sum / 4.0);
+    }
+
+    /// <summary>Calculate level from XP using the OSRS formula.</summary>
+    private static int CalculateLevelFromXp(float xp)
+    {
         for (int level = 1; level <= 99; level++)
         {
-            float xpForLevel = 0;
-            for (int i = 1; i <= level; i++)
-            {
-                xpForLevel += (float)System.Math.Floor(i + 300 * System.Math.Pow(2, i / 7.0));
-            }
-            xpForLevel /= 4;
-            if (xp < xpForLevel)
-                return level - 1;
+            if (xp < XpForLevel(level + 1))
+                return level;
         }
         return 99;
     }
