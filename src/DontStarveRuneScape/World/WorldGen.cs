@@ -196,10 +196,15 @@ public static class WorldGen
                 for (int y = 0; y < height; y++)
                 {
                     var t = map.Tiles[x, y];
-                    if (t.HasWater) continue;
                     // Everything at sea level and just above is sandy coastal
                     // ground — grass at that altitude reads wrong by the water.
-                    if (t.Elevation <= Constants.SeaLevel + 1.2f)
+                    // Applies to submerged tiles too: the shallow seabed is sand.
+                    // Corners of a tile are neighbor centers, so any tile whose
+                    // edge dips into the sea band is sand as well.
+                    float low = t.Elevation;
+                    foreach (var n in new[] { map.GetTile(x - 1, y), map.GetTile(x + 1, y), map.GetTile(x, y - 1), map.GetTile(x, y + 1) })
+                        if (n != null && n.Elevation < low) low = n.Elevation;
+                    if (low <= Constants.SeaLevel + 1.2f)
                     {
                         toCoastal.Add((x, y));
                         continue;

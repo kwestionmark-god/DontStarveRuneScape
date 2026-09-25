@@ -160,6 +160,16 @@ public sealed class TileRenderer : IDisposable
                     b = (byte)Math.Clamp((int)(b * 0.55f + 160 * 0.45f), 0, 255);
                 }
 
+                // Straddling dry tiles need their submerged part painted as
+                // bed, under the water sheet: below the contour nothing else
+                // covers those pixels, and the sheet's shallow fade goes
+                // translucent there — without a bed the background gradient
+                // showed through as a pale ring all along the waterline.
+                // Land clips above the plane and paints over the rest.
+                if (!isWater && straddlesSea)
+                    drawables.Add((-1.6e9f, seq++, (Action)(() =>
+                        DrawBedQuad(batch, camera, world, tile, bl, br, tr, tl))));
+
                 drawables.Add((depthPx, seq++, (Action)(() =>
                 {
                     if (isWater)
@@ -308,9 +318,9 @@ public sealed class TileRenderer : IDisposable
         var col = WaterGradientColor(t);
         // Opacity eases from fully clear exactly at the waterline (wet sand),
         // through glassy shallows, to opaque in the deeps.
-        float fade = Math.Clamp(bedDepth / 0.9f, 0f, 1f);
+        float fade = Math.Clamp(bedDepth / 0.6f, 0f, 1f);
         fade = fade * fade * (3f - 2f * fade);
-        byte a = (byte)Math.Clamp((110 + 145f * t) * fade, 0f, 255f);
+        byte a = (byte)Math.Clamp((150 + 105f * t) * fade, 0f, 255f);
         return (col, a);
     }
 
@@ -555,10 +565,12 @@ public sealed class TileRenderer : IDisposable
         void Corner(float sx, float sy, float gx, float gy)
         {
             float t = WaterGradientT(Constants.SeaLevel - SmoothBed(world, gx, gy, Constants.SeaLevel));
+            // Shallow end stays blue-gray (wet, submerged sand) so the sheet's
+            // glassy shallows still read as water instead of dry beach.
             pts.Add((sx, sy,
-                (byte)(196 + (35 - 196) * t),
-                (byte)(182 + (90 - 182) * t),
-                (byte)(146 + (150 - 146) * t),
+                (byte)(150 + (35 - 150) * t),
+                (byte)(175 + (90 - 175) * t),
+                (byte)(185 + (150 - 185) * t),
                 (byte)255));
         }
         Corner(bl.X, bl.Y, tile.X, tile.Y);
