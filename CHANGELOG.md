@@ -19,6 +19,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - xunit test project pinning the OSRS XP table and stat-point spending.
 
 ### Fixed
+- **Panel states were invisible**: every panel except skills (Tab) was an empty
+  shell class — `Render(...) { }` drew nothing, so pressing C/I/H/B/G (or NPC
+  dialogue opening trade/quest/recruit/diplomacy) switched state, stopped
+  movement, and left a frozen-looking world with no UI. All shells now draw a
+  shared "not yet implemented" plate (`PanelChrome.DrawPlaceholder`) in the
+  title-screen palette, with the usual Esc/Q to close.
+
+### Fixed
 - **OSRS XP curve was shifted one level**: `CalculateLevelFromXp` summed
   thresholds over `1..level` instead of `1..level-1` (level 2 needed 174 xp
   instead of 83; level 99 needed 14,391,160 instead of 13,034,431).

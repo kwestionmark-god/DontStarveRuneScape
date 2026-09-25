@@ -50,4 +50,16 @@ public static class PanelChrome
         outW = contentW;
         outH = contentH;
     }
+
+    /// <summary>Draw a minimal plate for a panel that has no content yet, so no
+    /// panel state is invisible: shared chrome, the panel title, and a note.</summary>
+    public static void DrawPlaceholder(PrimitiveBatch batch, TextRenderer? text,
+        int screenW, int screenH, string title)
+    {
+        Draw(batch, text, screenW, screenH, title, 360f, 80f,
+            out float contentX, out float contentY, out float contentW, out float contentH);
+        if (text == null) return;
+        text.DrawText(batch, "Not yet implemented (Esc to close)",
+            contentX + contentW * 0.5f, contentY + contentH * 0.5f, 15, 160, 150, 130);
+    }
 }

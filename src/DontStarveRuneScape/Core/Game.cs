@@ -906,39 +906,35 @@ public sealed class Game
         switch (State)
         {
             case GameState.InventoryOpen:
-                InventoryPanel?.Render(gl, screenWidth, screenHeight);
+                InventoryPanel?.Render(batch, TextRenderer, screenWidth, screenHeight);
                 break;
             case GameState.DashboardOpen:
-                Dashboard?.Render(gl, screenWidth, screenHeight);
+                Dashboard?.Render(batch, TextRenderer, screenWidth, screenHeight);
                 break;
             case GameState.SkillPanel:
                 if (SkillManager != null)
                     SkillPanel?.Render(batch, TextRenderer, SkillManager, screenWidth, screenHeight);
                 break;
             case GameState.CraftingPanel:
-                CraftingPanel?.Render(gl, screenWidth, screenHeight);
+                CraftingPanel?.Render(batch, TextRenderer, screenWidth, screenHeight);
                 break;
             case GameState.BuildingPanel:
-                BuildingPanel?.Render(gl, screenWidth, screenHeight, BuildingSystem, SkillManager);
+                BuildingPanel?.Render(batch, TextRenderer, screenWidth, screenHeight);
                 break;
             case GameState.GearPanel:
-                if (Player?.Gear != null && Inventory != null)
-                {
-                    var gearDefs = GearItem.LoadAll();
-                    GearPanel?.Render(gl, screenWidth, screenHeight, Player.Gear, Inventory, gearDefs);
-                }
+                GearPanel?.Render(batch, TextRenderer, screenWidth, screenHeight);
                 break;
             case GameState.TradePanel:
-                TradePanel?.Render(gl, screenWidth, screenHeight);
+                TradePanel?.Render(batch, TextRenderer, screenWidth, screenHeight);
                 break;
             case GameState.QuestPanel:
-                QuestPanel?.Render(gl, screenWidth, screenHeight);
+                QuestPanel?.Render(batch, TextRenderer, screenWidth, screenHeight);
                 break;
             case GameState.RecruitPanel:
-                RecruitPanel?.Render(gl, screenWidth, screenHeight);
+                RecruitPanel?.Render(batch, TextRenderer, screenWidth, screenHeight);
                 break;
             case GameState.DiplomacyPanel:
-                DiplomacyPanel?.Render(gl, screenWidth, screenHeight);
+                DiplomacyPanel?.Render(batch, TextRenderer, screenWidth, screenHeight);
                 break;
         }
     }

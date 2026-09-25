@@ -10,12 +10,13 @@ using DontStarveRuneScape.Inventory;
 using DontStarveRuneScape.Data;
 
 /// <summary>
-/// InventoryPanel — Inventory UI panel.
+/// InventoryPanel — Inventory UI panel (placeholder until it gets content).
 /// </summary>
 public sealed class InventoryPanel
 {
     public bool Visible { get; set; } = false;
-    public void Render(GL gl, int screenWidth, int screenHeight) { }
+    public void Render(PrimitiveBatch batch, TextRenderer? text, int screenWidth, int screenHeight)
+        => PanelChrome.DrawPlaceholder(batch, text, screenWidth, screenHeight, "INVENTORY");
 }
 
 /// <summary>
@@ -250,38 +251,42 @@ public sealed class SkillPanel
 }
 
 /// <summary>
-/// CraftingPanel — Crafting UI panel.
+/// CraftingPanel — Crafting UI panel (placeholder until it gets content).
 /// </summary>
 public sealed class CraftingPanel
 {
     public bool Visible { get; set; } = false;
-    public void Render(GL gl, int screenWidth, int screenHeight) { }
+    public void Render(PrimitiveBatch batch, TextRenderer? text, int screenWidth, int screenHeight)
+        => PanelChrome.DrawPlaceholder(batch, text, screenWidth, screenHeight, "CRAFTING");
 }
 
 /// <summary>
-/// BuildingPanel — Building/construction UI panel.
+/// BuildingPanel — Building/construction UI panel (placeholder until it gets content).
 /// </summary>
 public sealed class BuildingPanel
 {
     public bool Visible { get; set; } = false;
-    public void Render(GL gl, int screenWidth, int screenHeight, BuildingSystem buildingSystem, SkillManager skillManager) { }
+    public void Render(PrimitiveBatch batch, TextRenderer? text, int screenWidth, int screenHeight)
+        => PanelChrome.DrawPlaceholder(batch, text, screenWidth, screenHeight, "BUILDING");
 }
 
 /// <summary>
-/// GearPanel — Equipment/gear UI panel.
+/// GearPanel — Equipment/gear UI panel (placeholder until it gets content).
 /// </summary>
 public sealed class GearPanel
 {
     public bool Visible { get; set; } = false;
-    public void Render(GL gl, int screenWidth, int screenHeight, PlayerGear gear, Inventory inventory, Dictionary<string, GearItem> gearDefs) { }
+    public void Render(PrimitiveBatch batch, TextRenderer? text, int screenWidth, int screenHeight)
+        => PanelChrome.DrawPlaceholder(batch, text, screenWidth, screenHeight, "GEAR");
 }
 
 /// <summary>
-/// DashboardPanel — Unified dashboard with 5 tabs.
+/// DashboardPanel — Unified dashboard with 5 tabs (placeholder until it gets content).
 /// </summary>
 public sealed class DashboardPanel
 {
     public bool Visible { get; set; } = false;
     public void SetActive(string tab) { }
-    public void Render(GL gl, int screenWidth, int screenHeight) { }
+    public void Render(PrimitiveBatch batch, TextRenderer? text, int screenWidth, int screenHeight)
+        => PanelChrome.DrawPlaceholder(batch, text, screenWidth, screenHeight, "DASHBOARD");
 }

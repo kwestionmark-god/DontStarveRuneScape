@@ -3,9 +3,10 @@ namespace DontStarveRuneScape.UI;
 using Silk.NET.OpenGL;
 using DontStarveRuneScape.Core;
 using DontStarveRuneScape.NPC;
+using DontStarveRuneScape.Render;
 
 /// <summary>
-/// TradePanel — Trading UI panel.
+/// TradePanel — Trading UI panel (placeholder until it gets content).
 /// </summary>
 public sealed class TradePanel
 {
@@ -37,11 +38,12 @@ public sealed class TradePanel
         return new List<(string, int, int)>();
     }
 
-    public void Render(GL gl, int screenWidth, int screenHeight) { }
+    public void Render(PrimitiveBatch batch, TextRenderer? text, int screenWidth, int screenHeight)
+        => PanelChrome.DrawPlaceholder(batch, text, screenWidth, screenHeight, "TRADE");
 }
 
 /// <summary>
-/// QuestPanel — Quest UI panel.
+/// QuestPanel — Quest UI panel (placeholder until it gets content).
 /// </summary>
 public sealed class QuestPanel
 {
@@ -59,11 +61,12 @@ public sealed class QuestPanel
 
     public void Close() => Visible = false;
 
-    public void Render(GL gl, int screenWidth, int screenHeight) { }
+    public void Render(PrimitiveBatch batch, TextRenderer? text, int screenWidth, int screenHeight)
+        => PanelChrome.DrawPlaceholder(batch, text, screenWidth, screenHeight, "QUEST");
 }
 
 /// <summary>
-/// RecruitPanel — NPC recruitment UI panel.
+/// RecruitPanel — NPC recruitment UI panel (placeholder until it gets content).
 /// </summary>
 public sealed class RecruitPanel
 {
@@ -78,11 +81,12 @@ public sealed class RecruitPanel
 
     public void Close() => Visible = false;
 
-    public void Render(GL gl, int screenWidth, int screenHeight) { }
+    public void Render(PrimitiveBatch batch, TextRenderer? text, int screenWidth, int screenHeight)
+        => PanelChrome.DrawPlaceholder(batch, text, screenWidth, screenHeight, "RECRUIT");
 }
 
 /// <summary>
-/// DiplomacyPanel — Faction diplomacy UI panel.
+/// DiplomacyPanel — Faction diplomacy UI panel (placeholder until it gets content).
 /// </summary>
 public sealed class DiplomacyPanel
 {
@@ -103,7 +107,8 @@ public sealed class DiplomacyPanel
         Visible = false;
     }
 
-    public void Render(GL gl, int screenWidth, int screenHeight) { }
+    public void Render(PrimitiveBatch batch, TextRenderer? text, int screenWidth, int screenHeight)
+        => PanelChrome.DrawPlaceholder(batch, text, screenWidth, screenHeight, "DIPLOMACY");
 }
 
 /// <summary>
