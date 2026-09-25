@@ -1,7 +1,10 @@
 namespace DontStarveRuneScape.UI;
 
+using Silk.NET.Input;
 using Silk.NET.OpenGL;
 using DontStarveRuneScape.Building;
+using DontStarveRuneScape.Input;
+using DontStarveRuneScape.Render;
 using DontStarveRuneScape.Skills;
 using DontStarveRuneScape.Inventory;
 using DontStarveRuneScape.Data;
@@ -16,12 +19,234 @@ public sealed class InventoryPanel
 }
 
 /// <summary>
-/// SkillPanel — Skills UI panel.
+/// SkillPanel — OSRS-flavored skills grid: one row per skill (glyph, name, level,
+/// XP bar), plus a detail block for the selected skill with clickable [+] buttons
+/// to spend that skill's unallocated stat points.
+/// Layout is computed in Layout() from the screen size alone, so Update (hit-testing)
+/// and Render stay consistent.
 /// </summary>
 public sealed class SkillPanel
 {
     public bool Visible { get; set; } = false;
-    public void Render(GL gl, int screenWidth, int screenHeight) { }
+    public int SelectedIndex { get; private set; }
+
+    private static readonly (string Id, string Name, string Glyph, byte R, byte G, byte B)[] Skills =
+    {
+        ("woodcutting",  "Woodcutting",  "Wc",  96, 160,  84),
+        ("mining",       "Mining",       "Mn", 150, 146, 128),
+        ("foraging",     "Foraging",     "Fo", 118, 186, 110),
+        ("cooking",      "Cooking",      "Ck", 208, 132,  70),
+        ("firemaking",   "Firemaking",   "Fm", 220,  96,  48),
+        ("crafting",     "Crafting",     "Cr", 186, 152,  96),
+        ("metallurgy",   "Metallurgy",   "Mt", 176, 116,  74),
+        ("construction", "Construction", "Cs", 168, 124,  82),
+        ("intelligence", "Intelligence", "In", 122, 148, 196),
+    };
+
+    private static readonly (string Key, string Name)[] SubStats =
+    {
+        ("success_rate",      "Success rate"),
+        ("harvest_boost",     "Harvest boost"),
+        ("extra_resources",   "Extra resources"),
+        ("efficiency",        "Efficiency"),
+        ("stamina_reduction", "Stamina reduction"),
+    };
+
+    private const float ContentW = 780f;
+    private const float ContentH = 470f;
+    private const float RowH = 42f;
+    private const float RowGap = 4f;
+    private const float HeaderH = 26f;
+
+    // Cached absolute rects (set by Layout, which Update and Render both call).
+    private float _cx, _cy;                    // content rect origin
+    private readonly float[] _rowY = new float[Skills.Length];
+    private float _rowX, _rowW;
+    private float _detailX, _detailY, _detailW;
+    private readonly float[] _statY = new float[SubStats.Length];
+    private float _plusX, _plusY0;             // [+] button column
+
+    public void HandleKey(Key key)
+    {
+        if (key == Key.Up)
+            SelectedIndex = (SelectedIndex + Skills.Length - 1) % Skills.Length;
+        else if (key == Key.Down)
+            SelectedIndex = (SelectedIndex + 1) % Skills.Length;
+    }
+
+    /// <summary>Mouse handling; call once per frame from Game.Update while open.</summary>
+    public void Update(InputState input, SkillManager skills, int screenW, int screenH)
+    {
+        Layout(screenW, screenH);
+        var ui = new UiInput(input);
+
+        for (int i = 0; i < Skills.Length; i++)
+        {
+            if (ui.TryClick(_rowX, _rowY[i], _rowW, RowH))
+                SelectedIndex = i;
+        }
+
+        var skill = skills.GetSkill(Skills[SelectedIndex].Id);
+        _lastMouseHoverPlus = -1;
+        if (skill.UnallocatedPoints <= 0) return;
+        for (int s = 0; s < SubStats.Length; s++)
+        {
+            if (ui.Hovered(_plusX, _statY[s] - 11f, 22f, 22f))
+                _lastMouseHoverPlus = s;
+            if (ui.TryClick(_plusX, _statY[s] - 11f, 22f, 22f))
+                skills.SpendPoint(Skills[SelectedIndex].Id, SubStats[s].Key);
+        }
+    }
+
+    public void Render(PrimitiveBatch batch, TextRenderer? text, SkillManager skills,
+        int screenW, int screenHeight)
+    {
+        Layout(screenW, screenHeight);
+        if (text == null) return;
+
+        PanelChrome.Draw(batch, text, screenW, screenHeight, "SKILLS", ContentW, ContentH,
+            out _, out _, out _, out _);
+
+        int totalLevel = 0, totalPoints = 0;
+        foreach (var s in Skills)
+        {
+            var d = skills.GetSkill(s.Id);
+            totalLevel += d.Level;
+            totalPoints += d.UnallocatedPoints;
+        }
+        // Header sits in its own band above the row list and detail block.
+        float headerY = _cy - HeaderH + 12f;
+        DrawLeft(batch, text, $"Total level: {totalLevel}", _cx + 4f, headerY, 15,
+            PanelChrome.BorderR, PanelChrome.BorderG, PanelChrome.BorderB, bold: true);
+        string pointsLabel = totalPoints > 0 ? $"Stat points to spend: {totalPoints}" : "No stat points to spend";
+        DrawRight(batch, text, pointsLabel, _cx + ContentW - 4f, headerY, 15,
+            totalPoints > 0 ? (byte)120 : (byte)140, totalPoints > 0 ? (byte)220 : (byte)130,
+            totalPoints > 0 ? (byte)120 : (byte)120);
+
+        for (int i = 0; i < Skills.Length; i++)
+            RenderRow(batch, text, skills, i);
+
+        RenderDetail(batch, text, skills);
+    }
+
+    private void RenderRow(PrimitiveBatch batch, TextRenderer text, SkillManager skills, int i)
+    {
+        var (id, name, glyph, r, g, b) = Skills[i];
+        var data = skills.GetSkill(id);
+        float y = _rowY[i];
+        float cy = y + RowH * 0.5f;
+        bool selected = i == SelectedIndex;
+
+        if (selected)
+            batch.DrawScreenQuad(_rowX + _rowW * 0.5f, cy, _rowW * 0.5f, RowH * 0.5f,
+                (byte)(PanelChrome.BorderR / 4), (byte)(PanelChrome.BorderG / 4),
+                (byte)(PanelChrome.BorderB / 4));
+
+        // Glyph chip: colored square with a two-letter tag.
+        batch.DrawScreenQuad(_rowX + 15f, cy, 13f, 13f, r, g, b);
+        text.DrawText(batch, glyph, _rowX + 15f, cy, 12, 20, 14, 8, bold: true);
+
+        DrawLeft(batch, text, name, _rowX + 38f, cy, 15,
+            PanelChrome.TextR, PanelChrome.TextG, PanelChrome.TextB, bold: selected);
+
+        // XP bar at the right end of the row.
+        const float barW = 130f, barH = 7f;
+        float barX = _rowX + _rowW - barW - 54f;
+        skills.ProgressToNext(id, out float into, out float needed);
+        float fill = needed > 0 ? Math.Clamp(into / needed, 0f, 1f) : 1f;
+        batch.DrawScreenQuad(barX + barW * 0.5f, cy, barW * 0.5f, barH * 0.5f, 22, 16, 10);
+        if (fill > 0f)
+            batch.DrawScreenQuad(barX + barW * fill * 0.5f, cy, barW * fill * 0.5f,
+                barH * 0.5f - 1f, r, g, b);
+
+        DrawRight(batch, text, $"Lv {data.Level}", _rowX + _rowW - 4f, cy, 15,
+            (byte)Math.Min(255, r + 80), (byte)Math.Min(255, g + 80),
+            (byte)Math.Min(255, b + 80), bold: true);
+    }
+
+    private void RenderDetail(PrimitiveBatch batch, TextRenderer text, SkillManager skills)
+    {
+        var (id, name, _, r, g, b) = Skills[SelectedIndex];
+        var data = skills.GetSkill(id);
+
+        float dividerX = _detailX - 18f;
+        batch.DrawScreenQuad(dividerX, _detailY + 210f, 0.5f, 210f,
+            PanelChrome.BorderR, PanelChrome.BorderG, PanelChrome.BorderB, 90);
+
+        DrawLeft(batch, text, name, _detailX, _detailY + 4f, 19, r, g, b, bold: true);
+
+        skills.ProgressToNext(id, out float into, out float needed);
+        string xpLine = data.Level >= 99
+            ? $"Level {data.Level}  (max)"
+            : $"Level {data.Level}   xp {(int)data.Xp:#,0} / {(int)(SkillManager.XpForLevel(data.Level + 1)):#,0}";
+        DrawLeft(batch, text, xpLine, _detailX, _detailY + 30f, 14,
+            PanelChrome.TextR, PanelChrome.TextG, PanelChrome.TextB);
+
+        string pts = data.UnallocatedPoints > 0
+            ? $"{data.UnallocatedPoints} stat point{(data.UnallocatedPoints == 1 ? "" : "s")} to spend"
+            : "No unallocated points";
+        DrawLeft(batch, text, pts, _detailX, _detailY + 52f, 14,
+            data.UnallocatedPoints > 0 ? (byte)120 : (byte)150,
+            data.UnallocatedPoints > 0 ? (byte)220 : (byte)140,
+            data.UnallocatedPoints > 0 ? (byte)120 : (byte)130);
+
+        for (int s = 0; s < SubStats.Length; s++)
+        {
+            float y = _statY[s];
+            float value = data.SubStats[SubStats[s].Key];
+            DrawLeft(batch, text, SubStats[s].Name, _detailX + 8f, y, 14,
+                PanelChrome.TextR, PanelChrome.TextG, PanelChrome.TextB);
+            DrawRight(batch, text, $"+{(int)value}", _plusX - 34f, y, 14, 200, 190, 160);
+
+            if (data.UnallocatedPoints > 0)
+            {
+                bool hover = _lastMouseHoverPlus == s;
+                byte br = hover ? (byte)250 : (byte)222;
+                byte bg = hover ? (byte)225 : (byte)192;
+                byte bb = hover ? (byte)180 : (byte)132;
+                batch.DrawScreenQuad(_plusX + 11f, y, 11f, 11f, br, bg, bb);
+                text.DrawText(batch, "+", _plusX + 11f, y, 16, PanelChrome.PlateR,
+                    PanelChrome.PlateG, PanelChrome.PlateB, bold: true);
+            }
+        }
+    }
+
+    // Updated in Update so RenderDetail can hover-highlight the [+] under the mouse.
+    private int _lastMouseHoverPlus = -1;
+
+    private void Layout(int screenW, int screenH)
+    {
+        float plateH = ContentH + 32f + 34f;
+        float cy = screenH * 0.5f - plateH * 0.5f;
+        _cx = screenW * 0.5f - (ContentW + 32f) * 0.5f + 16f;
+        _cy = cy + 34f + 16f + HeaderH;
+
+        _rowX = _cx + 4f;
+        _rowW = ContentW * 0.52f;
+        for (int i = 0; i < Skills.Length; i++)
+            _rowY[i] = _cy + 8f + i * (RowH + RowGap);
+
+        _detailX = _cx + ContentW * 0.58f;
+        _detailY = _cy + 10f;
+        _detailW = ContentW * 0.40f;
+        for (int s = 0; s < SubStats.Length; s++)
+            _statY[s] = _detailY + 92f + s * 30f;
+        _plusX = _detailX + _detailW - 60f;
+    }
+
+    private static void DrawLeft(PrimitiveBatch batch, TextRenderer text, string s,
+        float left, float centerY, int size, byte r, byte g, byte b, bool bold = false)
+    {
+        var (tw, _) = text.Measure(s, size, bold);
+        text.DrawText(batch, s, left + tw * 0.5f, centerY, size, r, g, b, bold: bold);
+    }
+
+    private static void DrawRight(PrimitiveBatch batch, TextRenderer text, string s,
+        float right, float centerY, int size, byte r, byte g, byte b, bool bold = false)
+    {
+        var (tw, _) = text.Measure(s, size, bold);
+        text.DrawText(batch, s, right - tw * 0.5f, centerY, size, r, g, b, bold: bold);
+    }
 }
 
 /// <summary>

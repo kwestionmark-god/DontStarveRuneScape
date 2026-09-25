@@ -324,6 +324,9 @@ public sealed class Game
     /// </summary>
     public string? SmokeTestPath { get; set; }
     private int _smokeFrames;
+    private int _pendingClickX = -1, _pendingClickY;
+    // Most recent render size; panels need it for hit-testing during Update.
+    private int _lastScreenW = 1280, _lastScreenH = 720;
 
     /// <summary>
     /// When set (--smoketest-bench N), renders N frames after the world loads,
@@ -417,6 +420,14 @@ public sealed class Game
         if (State == GameState.Playing)
         {
             UpdatePlaying(dt);
+        }
+
+        // Panels poll mouse input each frame; clicks are edge-triggered and are
+        // cleared at the end of this method, so this must run before ClearFrame.
+        if (State == GameState.SkillPanel && SkillPanel != null && SkillManager != null
+            && InputManager != null)
+        {
+            SkillPanel.Update(InputManager.InputState, SkillManager, _lastScreenW, _lastScreenH);
         }
 
         // Clear one-shot input flags at END of frame
@@ -541,6 +552,8 @@ public sealed class Game
             InitializeGraphics(gl);
 
         Camera?.SetScreenSize(screenWidth, screenHeight);
+        _lastScreenW = screenWidth;
+        _lastScreenH = screenHeight;
 
         gl.Viewport(0, 0, (uint)Math.Max(1, screenWidth), (uint)Math.Max(1, screenHeight));
         gl.Enable(Silk.NET.OpenGL.EnableCap.Blend);
@@ -581,10 +594,88 @@ public sealed class Game
 
         batch.End();
 
-        if (!string.IsNullOrEmpty(SmokeTestPath) && State == GameState.Playing && ++_smokeFrames >= 6)
+        if (!string.IsNullOrEmpty(SmokeTestPath) && (State == GameState.Playing || _smokeFrames > 0))
         {
-            CaptureFramebuffer(gl, screenWidth, screenHeight, SmokeTestPath);
-            Environment.Exit(0);
+            if (_smokeFrames == 0)
+                InjectTestHooks();
+            // Apply a scripted click a couple of frames in, so a key-injected panel
+            // is open and has run at least one Update before the click lands.
+            if (_smokeFrames == 2 && _pendingClickX >= 0 && InputManager != null)
+            {
+                InputManager.InputState.MouseX = _pendingClickX;
+                InputManager.InputState.MouseY = _pendingClickY;
+                InputManager.InputState.MouseLeftClick = true;
+                _pendingClickX = -1;
+            }
+            if (++_smokeFrames >= 6)
+            {
+                CaptureFramebuffer(gl, screenWidth, screenHeight, SmokeTestPath);
+                Environment.Exit(0);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Smoketest runtime hooks (env vars, first Playing frame only):
+    /// DSR_TEST_RESOURCE=1 teleports the player next to the first harvestable
+    /// resource node; DSR_TEST_KEYS="E,I" routes comma-separated Silk.NET keys
+    /// through InputRouter.Handle so interaction/panel wiring is exercised
+    /// headlessly instead of only by manual play; DSR_TEST_XP="mining:5000"
+    /// grants skill XP (repeatable via commas); DSR_TEST_CLICK="x,y" scripts a
+    /// left mouse click at screen pixel (x,y) two frames after injection.
+    /// </summary>
+    private void InjectTestHooks()
+    {
+        if (Environment.GetEnvironmentVariable("DSR_TEST_RESOURCE") == "1" && World != null && Player != null)
+        {
+            for (int y = 0; y < World.Height; y++)
+            {
+                bool done = false;
+                for (int x = 0; x < World.Width; x++)
+                {
+                    var node = World.GetTile(x, y)?.ResourceNode;
+                    if (node == null || (node.IsDepleted && node.RegrowTime <= 0)) continue;
+                    Player.WorldX = (x + 1) * Constants.TileSize + Constants.TileSize / 2f;
+                    Player.WorldY = y * Constants.TileSize + Constants.TileSize / 2f;
+                    Player.TargetX = Player.WorldX;
+                    Player.TargetY = Player.WorldY;
+                    done = true;
+                    break;
+                }
+                if (done) break;
+            }
+        }
+
+        var keysEnv = Environment.GetEnvironmentVariable("DSR_TEST_KEYS");
+        if (!string.IsNullOrWhiteSpace(keysEnv) && InputRouter != null)
+        {
+            foreach (var name in keysEnv.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries))
+            {
+                if (Enum.TryParse<Silk.NET.Input.Key>(name, ignoreCase: true, out var key))
+                    InputRouter.Handle(key);
+            }
+        }
+
+        var xpEnv = Environment.GetEnvironmentVariable("DSR_TEST_XP");
+        if (!string.IsNullOrWhiteSpace(xpEnv) && SkillManager != null)
+        {
+            foreach (var pair in xpEnv.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries))
+            {
+                var parts = pair.Split(':');
+                if (parts.Length == 2 && float.TryParse(parts[1], out var xp))
+                    SkillManager.AddXpWithNotification(parts[0].Trim().ToLowerInvariant(), xp);
+            }
+        }
+
+        var clickEnv = Environment.GetEnvironmentVariable("DSR_TEST_CLICK");
+        if (!string.IsNullOrWhiteSpace(clickEnv))
+        {
+            var parts = clickEnv.Split(',');
+            if (parts.Length == 2 && int.TryParse(parts[0], out var px) && int.TryParse(parts[1], out var py))
+            {
+                _pendingClickX = px;
+                _pendingClickY = py;
+            }
         }
     }
 
@@ -779,7 +870,6 @@ public sealed class Game
             }
         }
 
-        RenderPanels(gl, screenWidth, screenHeight);
         HUD?.Render(batch, screenWidth, screenHeight, Survival);
 
         if (ShowDebugHud && TextRenderer != null)
@@ -788,6 +878,9 @@ public sealed class Game
                 $"fps {Fps:F0}  frame {FrameMs:F1} ms",
                 screenWidth - 110f, 24f, 14, 240, 240, 240);
         }
+
+        // Panels draw last so they overlay world and HUD.
+        RenderPanels(gl, batch, screenWidth, screenHeight);
     }
 
     /// Depth key for painter's-order sorting of world sprites. All callers
@@ -806,7 +899,7 @@ public sealed class Game
         // TODO: Implement build ghost rendering
     }
 
-    private void RenderPanels(Silk.NET.OpenGL.GL gl, int screenWidth, int screenHeight)
+    private void RenderPanels(Silk.NET.OpenGL.GL gl, PrimitiveBatch batch, int screenWidth, int screenHeight)
     {
         switch (State)
         {
@@ -817,7 +910,8 @@ public sealed class Game
                 Dashboard?.Render(gl, screenWidth, screenHeight);
                 break;
             case GameState.SkillPanel:
-                SkillPanel?.Render(gl, screenWidth, screenHeight);
+                if (SkillManager != null)
+                    SkillPanel?.Render(batch, TextRenderer, SkillManager, screenWidth, screenHeight);
                 break;
             case GameState.CraftingPanel:
                 CraftingPanel?.Render(gl, screenWidth, screenHeight);

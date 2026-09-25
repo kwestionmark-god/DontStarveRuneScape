@@ -43,8 +43,13 @@ public sealed class InputRouter
             case GameState.DiplomacyPanel:
                 HandleDiplomacyPanelInput(key);
                 break;
-            case GameState.InventoryOpen:
             case GameState.SkillPanel:
+                if (key == Key.Up || key == Key.Down)
+                    _game.SkillPanel?.HandleKey(key);
+                else
+                    HandleGenericPanelInput(key);
+                break;
+            case GameState.InventoryOpen:
             case GameState.CraftingPanel:
             case GameState.BuildingPanel:
             case GameState.GearPanel:
@@ -60,6 +65,41 @@ public sealed class InputRouter
             _interactSystem.HandleInteract();
         else if (key == Key.F)
             _fireInteraction.HandleLightFire();
+        else if (key == Key.C || key == Key.I)
+            _game.SetState(GameState.InventoryOpen);
+        else if (key == Key.Tab)
+            _game.SetState(GameState.SkillPanel);
+        else if (key == Key.H)
+            _game.SetState(GameState.CraftingPanel);
+        else if (key == Key.B)
+            _game.SetState(GameState.BuildingPanel);
+        else if (key == Key.G)
+            _game.SetState(GameState.GearPanel);
+    }
+
+    private void HandleGenericPanelInput(Key key)
+    {
+        if (key == Key.Escape || key == Key.Q)
+        {
+            CloseAllPanels();
+            _game.SetState(GameState.Playing);
+            return;
+        }
+        // Same key that opened the panel closes it again.
+        var toggleBack = _game.State switch
+        {
+            GameState.InventoryOpen => key == Key.C || key == Key.I,
+            GameState.SkillPanel => key == Key.Tab,
+            GameState.CraftingPanel => key == Key.H,
+            GameState.BuildingPanel => key == Key.B,
+            GameState.GearPanel => key == Key.G,
+            _ => false,
+        };
+        if (toggleBack)
+        {
+            CloseAllPanels();
+            _game.SetState(GameState.Playing);
+        }
     }
 
     private void HandleTradePanelInput(Key key)
@@ -114,15 +154,6 @@ public sealed class InputRouter
                 var action = ("negotiate", new object[0]);
                 _npcFlows.HandleDiplomacyAction(action);
             }
-        }
-    }
-
-    private void HandleGenericPanelInput(Key key)
-    {
-        if (key == Key.Escape || key == Key.Q)
-        {
-            CloseAllPanels();
-            _game.SetState(GameState.Playing);
         }
     }
 

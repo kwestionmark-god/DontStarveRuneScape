@@ -241,6 +241,8 @@ public sealed class Bootstrap
         _game.InteractSystem = new Interactions.InteractSystem(_game);
         _game.FireInteraction = new Interactions.FireInteraction(_game);
         _game.InputRouter = new InputRouter(_game, _game.InteractSystem, _game.FireInteraction, new Interactions.NPCFlows(_game));
+        if (_game.InputManager != null)
+            _game.InputManager.KeyEvent = _game.InputRouter.Handle;
 
         // Player subsystems
         player.ActionSystem = new Actions.ActionSystem();

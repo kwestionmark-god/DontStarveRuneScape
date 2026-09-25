@@ -14,6 +14,9 @@ public sealed class InputManager
     public InputState InputState { get; } = new();
     private IInputContext? _inputContext;
 
+    /// <summary>Raised on every key-down event; routed by InputRouter based on GameState.</summary>
+    public Action<Key>? KeyEvent;
+
     /// <summary>
     /// Initialize with the window.
     /// </summary>
@@ -81,6 +84,7 @@ public sealed class InputManager
     private void OnKeyDown(IKeyboard keyboard, Key key, int arg3)
     {
         HandleKey(key, true);
+        KeyEvent?.Invoke(key);
     }
 
     private void OnKeyUp(IKeyboard keyboard, Key key, int arg3)

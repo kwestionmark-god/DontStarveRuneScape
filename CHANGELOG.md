@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Skills panel (Tab)** — first interactive UI panel: OSRS-style grid with one
+  row per skill (glyph, name, level, XP bar) and a detail block with clickable
+  `[+]` buttons for per-skill stat-point spending. Establishes the shared panel
+  chrome (`PanelChrome`) and reusable mouse hit-testing (`UiInput`) that the
+  inventory/crafting/building/gear panels will reuse; panels update per frame
+  while open and draw over the live world.
+- Headless UI test hooks: `DSR_TEST_KEYS`, `DSR_TEST_XP`, `DSR_TEST_CLICK`
+  script panel flows through the `--smoketest` capture.
+- xunit test project pinning the OSRS XP table and stat-point spending.
+
+### Fixed
+- **OSRS XP curve was shifted one level**: `CalculateLevelFromXp` summed
+  thresholds over `1..level` instead of `1..level-1` (level 2 needed 174 xp
+  instead of 83; level 99 needed 14,391,160 instead of 13,034,431).
+
 ### Changed
 - **Sea rendering is now one continuous water layer**: a single flat mesh at
   SeaLevel spans the visible map each frame (painter class between submerged
