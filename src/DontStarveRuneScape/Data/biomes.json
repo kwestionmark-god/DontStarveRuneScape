@@ -243,7 +243,6 @@
         "peat_mound",
         "toxic_reed",
         "herb",
-        "water_source",
         "willow_tree",
         "reed_bed",
         "dragonbone",
@@ -556,7 +555,6 @@
       },
       "resource_spawns": [
         "fish_spot",
-        "water_source",
         "salt_deposit"
       ]
     }

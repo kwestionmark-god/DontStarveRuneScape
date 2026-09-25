@@ -445,8 +445,9 @@ public static class ResourcePlacer
                 if (tile.Biome == null) continue;
 
                 // Never root a resource at or below the sea plane — the tile
-                // would sit submerged under the water layer.
-                if (tile.Elevation < Constants.SeaLevel) continue;
+                // would sit submerged under the water layer. Fish spots are
+                // the exception: they live IN the shallows.
+                bool inSea = tile.Elevation < Constants.SeaLevel;
                 bool submerged = false;
                 for (int dx = -1; dx <= 1 && !submerged; dx++)
                     for (int dy = -1; dy <= 1 && !submerged; dy++)
@@ -455,12 +456,19 @@ public static class ResourcePlacer
                         if (n != null && n.HasWater && n.GetSurfaceElevation() > tile.Elevation + 0.05f)
                             submerged = true;
                     }
-                if (submerged) continue;
 
                 foreach (var resourceId in tile.Biome.ResourceSpawns)
                 {
                     ResourceDef? def = resourceRegistry?.GetResource(resourceId);
                     if (def == null) continue;
+
+                    if (resourceId == "fish_spot")
+                    {
+                        // Fish spots sit in shallow coastal water, readable
+                        // through the glassy shallows — never on dry sand.
+                        if (!inSea || tile.Elevation < Constants.SeaLevel - 3f) continue;
+                    }
+                    else if (inSea || submerged) continue;
 
                     // Effective density: base_density clamped to its rarity band.
                     float density = def.Density;

@@ -669,6 +669,10 @@ public sealed class Game
                         var node = tile.ResourceNode;
                         int tx = x, ty = y;
                         var tTile = tile;
+                        // Decals on submerged tiles (fish spots) lie on the
+                        // seabed: draw with the bed pass, under the water sheet.
+                        if (node.ResourceDef?.GroundDecal == true && tile.HasWater)
+                            sortY = -2e9f + sortY * 0.001f;
                         drawables.Add((sortY, seq++, () => SpriteRenderer.RenderResource(
                             node, batch, Camera, elev, tx, ty, tTile)));
                     }
