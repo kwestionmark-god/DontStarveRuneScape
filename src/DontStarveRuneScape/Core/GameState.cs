@@ -18,25 +18,25 @@ public enum GameState
     /// <summary>Main gameplay loop running. World rendered, systems update.</summary>
     Playing,
 
-    /// <summary>Inventory panel is open. Update logic frozen (except hunger drain).</summary>
+    /// <summary>Inventory panel is open. The world keeps running.</summary>
     InventoryOpen,
 
-    /// <summary>Skill panel is open. Update logic frozen (except hunger drain).</summary>
+    /// <summary>Skill panel is open. The world keeps running.</summary>
     SkillPanel,
 
-    /// <summary>Crafting panel is open. Update logic frozen (except hunger drain).</summary>
+    /// <summary>Crafting panel is open. The world keeps running.</summary>
     CraftingPanel,
 
-    /// <summary>Building placement panel is open. Update logic frozen (except hunger drain).</summary>
+    /// <summary>Building placement panel is open. The world keeps running.</summary>
     BuildingPanel,
 
-    /// <summary>Gear management panel is open. Update logic frozen (except hunger drain).</summary>
+    /// <summary>Gear management panel is open. The world keeps running.</summary>
     GearPanel,
 
     /// <summary>Trade panel is open. Player is interacting with a merchant NPC.</summary>
     TradePanel,
 
-    /// <summary>Quest panel is open. Update logic frozen (except hunger drain).</summary>
+    /// <summary>Quest panel is open. The world keeps running.</summary>
     QuestPanel,
 
     /// <summary>Recruit panel is open. Player is recruiting an NPC.</summary>
@@ -61,7 +61,7 @@ public enum GameState
 public static class GameStateExtensions
 {
     /// <summary>
-    /// All panel-open states where update logic is frozen.
+    /// All panel-open states drawing over the live world.
     /// </summary>
     public static readonly GameState[] PanelStates =
     [
@@ -72,7 +72,7 @@ public static class GameStateExtensions
     ];
 
     /// <summary>
-    /// Check if a state is a panel state where gameplay logic is frozen.
+    /// Check if a state is a panel state over the live world.
     /// </summary>
     public static bool IsPanelState(this GameState state)
     {

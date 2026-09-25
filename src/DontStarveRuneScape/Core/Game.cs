@@ -416,8 +416,10 @@ public sealed class Game
                 SetState(GameState.Loading);
         }
 
-        // Gameplay update (only when playing)
-        if (State == GameState.Playing)
+        // Gameplay update: the world keeps running under panels (panel states
+        // draw over the live world); input-driven movement and camera stay
+        // Playing-only.
+        if (State == GameState.Playing || State.IsPanelState())
         {
             UpdatePlaying(dt);
         }
@@ -439,8 +441,8 @@ public sealed class Game
         // World update (regrowth, etc.)
         World?.Update(dt);
 
-        // Player movement
-        if (Player != null && InputManager != null)
+        // Player movement (Playing only; keys route to panels in panel states)
+        if (State == GameState.Playing && Player != null && InputManager != null)
         {
             float cameraYaw = Camera?.Yaw ?? 0f;
             Player.ApplyKeyInput(InputManager.InputState, dt, cameraYaw);
@@ -487,8 +489,8 @@ public sealed class Game
             }
         }
 
-        // Camera
-        if (Camera != null && InputManager != null)
+        // Camera (Playing only; orbit/pan keys route to panels in panel states)
+        if (State == GameState.Playing && Camera != null && InputManager != null)
         {
             Camera.Update(dt, InputManager.InputState);
         }
