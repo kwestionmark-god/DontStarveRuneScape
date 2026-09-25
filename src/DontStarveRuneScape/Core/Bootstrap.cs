@@ -165,6 +165,7 @@ public sealed class Bootstrap
 
         // Inventory
         _game.Inventory = new Inventory();
+        _game.Inventory.StackSizes = Inventory.StackSizesFromData(dataLoader.ItemsData);
 
         // Apply starter pack
         StarterPack.ApplyStarterPack(_game.Inventory, "default");

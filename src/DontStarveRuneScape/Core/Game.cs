@@ -432,6 +432,12 @@ public sealed class Game
             SkillPanel.Update(InputManager.InputState, SkillManager, _lastScreenW, _lastScreenH);
         }
 
+        if (State == GameState.InventoryOpen && InventoryPanel != null && Inventory != null
+            && InputManager != null)
+        {
+            InventoryPanel.Update(InputManager.InputState, Inventory, _lastScreenW, _lastScreenH);
+        }
+
         // Clear one-shot input flags at END of frame
         InputManager?.ClearFrame();
     }
@@ -622,7 +628,8 @@ public sealed class Game
     /// DSR_TEST_RESOURCE=1 teleports the player next to the first harvestable
     /// resource node; DSR_TEST_KEYS="E,I" routes comma-separated Silk.NET keys
     /// through InputRouter.Handle so interaction/panel wiring is exercised
-    /// headlessly instead of only by manual play; DSR_TEST_XP="mining:5000"
+    /// headlessly instead of only by manual play; DSR_TEST_ITEMS="oak_logs:10"
+    /// adds items to the inventory (repeatable via commas); DSR_TEST_XP="mining:5000"
     /// grants skill XP (repeatable via commas); DSR_TEST_CLICK="x,y" scripts a
     /// left mouse click at screen pixel (x,y) two frames after injection.
     /// </summary>
@@ -655,6 +662,17 @@ public sealed class Game
             {
                 if (Enum.TryParse<Silk.NET.Input.Key>(name, ignoreCase: true, out var key))
                     InputRouter.Handle(key);
+            }
+        }
+
+        var itemsEnv = Environment.GetEnvironmentVariable("DSR_TEST_ITEMS");
+        if (!string.IsNullOrWhiteSpace(itemsEnv) && Inventory != null)
+        {
+            foreach (var pair in itemsEnv.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries))
+            {
+                var parts = pair.Split(':');
+                if (parts.Length == 2 && int.TryParse(parts[1], out var qty))
+                    Inventory.AddItem(parts[0].Trim(), qty);
             }
         }
 
@@ -906,7 +924,7 @@ public sealed class Game
         switch (State)
         {
             case GameState.InventoryOpen:
-                InventoryPanel?.Render(batch, TextRenderer, screenWidth, screenHeight);
+                InventoryPanel?.Render(batch, TextRenderer, SpriteRenderer, Inventory, screenWidth, screenHeight);
                 break;
             case GameState.DashboardOpen:
                 Dashboard?.Render(batch, TextRenderer, screenWidth, screenHeight);

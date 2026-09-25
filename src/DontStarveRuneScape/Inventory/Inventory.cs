@@ -1,5 +1,6 @@
 namespace DontStarveRuneScape.Inventory;
 
+using System.Text.Json;
 using System.Collections.Generic;
 using DontStarveRuneScape.Survival;
 using DontStarveRuneScape.Core;
@@ -158,9 +159,46 @@ public sealed class Inventory
         return itemId;
     }
 
+    /// <summary>Per-item stack-size overrides from item data (id -> stack size);
+    /// GetStackSize falls back to the built-in defaults for unknown ids.</summary>
+    public Dictionary<string, int>? StackSizes { get; set; }
+
+    /// <summary>Stack size for an item: data override first, then built-in defaults.</summary>
+    public int StackSizeOf(string itemId) => GetStackSize(itemId);
+
+    /// <summary>Build stack-size overrides from raw items data (id/stack_size rows).
+    /// Values may be plain primitives or JsonElement (DataLoader deserializes
+    /// Dictionary<string, object> values as JsonElement); invalid rows are skipped.</summary>
+    public static Dictionary<string, int> StackSizesFromData(List<Dictionary<string, object>> itemsData)
+    {
+        var sizes = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+        foreach (var entry in itemsData)
+        {
+            string? id = entry.TryGetValue("id", out var idObj) ? idObj switch
+            {
+                string s => s,
+                JsonElement { ValueKind: JsonValueKind.String } je => je.GetString(),
+                _ => null,
+            } : null;
+            if (string.IsNullOrEmpty(id)) continue;
+
+            int size = entry.TryGetValue("stack_size", out var sizeObj) ? sizeObj switch
+            {
+                JsonElement { ValueKind: JsonValueKind.Number } je => je.GetInt32(),
+                int i => i,
+                _ => -1,
+            } : -1;
+            if (size > 0) sizes[id] = size;
+        }
+        return sizes;
+    }
+
     private int GetStackSize(string itemId)
     {
-        // Default stack sizes - would come from item data
+        // Data override (items.json stack_size) first; built-in defaults fallback.
+        if (StackSizes != null && StackSizes.TryGetValue(itemId, out int fromData))
+            return fromData;
+
         return itemId switch
         {
             var id when id.EndsWith("_logs") => 20,

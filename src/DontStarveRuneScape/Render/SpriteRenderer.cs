@@ -271,7 +271,9 @@ public sealed class SpriteRenderer : IDisposable
 
     // ─── Sprite texture loading / caching ─────────────────────────────────
 
-    private uint GetSpriteTexture(string key)
+    /// <summary>Texture handle for a sprite key (e.g. "items/logs_oak"); 0 when
+    /// the sprite is missing. Panels use this to draw real item sprites.</summary>
+    public uint GetSpriteTexture(string key)
     {
         if (string.IsNullOrEmpty(key))
         {

@@ -17,6 +17,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Headless UI test hooks: `DSR_TEST_KEYS`, `DSR_TEST_XP`, `DSR_TEST_CLICK`
   script panel flows through the `--smoketest` capture.
 - xunit test project pinning the OSRS XP table and stat-point spending.
+- **Inventory panel (C/I)** — 20-slot grid (4x5) with a detail block for the
+  selected slot: real item sprites via `SpriteRenderer.GetSpriteTexture`
+  (glyph-chip fallback), quantity vs stack size, equipped marker, food stats,
+  and a spoilage bar; click and arrow-key selection. `ItemCatalog` parses item
+  display info (name/sprite key/food stats) from items.json with
+  JsonElement-safe parsing; new `DSR_TEST_ITEMS="oak_logs:10"` smoketest hook.
+
+### Fixed
+- **Stack sizes ignored item data**: `Inventory.GetStackSize` used hardcoded
+  defaults (logs 20) while items.json says 28; stack sizes now come from
+  `Inventory.StackSizes` (built from items.json at world load) with the old
+  defaults as fallback for unknown ids. `AddItem`/`CanAdd` stack to the data
+  value (e.g. oak_logs 28, torch 5).
 
 ### Fixed
 - **Panel states were invisible**: every panel except skills (Tab) was an empty
