@@ -59,20 +59,27 @@ public sealed class NPCFlows
         return true;
     }
 
-    /// <summary>Open the diplomacy panel for the given NPC.</summary>
-    public bool OpenDiplomacyPanel(Npc npc)
+    /// <summary>Open the diplomacy panel (faction overview), optionally scoped
+    /// to a faction id.</summary>
+    public void OpenDiplomacyPanel(string? factionId)
     {
-        if (_game.DiplomacyPanel == null || _game.Player == null) return false;
-        if (npc is not FactionLeaderNpc leaderNpc) return false;
-        if (!_game.DiplomacyPanel.OpenSession(leaderNpc)) return false;
+        if (_game.DiplomacyPanel == null || _game.Player == null) return;
 
+        if (!string.IsNullOrEmpty(factionId))
+        {
+            var faction = _game.FactionRegistry?.GetFaction(factionId);
+            _game.DiplomacyPanel.FactionInfo = new UI.FactionInfo
+            {
+                FactionId = factionId,
+                Name = faction?.Name ?? factionId,
+            };
+        }
         _game.DiplomacyPanel.Visible = true;
         _game.DiplomacyPanel.Player = _game.Player;
         if (_game.Player.ActionSystem != null)
-            _game.Player.ActionSystem.AddNotification($"Diplomacy: {npc.Name} -- Press ESC to close", ((byte)100, (byte)180, (byte)100));
+            _game.Player.ActionSystem.AddNotification("Diplomacy -- Press ESC to close", ((byte)100, (byte)180, (byte)100));
 
         _game.SetState(GameState.DiplomacyPanel);
-        return true;
     }
 
     // ─── Action Handlers ───────────────────────────────────────────────────

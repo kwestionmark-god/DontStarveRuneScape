@@ -190,6 +190,24 @@ public sealed class Bootstrap
         _game.QuestSystem = new QuestSystem();
         _game.FactionSystem = new FactionSystem();
 
+        // NPC-domain data registries + world spawning
+        var npcRegistry = new Data.NpcRegistry();
+        npcRegistry.LoadAll();
+        _game.NpcRegistry = npcRegistry;
+        _game.NPCSystem.LoadFromRegistry(npcRegistry, tileMap);
+
+        var tradeRegistry = new Data.TradeItemRegistry();
+        tradeRegistry.LoadAll();
+        _game.TradeRegistry = tradeRegistry;
+
+        var questRegistry = new Data.QuestRegistry();
+        questRegistry.LoadAll();
+        _game.QuestRegistry = questRegistry;
+
+        var factionRegistry = new Data.FactionRegistry();
+        factionRegistry.LoadAll();
+        _game.FactionRegistry = factionRegistry;
+
         // Seasons & Weather
         _game.SeasonSystem = new SeasonSystem();
         _game.WeatherSystem = new WeatherSystem();
@@ -244,9 +262,10 @@ public sealed class Bootstrap
         _game.LoadingScreen = new LoadingScreen();
 
         // Input
-        _game.InteractSystem = new Interactions.InteractSystem(_game);
+        var npcFlows = new Interactions.NPCFlows(_game);
+        _game.InteractSystem = new Interactions.InteractSystem(_game, npcFlows);
         _game.FireInteraction = new Interactions.FireInteraction(_game);
-        _game.InputRouter = new InputRouter(_game, _game.InteractSystem, _game.FireInteraction, new Interactions.NPCFlows(_game));
+        _game.InputRouter = new InputRouter(_game, _game.InteractSystem, _game.FireInteraction, npcFlows);
         if (_game.InputManager != null)
             _game.InputManager.KeyEvent = _game.InputRouter.Handle;
 

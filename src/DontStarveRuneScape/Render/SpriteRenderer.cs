@@ -186,17 +186,51 @@ public sealed class SpriteRenderer : IDisposable
         batch.DrawScreenQuad(screen.X, screen.Y, half, half, 200, 60, 60);
     }
 
-    public void RenderNPC(Npc npc, PrimitiveBatch batch, Camera camera, int elevation)
+    public void RenderNPC(Npc npc, PrimitiveBatch batch, Camera camera, float elevation)
     {
+        // Real NPC sprite by type (npcs/*.png), colored quad fallback.
+        string spriteKey = npc.NpcType switch
+        {
+            "merchant" => "npcs/merchant",
+            "quest_giver" => "npcs/quest_giver",
+            "recruit" => "npcs/recruit",
+            "faction_leader" => "npcs/faction_leader",
+            _ => "npcs/quest_giver",
+        };
+        uint tex = GetSpriteTexture(spriteKey);
+
         var screen = camera.WorldToScreen(npc.WorldX, npc.WorldY, elevation);
         float half = 15f * camera.Zoom;
-        batch.DrawScreenQuad(screen.X, screen.Y, half, half, 70, 180, 100);
+        // Anchor bottom-center: feet at the ground point at any zoom/pitch.
+        float cx = screen.X;
+        float cy = screen.Y - half;
+
+        if (!npc.IsRecruited)
+            DrawShadow(batch, screen.X, screen.Y, half, 200);
+        if (tex != 0)
+            batch.DrawTexturedScreenQuad(cx, cy, half, half, tex, 255, 255, 255, 255);
+        else
+            batch.DrawScreenQuad(cx, cy, half, half, 70, 180, 100);
     }
 
-    public void RenderProximityPrompt(Npc npc, PrimitiveBatch batch, Camera camera)
+    public void RenderProximityPrompt(Npc npc, PrimitiveBatch batch, Camera camera,
+        float elevation, TextRenderer? text)
     {
-        var screen = camera.WorldToScreen(npc.WorldX, npc.WorldY, 0f);
-        batch.DrawScreenQuad(screen.X, screen.Y, 4f * camera.Zoom, 4f * camera.Zoom, 255, 255, 120);
+        // Ground point at the same elevation the sprite renders at, so the
+        // name/[E] sit directly above it.
+        var screen = camera.WorldToScreen(npc.WorldX, npc.WorldY, elevation);
+        float half = 15f * camera.Zoom;
+        // Name above the sprite, [E] prompt above the name.
+        float nameY = screen.Y - half * 2f - 12f * camera.Zoom;
+        if (text != null)
+        {
+            text.DrawText(batch, npc.Name, screen.X, nameY, 13, 240, 230, 200, bold: true);
+            text.DrawText(batch, "[E]", screen.X, nameY - 16f * camera.Zoom, 13, 255, 215, 0, bold: true);
+        }
+        else
+        {
+            batch.DrawScreenQuad(screen.X, nameY, 3f * camera.Zoom, 3f * camera.Zoom, 255, 255, 120);
+        }
     }
 
     public void RenderStructure(Structure structure, PrimitiveBatch batch, Camera camera, float elevation)

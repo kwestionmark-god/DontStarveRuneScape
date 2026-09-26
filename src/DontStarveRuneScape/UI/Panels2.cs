@@ -308,6 +308,18 @@ public sealed class SkillPanel
         ("stamina_reduction", "Stamina reduction"),
     };
 
+    // Intelligence-only sub-stats (gate quests, trade stock, recruitment).
+    private static readonly (string Key, string Name)[] IntelExtraStats =
+    {
+        ("commerce",   "Commerce"),
+        ("persuasion", "Persuasion"),
+    };
+
+    // Sub-stats for the selected skill: the generic five, plus the
+    // intelligence extras when intelligence is selected.
+    private static (string Key, string Name)[] StatsFor(string skillId) =>
+        skillId == "intelligence" ? [.. SubStats, .. IntelExtraStats] : SubStats;
+
     private const float ContentW = 780f;
     private const float ContentH = 470f;
     private const float RowH = 42f;
@@ -319,7 +331,7 @@ public sealed class SkillPanel
     private readonly float[] _rowY = new float[Skills.Length];
     private float _rowX, _rowW;
     private float _detailX, _detailY, _detailW;
-    private readonly float[] _statY = new float[SubStats.Length];
+    private readonly float[] _statY = new float[SubStats.Length + IntelExtraStats.Length];
     private float _plusX, _plusY0;             // [+] button column
 
     public void HandleKey(Key key)
@@ -345,12 +357,13 @@ public sealed class SkillPanel
         var skill = skills.GetSkill(Skills[SelectedIndex].Id);
         _lastMouseHoverPlus = -1;
         if (skill.UnallocatedPoints <= 0) return;
-        for (int s = 0; s < SubStats.Length; s++)
+        var statList = StatsFor(skill.Id);
+        for (int s = 0; s < statList.Length; s++)
         {
             if (ui.Hovered(_plusX, _statY[s] - 11f, 22f, 22f))
                 _lastMouseHoverPlus = s;
             if (ui.TryClick(_plusX, _statY[s] - 11f, 22f, 22f))
-                skills.SpendPoint(Skills[SelectedIndex].Id, SubStats[s].Key);
+                skills.SpendPoint(Skills[SelectedIndex].Id, statList[s].Key);
         }
     }
 
@@ -446,10 +459,11 @@ public sealed class SkillPanel
             data.UnallocatedPoints > 0 ? (byte)220 : (byte)140,
             data.UnallocatedPoints > 0 ? (byte)120 : (byte)130);
 
-        for (int s = 0; s < SubStats.Length; s++)
+        var statList = StatsFor(id);
+        for (int s = 0; s < statList.Length; s++)
         {
             float y = _statY[s];
-            float value = data.SubStats[SubStats[s].Key];
+            float value = data.SubStats[statList[s].Key];
             DrawLeft(batch, text, SubStats[s].Name, _detailX + 8f, y, 14,
                 PanelChrome.TextR, PanelChrome.TextG, PanelChrome.TextB);
             DrawRight(batch, text, $"+{(int)value}", _plusX - 34f, y, 14, 200, 190, 160);
@@ -485,7 +499,7 @@ public sealed class SkillPanel
         _detailX = _cx + ContentW * 0.58f;
         _detailY = _cy + 10f;
         _detailW = ContentW * 0.40f;
-        for (int s = 0; s < SubStats.Length; s++)
+        for (int s = 0; s < _statY.Length; s++)
             _statY[s] = _detailY + 92f + s * 30f;
         _plusX = _detailX + _detailW - 60f;
     }

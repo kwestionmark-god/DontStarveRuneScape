@@ -82,6 +82,10 @@ public sealed class Game
     public RecruitmentSystem? RecruitmentSystem { get; set; }
     public QuestSystem? QuestSystem { get; set; }
     public FactionSystem? FactionSystem { get; set; }
+    public NpcRegistry? NpcRegistry { get; set; }
+    public TradeItemRegistry? TradeRegistry { get; set; }
+    public QuestRegistry? QuestRegistry { get; set; }
+    public FactionRegistry? FactionRegistry { get; set; }
 
     // Phase 4: Seasons & Weather
     public SeasonSystem? SeasonSystem { get; set; }
@@ -721,6 +725,24 @@ public sealed class Game
     /// </summary>
     private void InjectTestHooks()
     {
+        // NPC teleport runs FIRST so a scripted DSR_TEST_KEYS panel key in the
+        // same batch sees the player already standing next to the target NPC.
+        var npcEnv = Environment.GetEnvironmentVariable("DSR_TEST_NPC");
+        if (!string.IsNullOrWhiteSpace(npcEnv) && NPCSystem != null && Player != null)
+        {
+            // Teleport the player next to the first active NPC of the given
+            // type ("1" = any type) so panel captures can target one.
+            var target = NPCSystem.NPCs.FirstOrDefault(n =>
+                n.IsActive && (npcEnv == "1" || n.NpcType == npcEnv));
+            if (target != null)
+            {
+                Player.WorldX = target.WorldX + Constants.TileSize * 0.5f;
+                Player.WorldY = target.WorldY;
+                Player.TargetX = Player.WorldX;
+                Player.TargetY = Player.WorldY;
+            }
+        }
+
         if (Environment.GetEnvironmentVariable("DSR_TEST_RESOURCE") == "1" && World != null && Player != null)
         {
             for (int y = 0; y < World.Height; y++)
@@ -918,12 +940,20 @@ public sealed class Game
                 foreach (var npc in NPCSystem.NPCs)
                 {
                     if (!npc.IsActive) continue;
-                    float sortY = GetDepthSort(npc.WorldX, npc.WorldY, 0);
+                    var nTile = World.GetTile((int)(npc.WorldX / Constants.TileSize), (int)(npc.WorldY / Constants.TileSize));
+                    // Same ground-height source the terrain depth key uses
+                    // (bilinear tile-center value): an exact tie with the
+                    // standing tile's depth, so the seq tie-break keeps the
+                    // sprite above its own tile.
+                    float elev = nTile != null
+                        ? (nTile.HasWater ? nTile.GetSurfaceElevation() : nTile.GetElevationAt(0.5f, 0.5f))
+                        : 0f;
+                    float sortY = GetDepthSort(npc.WorldX, npc.WorldY, elev);
                     var n = npc;
-                    drawables.Add((sortY, seq++, () => SpriteRenderer.RenderNPC(n, batch, Camera, 0)));
+                    drawables.Add((sortY, seq++, () => SpriteRenderer.RenderNPC(n, batch, Camera, elev)));
 
                     if (npc == nearbyNpc)
-                        drawables.Add((sortY, seq++, () => SpriteRenderer.RenderProximityPrompt(n, batch, Camera)));
+                        drawables.Add((sortY, seq++, () => SpriteRenderer.RenderProximityPrompt(n, batch, Camera, elev, TextRenderer)));
                 }
             }
 

@@ -11,6 +11,23 @@ public sealed class NPCSystem
 {
     public List<Npc> NPCs { get; } = [];
 
+    /// <summary>Spawn all NPCs from the registry at their definition tile
+    /// positions; the tile's real biome is recorded for trade-stock matching.
+    /// Called once at world boot.</summary>
+    public void LoadFromRegistry(Data.NpcRegistry registry, World.TileMap? world)
+    {
+        int tileSize = Config.Constants.TileSize;
+        foreach (var def in registry.Npcs.Values)
+        {
+            var npc = Npc.FromDef(def);
+            npc.WorldX = (def.WorldX + 0.5f) * tileSize;
+            npc.WorldY = (def.WorldY + 0.5f) * tileSize;
+            var tile = world?.GetTile(def.WorldX, def.WorldY);
+            npc.Biome = tile?.Biome?.Id ?? string.Empty;
+            NPCs.Add(npc);
+        }
+    }
+
     public void Tick(float dt)
     {
         // Update NPC AI, movement, etc.
@@ -24,15 +41,29 @@ public sealed class NPCSystem
     /// <summary>Check if there's an NPC near the player.</summary>
     public Npc? CheckProximity(Player player)
     {
+        return FindNearby(player, null);
+    }
+
+    /// <summary>Check if there's an NPC of the given type near the player
+    /// (null type matches any).</summary>
+    public Npc? FindNearby(Player player, string? type)
+    {
+        Npc? best = null;
+        float bestDistSq = 128 * 128;
         foreach (var npc in NPCs)
         {
             if (!npc.IsActive) continue;
+            if (type != null && npc.NpcType != type) continue;
             float dx = npc.WorldX - player.WorldX;
             float dy = npc.WorldY - player.WorldY;
-            if (dx * dx + dy * dy <= 128 * 128) // 128px radius
-                return npc;
+            float distSq = dx * dx + dy * dy;
+            if (distSq < bestDistSq)
+            {
+                bestDistSq = distSq;
+                best = npc;
+            }
         }
-        return null;
+        return best;
     }
 
     /// <summary>Assign NPC to structure.</summary>

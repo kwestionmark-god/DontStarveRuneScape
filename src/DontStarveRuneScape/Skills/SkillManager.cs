@@ -23,6 +23,12 @@ public sealed class SkillManager
         {
             _skills[id] = new SkillData { Id = id };
         }
+
+        // Intelligence also carries the commerce/persuasion sub-stats that
+        // gate quests, trade stock, and recruitment. They start at 1 (like
+        // levels) so the first gates are reachable from a fresh character.
+        _skills["intelligence"].SubStats["commerce"] = 1f;
+        _skills["intelligence"].SubStats["persuasion"] = 1f;
     }
 
     /// <summary>Get skill level for a skill ID.</summary>

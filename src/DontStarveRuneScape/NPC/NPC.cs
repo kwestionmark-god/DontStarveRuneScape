@@ -21,7 +21,41 @@ public abstract class Npc
     public List<string> AvailableQuests { get; set; } = [];
     public string? RecruitedBy { get; set; }
 
+    /// <summary>Biome of the tile the NPC stands on (set at spawn); used to
+    /// match merchants to their trade stock.</summary>
+    public string Biome { get; set; } = string.Empty;
+
+    /// <summary>Faction id for all NPC types (loaded from the definition).</summary>
+    public string FactionId { get; set; } = string.Empty;
+
+    /// <summary>Flavor dialogue lines (loaded from the definition).</summary>
+    public List<string> DialogueLines { get; } = [];
+
     public virtual void AssignBehavior(string behavior) { }
+
+    /// <summary>Create an NPC instance from a typed definition.</summary>
+    public static Npc FromDef(NpcDef def)
+    {
+        Npc npc = def.Type switch
+        {
+            "merchant" => new MerchantNpc(),
+            "recruit" => new RecruitNpc(),
+            "faction_leader" => new FactionLeaderNpc(),
+            "quest_giver" => new QuestGiverNpc(),
+            _ => new QuestGiverNpc(), // default
+        };
+
+        npc.NpcId = def.NpcId;
+        npc.Name = def.Name;
+        npc.NpcType = def.Type;
+        npc.Health = def.Health;
+        npc.MaxHealth = def.MaxHealth;
+        npc.FactionId = def.Faction;
+        npc.AvailableQuests.AddRange(def.AvailableQuestIds);
+        foreach (var line in def.DialogueLines)
+            npc.DialogueLines.Add(line);
+        return npc;
+    }
 
     /// <summary>Create an NPC instance from a definition dictionary.</summary>
     public static Npc CreateFromDef(Dictionary<string, object> def)
@@ -41,7 +75,7 @@ public abstract class Npc
         npc.NpcType = type;
         if (def.TryGetValue("health", out var hp) && hp is int hpInt) npc.Health = hpInt;
         if (def.TryGetValue("max_health", out var maxHp) && maxHp is int maxHpInt) npc.MaxHealth = maxHpInt;
-        
+
         return npc;
     }
 }
@@ -73,8 +107,6 @@ public sealed class RecruitNpc : Npc
 /// </summary>
 public sealed class FactionLeaderNpc : Npc
 {
-    public string FactionId { get; set; } = string.Empty;
-
     public FactionLeaderNpc()
     {
         NpcType = "faction_leader";
