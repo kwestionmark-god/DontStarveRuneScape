@@ -15,8 +15,9 @@ using DontStarveRuneScape.Data;
 /// InventoryPanel — 20-slot inventory grid (4 columns x 5 rows) with a detail
 /// block for the selected slot: real item sprite (glyph-chip fallback),
 /// quantity vs stack size, equipped marker, food stats, and a spoilage bar.
-/// Layout is computed in Layout() from the screen size alone, so Update
-/// (hit-testing) and Render stay consistent.
+/// Food items get an EAT button that consumes one and applies its hunger/hp
+/// values via SurvivalSystem. Layout is computed in Layout() from the screen
+/// size alone, so Update (hit-testing) and Render stay consistent.
 /// </summary>
 public sealed class InventoryPanel
 {
@@ -29,12 +30,18 @@ public sealed class InventoryPanel
     private const float ContentH = 368f;
     private const float SlotSize = 64f;
     private const float SlotGap = 8f;
+    private const float EatW = 150f, EatH = 30f;
 
     // Cached absolute rects (set by Layout, which Update and Render both call).
     private float _cx, _cy;                    // content rect origin
     private readonly float[] _slotX = new float[SlotCount];
     private readonly float[] _slotY = new float[SlotCount];
     private float _detailX, _detailY;
+    private float _eatX, _eatY;
+
+    // Last eat result line, cleared when the selection changes.
+    private string? _status;
+    private bool _statusOk;
 
     public void HandleKey(Key key)
     {
@@ -46,10 +53,14 @@ public sealed class InventoryPanel
             SelectedIndex = (SelectedIndex + SlotCount - 1) % SlotCount;
         else if (key == Key.Right)
             SelectedIndex = (SelectedIndex + 1) % SlotCount;
+        else
+            return;
+        _status = null;
     }
 
     /// <summary>Mouse handling; call once per frame from Game.Update while open.</summary>
-    public void Update(InputState input, Inventory inventory, int screenW, int screenH)
+    public void Update(InputState input, Inventory inventory, Survival.SurvivalSystem? survival,
+        Survival.FoodRegistry? foods, int screenW, int screenH)
     {
         Layout(screenW, screenH);
         var ui = new UiInput(input);
@@ -57,7 +68,29 @@ public sealed class InventoryPanel
         for (int i = 0; i < inventory.Slots.Count; i++)
         {
             if (ui.TryClick(_slotX[i], _slotY[i], SlotSize, SlotSize))
+            {
+                if (SelectedIndex != i)
+                    _status = null;
                 SelectedIndex = i;
+            }
+        }
+
+        // EAT: consume one of the selected food item and apply its values.
+        if (ui.TryClick(_eatX, _eatY, EatW, EatH)
+            && inventory.Slots[SelectedIndex] is { ItemId: not null, Quantity: > 0 } slot)
+        {
+            var food = foods?.Get(slot.ItemId);
+            if (food == null || survival == null)
+            {
+                _status = "Nothing to eat here.";
+                _statusOk = false;
+            }
+            else
+            {
+                inventory.RemoveItem(slot.ItemId, 1);
+                _status = survival.Eat(food);
+                _statusOk = true;
+            }
         }
     }
 
@@ -158,7 +191,20 @@ public sealed class InventoryPanel
         {
             string foodLine = $"Food: +{(int)display.HungerRestore} hunger, {(int)display.HpRestore} hp";
             DrawLeft(batch, text, foodLine, _detailX, _detailY + 176f, 14, 150, 200, 120);
+
+            // EAT button: gold for food, only drawn for food items.
+            batch.DrawScreenQuad(_eatX + EatW * 0.5f, _eatY + EatH * 0.5f, EatW * 0.5f + 2f, EatH * 0.5f + 2f,
+                PanelChrome.BorderR, PanelChrome.BorderG, PanelChrome.BorderB);
+            batch.DrawScreenQuad(_eatX + EatW * 0.5f, _eatY + EatH * 0.5f, EatW * 0.5f, EatH * 0.5f, 30, 20, 10);
+            text.DrawText(batch, "EAT", _eatX + EatW * 0.5f, _eatY + EatH * 0.5f, 15,
+                PanelChrome.BorderR, PanelChrome.BorderG, PanelChrome.BorderB, bold: true);
         }
+
+        // Status line: last eat result.
+        if (_status != null)
+            DrawLeft(batch, text, _status, _detailX, _eatY + EatH + 16f, 13,
+                _statusOk ? (byte)150 : (byte)210, _statusOk ? (byte)210 : (byte)110,
+                _statusOk ? (byte)120 : (byte)100);
 
         if (slot.MaxSpoilageTime > 0)
         {
@@ -215,6 +261,9 @@ public sealed class InventoryPanel
 
         _detailX = _cx + Cols * SlotSize + (Cols - 1) * SlotGap + 20f;
         _detailY = _cy;
+
+        _eatX = _detailX;
+        _eatY = _detailY + 258f;
     }
 
     private static void DrawLeft(PrimitiveBatch batch, TextRenderer text, string s,

@@ -1,6 +1,7 @@
 namespace DontStarveRuneScape.Survival;
 
 using System.Collections.Generic;
+using DontStarveRuneScape.Data;
 
 /// <summary>
 /// FoodRegistry — Registry of all food items, loaded from JSON data.
@@ -20,7 +21,8 @@ public sealed class FoodRegistry
         _itemsData = new Dictionary<string, Dictionary<string, object>>();
         foreach (var item in itemsData)
         {
-            if (item.TryGetValue("id", out var idObj) && idObj is string id)
+            string? id = DataValues.GetString(item.TryGetValue("id", out var idObj) ? idObj : null);
+            if (!string.IsNullOrEmpty(id))
             {
                 _itemsData[id] = item;
             }
@@ -28,19 +30,19 @@ public sealed class FoodRegistry
 
         foreach (var data in itemsData)
         {
-            if (data.TryGetValue("is_food", out var isFoodObj) && isFoodObj is bool isFood && isFood)
-            {
-                string itemId = data.TryGetValue("id", out var id2) && id2 is string s2 ? s2 : "";
-                float hungerRestore = data.TryGetValue("hunger_restore", out var hr) && hr is float f1 ? f1 : 0;
-                float hpRestore = data.TryGetValue("hp_restore", out var hr2) && hr2 is float f2 ? f2 : 0;
-                float spoilageSeconds = data.TryGetValue("spoilage_seconds", out var ss) && ss is float f3 ? f3 : 0;
-                bool isRaw = data.TryGetValue("is_raw", out var ir) && ir is bool b1 && b1;
-                string cookingBaseItem = data.TryGetValue("cooking_base_item", out var cb) && cb is string s3 ? s3 : "";
+            bool isFood = DataValues.GetBool(data.TryGetValue("is_food", out var isFoodObj) ? isFoodObj : null);
+            if (!isFood) continue;
 
-                if (!string.IsNullOrEmpty(itemId))
-                {
-                    _foods[itemId] = new FoodItem(itemId, hungerRestore, hpRestore, spoilageSeconds, isRaw, cookingBaseItem);
-                }
+            string itemId = DataValues.GetString(data.TryGetValue("id", out var id2) ? id2 : null) ?? "";
+            float hungerRestore = DataValues.GetFloat(data.TryGetValue("hunger_restore", out var hr) ? hr : null);
+            float hpRestore = DataValues.GetFloat(data.TryGetValue("hp_restore", out var hr2) ? hr2 : null);
+            float spoilageSeconds = DataValues.GetFloat(data.TryGetValue("spoilage_seconds", out var ss) ? ss : null);
+            bool isRaw = DataValues.GetBool(data.TryGetValue("is_raw", out var ir) ? ir : null);
+            string cookingBaseItem = DataValues.GetString(data.TryGetValue("cooking_base_item", out var cb) ? cb : null) ?? "";
+
+            if (!string.IsNullOrEmpty(itemId))
+            {
+                _foods[itemId] = new FoodItem(itemId, hungerRestore, hpRestore, spoilageSeconds, isRaw, cookingBaseItem);
             }
         }
     }
@@ -72,8 +74,8 @@ public sealed class FoodRegistry
     {
         if (_itemsData.TryGetValue(itemId, out var item))
         {
-            if (item.TryGetValue("stack_size", out var stackObj) && stackObj is int stack)
-                return stack;
+            if (item.TryGetValue("stack_size", out var stackObj))
+                return DataValues.GetInt(stackObj, 10);
         }
         return 10;
     }
@@ -83,8 +85,8 @@ public sealed class FoodRegistry
     {
         if (_itemsData.TryGetValue(itemId, out var item))
         {
-            if (item.TryGetValue("sprite_key", out var spriteObj) && spriteObj is string sprite)
-                return sprite;
+            if (item.TryGetValue("sprite_key", out var spriteObj))
+                return DataValues.GetString(spriteObj) ?? string.Empty;
         }
         return string.Empty;
     }

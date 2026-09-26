@@ -491,7 +491,8 @@ public sealed class Game
         if (State == GameState.InventoryOpen && InventoryPanel != null && Inventory != null
             && InputManager != null)
         {
-            InventoryPanel.Update(InputManager.InputState, Inventory, _lastScreenW, _lastScreenH);
+            InventoryPanel.Update(InputManager.InputState, Inventory, Player?.Survival, FoodRegistry,
+                _lastScreenW, _lastScreenH);
         }
 
         if (State == GameState.CraftingPanel && CraftingPanel != null && Crafting != null

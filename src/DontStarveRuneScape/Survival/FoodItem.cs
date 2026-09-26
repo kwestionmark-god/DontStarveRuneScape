@@ -1,6 +1,7 @@
 namespace DontStarveRuneScape.Survival;
 
 using System.Collections.Generic;
+using DontStarveRuneScape.Data;
 
 /// <summary>
 /// FoodItem — Definition of a food item (holds only food-specific data).
@@ -50,8 +51,8 @@ public sealed class FoodItem
     {
         if (itemsData.TryGetValue(ItemId, out var item))
         {
-            if (item.TryGetValue("stack_size", out var stackObj) && stackObj is int stack)
-                return stack;
+            if (item.TryGetValue("stack_size", out var stackObj))
+                return DataValues.GetInt(stackObj, 10);
         }
         return 10;
     }
@@ -61,8 +62,8 @@ public sealed class FoodItem
     {
         if (itemsData.TryGetValue(ItemId, out var item))
         {
-            if (item.TryGetValue("sprite_key", out var spriteObj) && spriteObj is string sprite)
-                return sprite;
+            if (item.TryGetValue("sprite_key", out var spriteObj))
+                return DataValues.GetString(spriteObj) ?? string.Empty;
         }
         return string.Empty;
     }
