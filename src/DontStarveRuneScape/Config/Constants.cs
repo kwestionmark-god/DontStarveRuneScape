@@ -305,6 +305,10 @@ public static class Constants
     public const string ItemsFile = "Data/items.json";
     public const string GearFile = "Data/gear.json";
     public const string StructuresFile = "Data/structures.json";
+    public const string NpcsFile = "Data/npcs.json";
+    public const string TradeItemsFile = "Data/trade_items.json";
+    public const string QuestsFile = "Data/quests.json";
+    public const string FactionsFile = "Data/factions.json";
 
     /// <summary>All recipe data files loaded into the unified RecipeRegistry.</summary>
     public static readonly string[] RecipeFiles =

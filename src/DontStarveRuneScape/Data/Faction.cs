@@ -1,47 +1,58 @@
 namespace DontStarveRuneScape.Data;
 
 using System.Text.Json.Serialization;
+using DontStarveRuneScape.Config;
 
 /// <summary>
-/// Faction definition.
+/// Faction definition (factions.json). No color field in the data; HUD colors
+/// fall back to white via GetFactionColor.
 /// </summary>
 public sealed class FactionDef : DataRecord
 {
+    [JsonPropertyName("faction_id")]
+    public string FactionId { get; init; } = string.Empty;
+
     [JsonPropertyName("name")]
     public string Name { get; init; } = string.Empty;
 
-    [JsonPropertyName("leader_npc")]
-    public string LeaderNpc { get; init; } = string.Empty;
+    [JsonPropertyName("leader_npc_id")]
+    public string LeaderNpcId { get; init; } = string.Empty;
+
+    [JsonPropertyName("description")]
+    public string Description { get; init; } = string.Empty;
 
     [JsonPropertyName("territory_biomes")]
     public string[] TerritoryBiomes { get; init; } = [];
 
-    [JsonPropertyName("hostility")]
-    public float Hostility { get; init; } = 0f; // 0 = peaceful, 1 = hostile
+    [JsonPropertyName("base_hostility")]
+    public float BaseHostility { get; init; } = 0f; // 0 = peaceful, 1 = hostile
 
     [JsonPropertyName("hostile_monster_types")]
     public string[] HostileMonsterTypes { get; init; } = [];
 
-    [JsonPropertyName("color")]
-    public int[] Color { get; init; } = [255, 255, 255]; // RGB for HUD
-
-    [JsonPropertyName("description")]
-    public string Description { get; init; } = string.Empty;
+    [JsonPropertyName("sprite_key")]
+    public string SpriteKey { get; init; } = string.Empty;
 }
 
 /// <summary>
-/// Registry of factions.
+/// Registry of factions, loaded from factions.json.
 /// </summary>
 public sealed class FactionRegistry
 {
     public Dictionary<string, FactionDef> Factions { get; } = [];
 
-    public FactionRegistry() { }
-
-    public FactionRegistry(IEnumerable<FactionDef> factions)
+    public void LoadAll()
     {
-        foreach (var f in factions)
-            Factions[f.Id] = f;
+        try
+        {
+            var factions = DataLoader.LoadJsonList<FactionDef>(Constants.FactionsFile, "factions");
+            foreach (var faction in factions)
+            {
+                if (!string.IsNullOrEmpty(faction.FactionId))
+                    Factions[faction.FactionId] = faction;
+            }
+        }
+        catch { /* missing file: empty registry */ }
     }
 
     public FactionDef? GetFaction(string id)
@@ -51,9 +62,7 @@ public sealed class FactionRegistry
 
     public (byte R, byte G, byte B) GetFactionColor(string id)
     {
-        return GetFaction(id) is { Color.Length: >= 3 } f
-            ? ((byte)f.Color[0], (byte)f.Color[1], (byte)f.Color[2])
-            : ((byte)255, (byte)255, (byte)255);
+        return ((byte)255, (byte)255, (byte)255);
     }
 
     public IEnumerable<FactionDef> GetFactionsForBiome(string biomeId)

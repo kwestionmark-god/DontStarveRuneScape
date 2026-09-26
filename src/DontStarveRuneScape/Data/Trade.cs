@@ -1,14 +1,23 @@
 namespace DontStarveRuneScape.Data;
 
 using System.Text.Json.Serialization;
+using DontStarveRuneScape.Config;
 
 /// <summary>
-/// Trade item definition for merchants.
+/// Trade item definition for merchants (trade_items.json). Items are keyed by
+/// biome — merchants map to items via their spawn-point biome or faction
+/// territory.
 /// </summary>
 public sealed class TradeItemDef : DataRecord
 {
-    [JsonPropertyName("name")]
-    public string Name { get; init; } = string.Empty;
+    [JsonPropertyName("trade_item_id")]
+    public string TradeItemId { get; init; } = string.Empty;
+
+    [JsonPropertyName("item_id")]
+    public string ItemId { get; init; } = string.Empty; // Links to items.json
+
+    [JsonPropertyName("biome")]
+    public string Biome { get; init; } = string.Empty;
 
     [JsonPropertyName("buy_price")]
     public int BuyPrice { get; init; } = 0;
@@ -16,35 +25,41 @@ public sealed class TradeItemDef : DataRecord
     [JsonPropertyName("sell_price")]
     public int SellPrice { get; init; } = 0;
 
-    [JsonPropertyName("stock")]
-    public int Stock { get; init; } = 0; // -1 = unlimited
+    [JsonPropertyName("stock_quantity")]
+    public int StockQuantity { get; init; } = 0;
+
+    [JsonPropertyName("max_stock")]
+    public int MaxStock { get; init; } = 0;
 
     [JsonPropertyName("tier")]
     public int Tier { get; init; } = 1;
 
-    [JsonPropertyName("commerce_req")]
-    public int CommerceReq { get; init; } = 0; // Intelligence commerce sub-stat required
+    [JsonPropertyName("is_premium")]
+    public bool IsPremium { get; init; } = false;
 
-    [JsonPropertyName("item_id")]
-    public string ItemId { get; init; } = string.Empty; // Links to items.json
-
-    [JsonPropertyName("faction")]
-    public string Faction { get; init; } = string.Empty; // Faction that sells this
+    [JsonPropertyName("commerce_requirement")]
+    public int CommerceRequirement { get; init; } = 0; // Intelligence commerce sub-stat required
 }
 
 /// <summary>
-/// Registry of trade items.
+/// Registry of trade items, loaded from trade_items.json.
 /// </summary>
 public sealed class TradeItemRegistry
 {
     public Dictionary<string, TradeItemDef> TradeItems { get; } = [];
 
-    public TradeItemRegistry() { }
-
-    public TradeItemRegistry(IEnumerable<TradeItemDef> items)
+    public void LoadAll()
     {
-        foreach (var t in items)
-            TradeItems[t.Id] = t;
+        try
+        {
+            var items = DataLoader.LoadJsonList<TradeItemDef>(Constants.TradeItemsFile, "trade_items");
+            foreach (var item in items)
+            {
+                if (!string.IsNullOrEmpty(item.TradeItemId))
+                    TradeItems[item.TradeItemId] = item;
+            }
+        }
+        catch { /* missing file: empty registry */ }
     }
 
     public TradeItemDef? GetTradeItem(string id)
@@ -52,8 +67,6 @@ public sealed class TradeItemRegistry
         return TradeItems.TryGetValue(id, out var t) ? t : null;
     }
 
-    public IEnumerable<TradeItemDef> GetTradeItemsForFaction(string factionId)
-    {
-        return TradeItems.Values.Where(t => t.Faction == factionId);
-    }
+    public IEnumerable<TradeItemDef> GetTradeItemsForBiome(string biomeId) =>
+        TradeItems.Values.Where(t => t.Biome == biomeId);
 }
