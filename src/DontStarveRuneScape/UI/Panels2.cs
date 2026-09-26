@@ -1,8 +1,10 @@
 namespace DontStarveRuneScape.UI;
 
+using System.Linq;
 using Silk.NET.Input;
 using Silk.NET.OpenGL;
 using DontStarveRuneScape.Building;
+using DontStarveRuneScape.Crafting;
 using DontStarveRuneScape.Input;
 using DontStarveRuneScape.Render;
 using DontStarveRuneScape.Skills;
@@ -455,13 +457,279 @@ public sealed class SkillPanel
 }
 
 /// <summary>
-/// CraftingPanel — Crafting UI panel (placeholder until it gets content).
+/// CraftingPanel — Recipe list (sorted by tier then name, scrolled) with a
+/// detail block for the selected recipe: output sprite/name, ingredients with
+/// have/need counts, skill/level gate, XP, campfire/food/quest flags, and a
+/// clickable CRAFT button with a status line. Layout is computed in Layout()
+/// from the screen size alone, so Update (hit-testing) and Render stay
+/// consistent.
 /// </summary>
 public sealed class CraftingPanel
 {
     public bool Visible { get; set; } = false;
-    public void Render(PrimitiveBatch batch, TextRenderer? text, int screenWidth, int screenHeight)
-        => PanelChrome.DrawPlaceholder(batch, text, screenWidth, screenHeight, "CRAFTING");
+    public int SelectedIndex { get; private set; }
+
+    private const float ContentW = 780f;
+    private const float ContentH = 470f;
+    private const float HeaderH = 26f;
+    private const float RowH = 40f;
+    private const float RowGap = 2f;
+    private const int VisibleRows = 10;
+    private const float CraftW = 150f, CraftH = 30f;
+
+    // Cached absolute rects (set by Layout, which Update and Render both call).
+    private float _cx, _cy;
+    private float _rowX, _rowW;
+    private readonly float[] _rowY = new float[VisibleRows];
+    private float _detailX, _detailW, _detailY;
+    private float _craftX, _craftY;
+
+    private readonly List<Data.CraftRecipe> _sorted = [];
+    private int _scroll;
+    private string? _status;                 // last craft result line
+    private bool _statusOk;
+    private readonly List<string> _statusExtra = []; // level-up lines
+
+    public void HandleKey(Key key)
+    {
+        if (key == Key.Up && SelectedIndex > 0)
+            SelectedIndex--;
+        else if (key == Key.Down && SelectedIndex < _sorted.Count - 1)
+            SelectedIndex++;
+        else
+            return;
+        _status = null;
+        _statusExtra.Clear();
+        // Keep the selection inside the visible window.
+        if (SelectedIndex < _scroll) _scroll = SelectedIndex;
+        if (SelectedIndex >= _scroll + VisibleRows) _scroll = SelectedIndex - VisibleRows + 1;
+    }
+
+    /// <summary>Mouse handling + craft action; call once per frame from Game.Update while open.</summary>
+    public void Update(InputState input, CraftingSystem crafting, Inventory inventory,
+        SkillManager skills, int screenW, int screenH)
+    {
+        Refresh(crafting);
+        Layout(screenW, screenH);
+        var ui = new UiInput(input);
+
+        for (int i = 0; i < VisibleRows && _scroll + i < _sorted.Count; i++)
+        {
+            if (ui.TryClick(_rowX, _rowY[i], _rowW, RowH))
+            {
+                SelectedIndex = _scroll + i;
+                _status = null;
+                _statusExtra.Clear();
+            }
+        }
+
+        if (SelectedIndex < _sorted.Count && ui.TryClick(_craftX, _craftY, CraftW, CraftH))
+        {
+            var result = crafting.Craft(_sorted[SelectedIndex].RecipeId, inventory, skills);
+            _status = result.Message;
+            _statusOk = result.Success;
+            _statusExtra.Clear();
+            _statusExtra.AddRange(result.LevelUpMessages);
+        }
+    }
+
+    public void Render(PrimitiveBatch batch, TextRenderer? text, SpriteRenderer? sprites,
+        CraftingSystem crafting, Inventory inventory, SkillManager skills,
+        int screenW, int screenHeight)
+    {
+        Refresh(crafting);
+        Layout(screenW, screenHeight);
+        if (text == null) return;
+
+        PanelChrome.Draw(batch, text, screenW, screenHeight, "CRAFTING", ContentW, ContentH,
+            out _, out _, out _, out _);
+
+        int craftable = _sorted.Count(r => CanCraft(r, inventory, skills));
+        float headerY = _cy - HeaderH + 13f;
+        DrawLeft(batch, text, $"Recipes: {_sorted.Count}", _cx, headerY, 15,
+            PanelChrome.TextR, PanelChrome.TextG, PanelChrome.TextB, bold: true);
+        DrawRight(batch, text, $"Craftable now: {craftable}", _cx + ContentW, headerY, 15,
+            150, 200, 120, bold: true);
+
+        for (int i = 0; i < VisibleRows && _scroll + i < _sorted.Count; i++)
+            RenderRow(batch, text, sprites, _sorted[_scroll + i], _scroll + i, inventory, skills);
+
+        RenderDetail(batch, text, sprites, inventory, skills);
+    }
+
+    private void Refresh(CraftingSystem? crafting)
+    {
+        _sorted.Clear();
+        if (crafting?.Registry == null) return;
+        foreach (var recipe in crafting.Registry.Recipes.Values.OrderBy(r => r.Tier).ThenBy(r => r.Name))
+            _sorted.Add(recipe);
+        if (SelectedIndex >= _sorted.Count)
+            SelectedIndex = Math.Max(0, _sorted.Count - 1);
+        _scroll = Math.Clamp(_scroll, 0, Math.Max(0, _sorted.Count - VisibleRows));
+    }
+
+    private void RenderRow(PrimitiveBatch batch, TextRenderer text, SpriteRenderer? sprites,
+        Data.CraftRecipe recipe, int index, Inventory inventory, SkillManager skills)
+    {
+        float y = _rowY[index - _scroll];
+        float cx = _rowX + _rowW * 0.5f, cy = y + RowH * 0.5f;
+        bool selected = index == SelectedIndex;
+        bool craftable = CanCraft(recipe, inventory, skills);
+
+        // Row well: warm wash for craftable, darker for gated; selection on top.
+        if (selected)
+            batch.DrawScreenQuad(cx, cy, _rowW * 0.5f, RowH * 0.5f, 70, 52, 30);
+        else if (craftable)
+            batch.DrawScreenQuad(cx, cy, _rowW * 0.5f, RowH * 0.5f, 34, 26, 20);
+
+        var display = Data.ItemCatalog.Get(recipe.OutputItem);
+        uint tex = sprites?.GetSpriteTexture(display?.SpriteKey ?? recipe.OutputItem) ?? 0;
+        float chipX = _rowX + 18f;
+        if (tex != 0)
+        {
+            batch.DrawTexturedScreenQuad(chipX, cy, 14f, 14f, tex, 255, 255, 255, 255);
+        }
+        else
+        {
+            batch.DrawScreenQuad(chipX, cy, 13f, 13f, 60, 48, 36);
+            text.DrawText(batch, GlyphOf(display?.Name ?? recipe.OutputItem), chipX, cy, 11,
+                PanelChrome.TextR, PanelChrome.TextG, PanelChrome.TextB, bold: true);
+        }
+
+        // Name: green when craftable, dim when gated.
+        byte r = craftable ? (byte)150 : (byte)140;
+        byte g = craftable ? (byte)210 : (byte)130;
+        byte b = craftable ? (byte)110 : (byte)120;
+        DrawLeft(batch, text, recipe.Name, _rowX + 42f, cy, 15, r, g, b);
+
+        DrawRight(batch, text, $"T{recipe.Tier}", _rowX + _rowW - 70f, cy, 13, 150, 140, 130);
+        bool levelOk = skills.GetSkillLevel(recipe.RequiredSkill) >= recipe.RequiredLevel;
+        DrawRight(batch, text, $"Lv {recipe.RequiredLevel}", _rowX + _rowW - 12f, cy, 13,
+            levelOk ? (byte)150 : (byte)200, levelOk ? (byte)140 : (byte)120, levelOk ? (byte)130 : (byte)110);
+    }
+
+    private void RenderDetail(PrimitiveBatch batch, TextRenderer text, SpriteRenderer? sprites,
+        Inventory inventory, SkillManager skills)
+    {
+        float dividerX = _detailX - 10f;
+        batch.DrawScreenQuad(dividerX, _detailY + 200f, 0.5f, 200f,
+            PanelChrome.BorderR, PanelChrome.BorderG, PanelChrome.BorderB, 90);
+
+        if (SelectedIndex >= _sorted.Count)
+        {
+            DrawLeft(batch, text, "No recipes", _detailX, _detailY + 8f, 16, 150, 140, 130);
+            return;
+        }
+
+        var recipe = _sorted[SelectedIndex];
+        var display = Data.ItemCatalog.Get(recipe.OutputItem);
+
+        DrawLeft(batch, text, recipe.Name, _detailX, _detailY + 8f, 18,
+            PanelChrome.TextR, PanelChrome.TextG, PanelChrome.TextB, bold: true);
+
+        // Output: sprite and quantity x name.
+        uint tex = sprites?.GetSpriteTexture(display?.SpriteKey ?? recipe.OutputItem) ?? 0;
+        if (tex != 0)
+            batch.DrawTexturedScreenQuad(_detailX + 30f, _detailY + 64f, 28f, 28f, tex, 255, 255, 255, 255);
+        DrawLeft(batch, text, $"{recipe.OutputQuantity} x {display?.Name ?? recipe.OutputItem}",
+            _detailX + 70f, _detailY + 64f, 14, PanelChrome.TextR, PanelChrome.TextG, PanelChrome.TextB);
+
+        // Ingredients: have/need per input, red when short.
+        DrawLeft(batch, text, "Ingredients", _detailX, _detailY + 100f, 13, 150, 140, 130);
+        int line = 0;
+        foreach (var (itemId, need) in recipe.Inputs)
+        {
+            int have = inventory.GetItemQuantity(itemId);
+            bool ok = have >= need;
+            var ingDisplay = Data.ItemCatalog.Get(itemId);
+            DrawLeft(batch, text, ingDisplay?.Name ?? itemId, _detailX, _detailY + 122f + line * 20f, 13,
+                ok ? PanelChrome.TextR : (byte)210, ok ? PanelChrome.TextG : (byte)110, ok ? PanelChrome.TextB : (byte)100);
+            DrawRight(batch, text, $"{have}/{need}", _detailX + _detailW, _detailY + 122f + line * 20f, 13,
+                ok ? PanelChrome.TextR : (byte)210, ok ? PanelChrome.TextG : (byte)110, ok ? PanelChrome.TextB : (byte)100);
+            line++;
+        }
+
+        // Gate and reward summary.
+        DrawLeft(batch, text, $"Requires {recipe.RequiredSkill} Lv {recipe.RequiredLevel}   +{(int)recipe.XpReward} xp",
+            _detailX, _detailY + 208f, 13, PanelChrome.TextR, PanelChrome.TextG, PanelChrome.TextB);
+
+        // Flags: campfire / food / quest unlock.
+        string flags =
+            (recipe.RequiresCampfire ? "Requires campfire   " : "") +
+            (recipe.IsFood ? "Food   " : "") +
+            (recipe.QuestUnlock != null ? $"Quest: {recipe.QuestUnlock}" : "");
+        if (flags.Length > 0)
+            DrawLeft(batch, text, flags.TrimEnd(), _detailX, _detailY + 230f, 13, 200, 170, 60);
+
+        // CRAFT button: gold when craftable, dim when gated.
+        bool craftable = CanCraft(recipe, inventory, skills);
+        byte br = craftable ? PanelChrome.BorderR : (byte)110, bg = craftable ? PanelChrome.BorderG : (byte)95, bb = craftable ? PanelChrome.BorderB : (byte)70;
+        batch.DrawScreenQuad(_craftX + CraftW * 0.5f, _craftY + CraftH * 0.5f, CraftW * 0.5f + 2f, CraftH * 0.5f + 2f, br, bg, bb);
+        batch.DrawScreenQuad(_craftX + CraftW * 0.5f, _craftY + CraftH * 0.5f, CraftW * 0.5f, CraftH * 0.5f, 30, 20, 10);
+        text.DrawText(batch, "CRAFT", _craftX + CraftW * 0.5f, _craftY + CraftH * 0.5f, 15, br, bg, bb, bold: true);
+
+        // Status line: last craft result + level-ups.
+        float statusY = _craftY + CraftH + 18f;
+        if (_status != null)
+            DrawLeft(batch, text, _status, _detailX, statusY, 13,
+                _statusOk ? (byte)150 : (byte)210, _statusOk ? (byte)210 : (byte)110, _statusOk ? (byte)120 : (byte)100);
+        for (int i = 0; i < _statusExtra.Count; i++)
+            DrawLeft(batch, text, _statusExtra[i], _detailX, statusY + 20f + i * 18f, 13, 255, 215, 0);
+    }
+
+    // Panel-side craftable check for coloring; matches CraftingSystem's gates
+    // (skill level + ingredients; campfire is shown as a flag, not enforced).
+    private static bool CanCraft(Data.CraftRecipe recipe, Inventory inventory, SkillManager skills)
+    {
+        if (skills.GetSkillLevel(recipe.RequiredSkill) < recipe.RequiredLevel) return false;
+        foreach (var (itemId, quantity) in recipe.Inputs)
+        {
+            if (inventory.GetItemQuantity(itemId) < quantity) return false;
+        }
+        return true;
+    }
+
+    private static string GlyphOf(string name)
+    {
+        var parts = name.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        return parts.Length >= 2
+            ? $"{char.ToUpperInvariant(parts[0][0])}{char.ToUpperInvariant(parts[1][0])}"
+            : name.Length >= 2 ? name[..2].ToUpperInvariant() : name.ToUpperInvariant();
+    }
+
+    private void Layout(int screenW, int screenH)
+    {
+        float plateH = ContentH + 32f + 34f;
+        float cy = screenH * 0.5f - plateH * 0.5f;
+        _cx = screenW * 0.5f - (ContentW + 32f) * 0.5f + 16f;
+        _cy = cy + 34f + 16f + HeaderH;
+
+        _rowX = _cx + 4f;
+        _rowW = ContentW * 0.52f;
+        for (int i = 0; i < VisibleRows; i++)
+            _rowY[i] = _cy + 4f + i * (RowH + RowGap);
+
+        _detailX = _cx + ContentW * 0.58f;
+        _detailW = ContentW - ContentW * 0.58f - 4f;
+        _detailY = _cy + 8f;
+
+        _craftX = _detailX;
+        _craftY = _detailY + 258f;
+    }
+
+    private static void DrawLeft(PrimitiveBatch batch, TextRenderer text, string s,
+        float left, float centerY, int size, byte r, byte g, byte b, bool bold = false)
+    {
+        var (tw, _) = text.Measure(s, size, bold);
+        text.DrawText(batch, s, left + tw * 0.5f, centerY, size, r, g, b, bold: bold);
+    }
+
+    private static void DrawRight(PrimitiveBatch batch, TextRenderer text, string s,
+        float right, float centerY, int size, byte r, byte g, byte b, bool bold = false)
+    {
+        var (tw, _) = text.Measure(s, size, bold);
+        text.DrawText(batch, s, right - tw * 0.5f, centerY, size, r, g, b, bold: bold);
+    }
 }
 
 /// <summary>

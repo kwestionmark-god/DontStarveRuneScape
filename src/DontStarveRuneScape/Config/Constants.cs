@@ -304,6 +304,16 @@ public static class Constants
     public const string ResourcesFile = "Data/resources.json";
     public const string ItemsFile = "Data/items.json";
 
+    /// <summary>All recipe data files loaded into the unified RecipeRegistry.</summary>
+    public static readonly string[] RecipeFiles =
+    [
+        "Data/recipes.json",
+        "Skills/Cooking/data/recipes.json",
+        "Skills/Metallurgy/data/recipes.json",
+        "Skills/Intelligence/data/recipes.json",
+        "Skills/Construction/data/recipes.json",
+    ];
+
     // ─── Seasons & Weather ──────────────────────────────────────────────────
 
     public const float SeasonDurationSeconds = 600.0f;      // 10 minutes per season

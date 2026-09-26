@@ -438,6 +438,13 @@ public sealed class Game
             InventoryPanel.Update(InputManager.InputState, Inventory, _lastScreenW, _lastScreenH);
         }
 
+        if (State == GameState.CraftingPanel && CraftingPanel != null && Crafting != null
+            && Inventory != null && SkillManager != null && InputManager != null)
+        {
+            CraftingPanel.Update(InputManager.InputState, Crafting, Inventory, SkillManager,
+                _lastScreenW, _lastScreenH);
+        }
+
         // Clear one-shot input flags at END of frame
         InputManager?.ClearFrame();
     }
@@ -934,7 +941,8 @@ public sealed class Game
                     SkillPanel?.Render(batch, TextRenderer, SkillManager, screenWidth, screenHeight);
                 break;
             case GameState.CraftingPanel:
-                CraftingPanel?.Render(batch, TextRenderer, screenWidth, screenHeight);
+                CraftingPanel?.Render(batch, TextRenderer, SpriteRenderer, Crafting, Inventory,
+                    SkillManager, screenWidth, screenHeight);
                 break;
             case GameState.BuildingPanel:
                 BuildingPanel?.Render(batch, TextRenderer, screenWidth, screenHeight);

@@ -23,6 +23,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   and a spoilage bar; click and arrow-key selection. `ItemCatalog` parses item
   display info (name/sprite key/food stats) from items.json with
   JsonElement-safe parsing; new `DSR_TEST_ITEMS="oak_logs:10"` smoketest hook.
+- **Crafting panel (H)** — recipe list (82 recipes from all five recipe files,
+  sorted by tier/name, scrolled) with a detail block: output sprite, 
+  ingredients with have/need counts, skill gate, XP, campfire/food/quest
+  flags, and a clickable CRAFT button with a status line. `CraftingSystem.Craft`
+  now really crafts: skill gate, ingredient gate, all-or-nothing consume/
+  produce, XP grant. `RecipeRegistry` parses the actual recipes.json shape
+  (recipe_id / input_items pairs / output_item) that nothing loaded before —
+  the old RecipeDef model was written for a different shape and was unused.
 
 ### Fixed
 - **Stack sizes ignored item data**: `Inventory.GetStackSize` used hardcoded

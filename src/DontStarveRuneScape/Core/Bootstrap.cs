@@ -172,6 +172,8 @@ public sealed class Bootstrap
 
         // Crafting
         _game.Crafting = new CraftingSystem();
+        _game.Crafting.Registry = new Data.RecipeRegistry();
+        _game.Crafting.Registry.LoadAll();
 
         // Combat
         _game.CombatSystem = new CombatSystem();
