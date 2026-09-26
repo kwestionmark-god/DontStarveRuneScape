@@ -733,13 +733,258 @@ public sealed class CraftingPanel
 }
 
 /// <summary>
-/// BuildingPanel — Building/construction UI panel (placeholder until it gets content).
+/// BuildingPanel — Buildable structures (from the loaded registry, sorted by
+/// sub-stat then name, scrolled) with a detail block: structure sprite,
+/// materials with have/need counts, construction skill gate, hp/type/burnable
+/// flags, biome list, and a BUILD button that hands the structure id to the
+/// game's placement mode (next world click places it).
 /// </summary>
 public sealed class BuildingPanel
 {
     public bool Visible { get; set; } = false;
-    public void Render(PrimitiveBatch batch, TextRenderer? text, int screenWidth, int screenHeight)
-        => PanelChrome.DrawPlaceholder(batch, text, screenWidth, screenHeight, "BUILDING");
+    public int SelectedIndex { get; private set; }
+
+    private const float ContentW = 780f;
+    private const float ContentH = 470f;
+    private const float HeaderH = 26f;
+    private const float RowH = 40f;
+    private const float RowGap = 2f;
+    private const int VisibleRows = 10;
+    private const float BuildW = 150f, BuildH = 30f;
+
+    // Cached absolute rects (set by Layout, which Update and Render both call).
+    private float _cx, _cy;
+    private float _rowX, _rowW;
+    private readonly float[] _rowY = new float[VisibleRows];
+    private float _detailX, _detailW, _detailY;
+    private float _buildX, _buildY;
+
+    private readonly List<Data.StructureDef> _sorted = [];
+    private int _scroll;
+
+    /// <summary>Called with the selected structure id when BUILD is clicked;
+    /// the game enters placement mode.</summary>
+    public Action<string>? BuildCallback { get; set; }
+
+    public void HandleKey(Key key)
+    {
+        if (key == Key.Up && SelectedIndex > 0)
+            SelectedIndex--;
+        else if (key == Key.Down && SelectedIndex < _sorted.Count - 1)
+            SelectedIndex++;
+        else
+            return;
+        // Keep the selection inside the visible window.
+        if (SelectedIndex < _scroll) _scroll = SelectedIndex;
+        if (SelectedIndex >= _scroll + VisibleRows) _scroll = SelectedIndex - VisibleRows + 1;
+    }
+
+    /// <summary>Mouse handling; call once per frame from Game.Update while open.</summary>
+    public void Update(InputState input, BuildingSystem building, Inventory inventory,
+        SkillManager skills, int screenW, int screenH)
+    {
+        Refresh(building);
+        Layout(screenW, screenH);
+        var ui = new UiInput(input);
+
+        for (int i = 0; i < VisibleRows && _scroll + i < _sorted.Count; i++)
+        {
+            if (ui.TryClick(_rowX, _rowY[i], _rowW, RowH))
+                SelectedIndex = _scroll + i;
+        }
+
+        if (SelectedIndex < _sorted.Count && ui.TryClick(_buildX, _buildY, BuildW, BuildH))
+            BuildCallback?.Invoke(_sorted[SelectedIndex].Id);
+    }
+
+    public void Render(PrimitiveBatch batch, TextRenderer? text, SpriteRenderer? sprites,
+        BuildingSystem building, Inventory inventory, SkillManager skills,
+        int screenW, int screenHeight)
+    {
+        Refresh(building);
+        Layout(screenW, screenHeight);
+        if (text == null) return;
+
+        PanelChrome.Draw(batch, text, screenW, screenHeight, "BUILDING", ContentW, ContentH,
+            out _, out _, out _, out _);
+
+        int buildable = _sorted.Count(d => CanBuild(d, inventory, skills));
+        float headerY = _cy - HeaderH + 13f;
+        DrawLeft(batch, text, $"Structures: {_sorted.Count}", _cx, headerY, 15,
+            PanelChrome.TextR, PanelChrome.TextG, PanelChrome.TextB, bold: true);
+        DrawRight(batch, text, $"Buildable now: {buildable}", _cx + ContentW, headerY, 15,
+            150, 200, 120, bold: true);
+
+        for (int i = 0; i < VisibleRows && _scroll + i < _sorted.Count; i++)
+            RenderRow(batch, text, sprites, _sorted[_scroll + i], _scroll + i, inventory, skills);
+
+        RenderDetail(batch, text, sprites, inventory, skills);
+    }
+
+    private void Refresh(BuildingSystem? building)
+    {
+        _sorted.Clear();
+        if (building?.Registry == null) return;
+        foreach (var def in building.Registry.Structures.Values.OrderBy(d => d.SubStat).ThenBy(d => d.Name))
+            _sorted.Add(def);
+        if (SelectedIndex >= _sorted.Count)
+            SelectedIndex = Math.Max(0, _sorted.Count - 1);
+        _scroll = Math.Clamp(_scroll, 0, Math.Max(0, _sorted.Count - VisibleRows));
+    }
+
+    private void RenderRow(PrimitiveBatch batch, TextRenderer text, SpriteRenderer? sprites,
+        Data.StructureDef def, int index, Inventory inventory, SkillManager skills)
+    {
+        float y = _rowY[index - _scroll];
+        float cx = _rowX + _rowW * 0.5f, cy = y + RowH * 0.5f;
+        bool selected = index == SelectedIndex;
+        bool buildable = CanBuild(def, inventory, skills);
+
+        // Row well: warm wash for buildable, darker for gated; selection on top.
+        if (selected)
+            batch.DrawScreenQuad(cx, cy, _rowW * 0.5f, RowH * 0.5f, 70, 52, 30);
+        else if (buildable)
+            batch.DrawScreenQuad(cx, cy, _rowW * 0.5f, RowH * 0.5f, 34, 26, 20);
+
+        uint tex = sprites?.GetSpriteTexture(def.SpriteKey) ?? 0;
+        float chipX = _rowX + 18f;
+        if (tex != 0)
+        {
+            batch.DrawTexturedScreenQuad(chipX, cy, 14f, 14f, tex, 255, 255, 255, 255);
+        }
+        else
+        {
+            batch.DrawScreenQuad(chipX, cy, 13f, 13f, 60, 48, 36);
+            text.DrawText(batch, GlyphOf(def.Name), chipX, cy, 11,
+                PanelChrome.TextR, PanelChrome.TextG, PanelChrome.TextB, bold: true);
+        }
+
+        // Name: green when buildable, dim when gated.
+        byte r = buildable ? (byte)150 : (byte)140;
+        byte g = buildable ? (byte)210 : (byte)130;
+        byte b = buildable ? (byte)110 : (byte)120;
+        DrawLeft(batch, text, def.Name, _rowX + 42f, cy, 15, r, g, b);
+
+        DrawRight(batch, text, def.SubStat, _rowX + _rowW - 84f, cy, 12, 150, 140, 130);
+        bool levelOk = skills.GetSkillLevel("construction") >= def.RequiresSkillLevel;
+        DrawRight(batch, text, $"Lv {def.RequiresSkillLevel}", _rowX + _rowW - 12f, cy, 13,
+            levelOk ? (byte)150 : (byte)200, levelOk ? (byte)140 : (byte)120, levelOk ? (byte)130 : (byte)110);
+    }
+
+    private void RenderDetail(PrimitiveBatch batch, TextRenderer text, SpriteRenderer? sprites,
+        Inventory inventory, SkillManager skills)
+    {
+        float dividerX = _detailX - 10f;
+        batch.DrawScreenQuad(dividerX, _detailY + 200f, 0.5f, 200f,
+            PanelChrome.BorderR, PanelChrome.BorderG, PanelChrome.BorderB, 90);
+
+        if (SelectedIndex >= _sorted.Count)
+        {
+            DrawLeft(batch, text, "No structures", _detailX, _detailY + 8f, 16, 150, 140, 130);
+            return;
+        }
+
+        var def = _sorted[SelectedIndex];
+
+        DrawLeft(batch, text, def.Name, _detailX, _detailY + 8f, 18,
+            PanelChrome.TextR, PanelChrome.TextG, PanelChrome.TextB, bold: true);
+
+        // Structure sprite under the name.
+        uint tex = sprites?.GetSpriteTexture(def.SpriteKey) ?? 0;
+        if (tex != 0)
+            batch.DrawTexturedScreenQuad(_detailX + 30f, _detailY + 64f, 28f, 28f, tex, 255, 255, 255, 255);
+
+        // Materials: have/need per requirement, red when short.
+        DrawLeft(batch, text, "Materials", _detailX, _detailY + 100f, 13, 150, 140, 130);
+        int line = 0;
+        foreach (var material in def.Materials)
+        {
+            int have = inventory.GetItemQuantity(material.ItemId);
+            bool ok = have >= material.Quantity;
+            var display = Data.ItemCatalog.Get(material.ItemId);
+            DrawLeft(batch, text, display?.Name ?? material.ItemId, _detailX, _detailY + 122f + line * 20f, 13,
+                ok ? PanelChrome.TextR : (byte)210, ok ? PanelChrome.TextG : (byte)110, ok ? PanelChrome.TextB : (byte)100);
+            DrawRight(batch, text, $"{have}/{material.Quantity}", _detailX + _detailW, _detailY + 122f + line * 20f, 13,
+                ok ? PanelChrome.TextR : (byte)210, ok ? PanelChrome.TextG : (byte)110, ok ? PanelChrome.TextB : (byte)100);
+            line++;
+        }
+
+        // Gate and structure summary.
+        DrawLeft(batch, text, $"Requires construction Lv {def.RequiresSkillLevel}   Hp {def.Hp:0}",
+            _detailX, _detailY + 208f, 13, PanelChrome.TextR, PanelChrome.TextG, PanelChrome.TextB);
+
+        // Flags: type / burnable / biomes.
+        string biomes = def.BiomeCompatibility.Length > 0
+            ? string.Join(", ", def.BiomeCompatibility.Take(3)) + (def.BiomeCompatibility.Length > 3 ? "…" : "")
+            : "any biome";
+        DrawLeft(batch, text, $"{def.StructureType}{(def.Burnable ? "   burnable" : "")}   {biomes}",
+            _detailX, _detailY + 230f, 13, 200, 170, 60);
+
+        // BUILD button: gold when buildable, dim when gated.
+        bool buildable = CanBuild(def, inventory, skills);
+        byte br = buildable ? PanelChrome.BorderR : (byte)110, bg = buildable ? PanelChrome.BorderG : (byte)95, bb = buildable ? PanelChrome.BorderB : (byte)70;
+        batch.DrawScreenQuad(_buildX + BuildW * 0.5f, _buildY + BuildH * 0.5f, BuildW * 0.5f + 2f, BuildH * 0.5f + 2f, br, bg, bb);
+        batch.DrawScreenQuad(_buildX + BuildW * 0.5f, _buildY + BuildH * 0.5f, BuildW * 0.5f, BuildH * 0.5f, 30, 20, 10);
+        text.DrawText(batch, "BUILD", _buildX + BuildW * 0.5f, _buildY + BuildH * 0.5f, 15, br, bg, bb, bold: true);
+
+        DrawLeft(batch, text, "Click a tile in the world to place", _buildX + BuildW + 14f,
+            _buildY + BuildH * 0.5f, 12, 150, 140, 130);
+    }
+
+    // Panel-side buildable check for coloring; matches PlaceStructure's gates
+    // (skill level + materials; the biome gate is per-tile and checked at
+    // placement time).
+    private static bool CanBuild(Data.StructureDef def, Inventory inventory, SkillManager skills)
+    {
+        if (skills.GetSkillLevel("construction") < def.RequiresSkillLevel) return false;
+        foreach (var material in def.Materials)
+        {
+            if (inventory.GetItemQuantity(material.ItemId) < material.Quantity) return false;
+        }
+        return true;
+    }
+
+    private static string GlyphOf(string name)
+    {
+        var parts = name.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        return parts.Length >= 2
+            ? $"{char.ToUpperInvariant(parts[0][0])}{char.ToUpperInvariant(parts[1][0])}"
+            : name.Length >= 2 ? name[..2].ToUpperInvariant() : name.ToUpperInvariant();
+    }
+
+    private void Layout(int screenW, int screenH)
+    {
+        float plateH = ContentH + 32f + 34f;
+        float cy = screenH * 0.5f - plateH * 0.5f;
+        _cx = screenW * 0.5f - (ContentW + 32f) * 0.5f + 16f;
+        _cy = cy + 34f + 16f + HeaderH;
+
+        _rowX = _cx + 4f;
+        _rowW = ContentW * 0.52f;
+        for (int i = 0; i < VisibleRows; i++)
+            _rowY[i] = _cy + 4f + i * (RowH + RowGap);
+
+        _detailX = _cx + ContentW * 0.58f;
+        _detailW = ContentW - ContentW * 0.58f - 4f;
+        _detailY = _cy + 8f;
+
+        _buildX = _detailX;
+        _buildY = _detailY + 258f;
+    }
+
+    private static void DrawLeft(PrimitiveBatch batch, TextRenderer text, string s,
+        float left, float centerY, int size, byte r, byte g, byte b, bool bold = false)
+    {
+        var (tw, _) = text.Measure(s, size, bold);
+        text.DrawText(batch, s, left + tw * 0.5f, centerY, size, r, g, b, bold: bold);
+    }
+
+    private static void DrawRight(PrimitiveBatch batch, TextRenderer text, string s,
+        float right, float centerY, int size, byte r, byte g, byte b, bool bold = false)
+    {
+        var (tw, _) = text.Measure(s, size, bold);
+        text.DrawText(batch, s, right - tw * 0.5f, centerY, size, r, g, b, bold: bold);
+    }
 }
 
 /// <summary>

@@ -304,6 +304,7 @@ public static class Constants
     public const string ResourcesFile = "Data/resources.json";
     public const string ItemsFile = "Data/items.json";
     public const string GearFile = "Data/gear.json";
+    public const string StructuresFile = "Data/structures.json";
 
     /// <summary>All recipe data files loaded into the unified RecipeRegistry.</summary>
     public static readonly string[] RecipeFiles =

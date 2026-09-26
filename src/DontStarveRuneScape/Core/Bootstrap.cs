@@ -180,6 +180,8 @@ public sealed class Bootstrap
 
         // Building
         _game.BuildingSystem = new BuildingSystem();
+        _game.BuildingSystem.Registry = new Data.StructureDefRegistry();
+        _game.BuildingSystem.Registry.LoadAll();
 
         // NPCs
         _game.NPCSystem = new NPCSystem();
@@ -231,6 +233,7 @@ public sealed class Bootstrap
         _game.SkillPanel = new SkillPanel();
         _game.CraftingPanel = new CraftingPanel();
         _game.BuildingPanel = new BuildingPanel();
+        _game.BuildingPanel.BuildCallback = _game.StartPlacement;
         _game.GearPanel = new GearPanel();
         _game.TradePanel = new TradePanel();
         _game.QuestPanel = new QuestPanel();

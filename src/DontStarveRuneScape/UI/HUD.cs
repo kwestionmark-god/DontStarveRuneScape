@@ -39,7 +39,7 @@ public sealed class HUD
 
     public void Render(GL gl, int screenWidth, int screenHeight) { }
 
-    public void Render(PrimitiveBatch batch, int screenWidth, int screenHeight, SurvivalSystem? survival)
+    public void Render(PrimitiveBatch batch, TextRenderer? text, int screenWidth, int screenHeight, SurvivalSystem? survival)
     {
         float x = 18f;
         float y = 18f;
@@ -54,6 +54,22 @@ public sealed class HUD
         DrawBar(batch, x, y + 16f, w, h, hunger, 200, 140, 40);
         if (action > 0f)
             DrawBar(batch, x, y + 32f, w, h, action, 90, 170, 220);
+
+        if (text == null) return;
+
+        // Notifications under the bars, fading over their last second.
+        float ny = y + 58f;
+        for (int i = 0; i < _notifications.Count && i < 6; i++)
+        {
+            var n = _notifications[i];
+            float fade = Math.Clamp((n.Duration - n.Elapsed) / 1.0f, 0f, 1f);
+            byte r = (byte)(n.Color.R * fade), g = (byte)(n.Color.G * fade), b = (byte)(n.Color.B * fade);
+            var (tw, _) = text.Measure(n.Text, 13, false);
+            float cx = x + 4f + tw * 0.5f;
+            batch.DrawScreenQuad(cx, ny, tw * 0.5f + 5f, 9f, 12, 10, 8, 170);
+            text.DrawText(batch, n.Text, cx, ny, 13, r, g, b);
+            ny += 19f;
+        }
     }
 
     private static void DrawBar(PrimitiveBatch batch, float x, float y, float w, float h, float fill, byte r, byte g, byte b)

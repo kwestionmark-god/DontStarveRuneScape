@@ -193,7 +193,7 @@ public sealed class SaveSystem
     {
         if (game.DataLoader != null)
         {
-            game.BuildingSystem?.RestoreSnapshot(data.Structures, game.World!, game.DataLoader);
+            game.BuildingSystem?.RestoreSnapshot(data.Structures, game.World!);
         }
     }
 

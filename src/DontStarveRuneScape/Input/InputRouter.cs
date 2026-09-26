@@ -62,7 +62,10 @@ public sealed class InputRouter
                     HandleGenericPanelInput(key);
                 break;
             case GameState.BuildingPanel:
-                HandleGenericPanelInput(key);
+                if (key == Key.Up || key == Key.Down)
+                    _game.BuildingPanel?.HandleKey(key);
+                else
+                    HandleGenericPanelInput(key);
                 break;
             case GameState.GearPanel:
                 if (key == Key.Up || key == Key.Down)

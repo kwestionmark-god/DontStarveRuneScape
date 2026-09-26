@@ -39,6 +39,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   loads Data/gear.json (weapons/armor/tools sections, keyed envelope,
   JsonElement-safe; equip slot derived from the item id, which the data
   lacks; cached; tools get a Durability field). New `Inventory.UnequipItem`.
+- **Building panel (B) + placement mode** — 25 structures from structures.json
+  (doubly nested envelope, JsonElement-safe; the old StructureDef model was
+  written for a different shape and was unused): list sorted by sub-stat/name,
+  materials with have/need counts, construction skill gate, hp/type/burnable
+  flags, biome list, and a BUILD button that enters placement mode — the panel
+  closes, a ghost preview follows the hovered tile (gold where valid, red
+  where not), and the next world click places; Esc/Q cancels.
+  `BuildingSystem.PlaceStructure` really builds: biome/skill/material gates,
+  all-or-nothing consume, tile occupancy. `RestoreSnapshot` now looks the def
+  up in the registry — the raw "id"/"max_hp" lookups never matched the data,
+  so save/restore of placed structures was silently broken. Structures render
+  with their real sprite at the tile's elevation (was a gray elevation-0
+  quad). `DSR_TEST_CLICK` accepts multiple clicks ("x1,y1;x2,y2") applied one
+  per frame.
+
+### Fixed
+- **Notifications never rendered**: `ActionSystem.AddNotification` queued into
+  `_pendingNotifications`, and `FlushNotifications` — the only bridge to the
+  display queue the HUD reads — had zero callers; the HUD's render also drew
+  only the bars. The flush now runs at the end of each frame (same-frame
+  messages render immediately) and the HUD draws notifications under the bars,
+  fading over their last second.
 
 ### Fixed
 - **Stack sizes ignored item data**: `Inventory.GetStackSize` used hardcoded

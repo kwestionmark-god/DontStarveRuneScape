@@ -292,6 +292,57 @@ public sealed class Game
     }
 
     /// <summary>
+    /// Enter placement mode for a structure (called by the building panel):
+    /// the panel closes and the next world click places it.
+    /// </summary>
+    public void StartPlacement(string structureId)
+    {
+        BuildingPendingId = structureId;
+        BuildMode = true;
+        SetState(GameState.Playing);
+    }
+
+    /// <summary>
+    /// Per-frame placement mode: Esc/Q cancels, the mouse picks the target tile
+    /// (ghost preview), and a click places via BuildingSystem.
+    /// </summary>
+    private void UpdatePlacement()
+    {
+        if (!BuildMode || BuildingPendingId == null) return;
+        if (InputManager == null || Camera == null || World == null
+            || BuildingSystem == null || Inventory == null || SkillManager == null) return;
+
+        var input = InputManager.InputState;
+        if (input.ClosePanel)
+        {
+            CancelPlacement();
+            return;
+        }
+
+        // Hovered tile from the mouse position (approximate, ignoring elevation).
+        var (wx, wy) = Camera.ScreenToWorld(input.MouseX, input.MouseY);
+        int tx = (int)(wx / Constants.TileSize);
+        int ty = (int)(wy / Constants.TileSize);
+        BuildCursor = (tx, ty);
+
+        if (!input.MouseLeftClick) return;
+
+        var (success, message) = BuildingSystem.PlaceStructure(
+            BuildingPendingId, tx, ty, World, Inventory, SkillManager);
+        var tint = success ? ((byte)100, (byte)255, (byte)100) : ((byte)255, (byte)100, (byte)100);
+        Player?.ActionSystem?.AddNotification(message, tint);
+        if (success)
+            CancelPlacement();
+    }
+
+    private void CancelPlacement()
+    {
+        BuildMode = false;
+        BuildingPendingId = null;
+        BuildCursor = null;
+    }
+
+    /// <summary>
     /// Check if background world generation has completed.
     /// </summary>
     public void CheckWorldGenComplete()
@@ -324,7 +375,7 @@ public sealed class Game
     /// </summary>
     public string? SmokeTestPath { get; set; }
     private int _smokeFrames;
-    private int _pendingClickX = -1, _pendingClickY;
+    private readonly List<(int X, int Y)> _pendingClicks = new();
     // Most recent render size; panels need it for hit-testing during Update.
     private int _lastScreenW = 1280, _lastScreenH = 720;
 
@@ -426,6 +477,11 @@ public sealed class Game
 
         // Panels poll mouse input each frame; clicks are edge-triggered and are
         // cleared at the end of this method, so this must run before ClearFrame.
+        // Placement mode: pick the target tile and place on click. Runs before
+        // the panel dispatch so the frame that enters placement (its click is
+        // consumed by the BUILD button) is already cleared.
+        UpdatePlacement();
+
         if (State == GameState.SkillPanel && SkillPanel != null && SkillManager != null
             && InputManager != null)
         {
@@ -445,11 +501,23 @@ public sealed class Game
                 _lastScreenW, _lastScreenH);
         }
 
+        if (State == GameState.BuildingPanel && BuildingPanel != null && BuildingSystem != null
+            && Inventory != null && SkillManager != null && InputManager != null)
+        {
+            BuildingPanel.Update(InputManager.InputState, BuildingSystem, Inventory, SkillManager,
+                _lastScreenW, _lastScreenH);
+        }
+
         if (State == GameState.GearPanel && GearPanel != null && Player != null
             && Inventory != null && InputManager != null)
         {
             GearPanel.Update(InputManager.InputState, Player.Gear, Inventory, _lastScreenW, _lastScreenH);
         }
+
+        // Flush pending notifications so same-frame messages (placement,
+        // spoilage) render this frame; the HUD holds the live queue by
+        // reference from UpdatePlaying's HUD block.
+        Player?.ActionSystem?.FlushNotifications();
 
         // Clear one-shot input flags at END of frame
         InputManager?.ClearFrame();
@@ -619,14 +687,16 @@ public sealed class Game
         {
             if (_smokeFrames == 0)
                 InjectTestHooks();
-            // Apply a scripted click a couple of frames in, so a key-injected panel
-            // is open and has run at least one Update before the click lands.
-            if (_smokeFrames == 2 && _pendingClickX >= 0 && InputManager != null)
+            // Apply scripted clicks a couple of frames in (one per frame), so a
+            // key-injected panel is open and has run at least one Update before
+            // the click lands; a second click can then act on the placement mode.
+            if (_smokeFrames >= 2 && _pendingClicks.Count > 0 && InputManager != null)
             {
-                InputManager.InputState.MouseX = _pendingClickX;
-                InputManager.InputState.MouseY = _pendingClickY;
+                var (px, py) = _pendingClicks[0];
+                _pendingClicks.RemoveAt(0);
+                InputManager.InputState.MouseX = px;
+                InputManager.InputState.MouseY = py;
                 InputManager.InputState.MouseLeftClick = true;
-                _pendingClickX = -1;
             }
             if (++_smokeFrames >= 6)
             {
@@ -644,7 +714,9 @@ public sealed class Game
     /// headlessly instead of only by manual play; DSR_TEST_ITEMS="oak_logs:10"
     /// adds items to the inventory (repeatable via commas); DSR_TEST_XP="mining:5000"
     /// grants skill XP (repeatable via commas); DSR_TEST_CLICK="x,y" scripts a
-    /// left mouse click at screen pixel (x,y) two frames after injection.
+    /// left mouse click at screen pixel (x,y) two frames after injection; more
+    /// clicks separated by ';' ("x1,y1;x2,y2") apply one per frame so a BUILD
+    /// click can be followed by a placement click.
     /// </summary>
     private void InjectTestHooks()
     {
@@ -703,11 +775,11 @@ public sealed class Game
         var clickEnv = Environment.GetEnvironmentVariable("DSR_TEST_CLICK");
         if (!string.IsNullOrWhiteSpace(clickEnv))
         {
-            var parts = clickEnv.Split(',');
-            if (parts.Length == 2 && int.TryParse(parts[0], out var px) && int.TryParse(parts[1], out var py))
+            foreach (var pair in clickEnv.Split(';', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries))
             {
-                _pendingClickX = px;
-                _pendingClickY = py;
+                var parts = pair.Split(',');
+                if (parts.Length == 2 && int.TryParse(parts[0], out var px) && int.TryParse(parts[1], out var py))
+                    _pendingClicks.Add((px, py));
             }
         }
     }
@@ -860,15 +932,19 @@ public sealed class Game
                 {
                     if (structure.IsActive)
                     {
-                        float sortY = GetDepthSort(structure.WorldX, structure.WorldY, 0);
+                        float elev = 0f;
+                        var sTile = World?.GetTile(structure.TileX, structure.TileY);
+                        if (sTile != null)
+                            elev = sTile.HasWater ? sTile.GetSurfaceElevation() : sTile.Elevation;
+                        float sortY = GetDepthSort(structure.WorldX, structure.WorldY, elev);
                         var s = structure;
-                        drawables.Add((sortY, seq++, () => SpriteRenderer.RenderStructure(s, batch, Camera)));
+                        drawables.Add((sortY, seq++, () => SpriteRenderer.RenderStructure(s, batch, Camera, elev)));
                     }
                 }
             }
 
             if (BuildMode && Camera != null && World != null && BuildCursor.HasValue)
-                drawables.Add((float.MaxValue, seq++, () => RenderBuildGhost(gl)));
+                drawables.Add((float.MaxValue, seq++, () => RenderBuildGhost(batch)));
 
             if (Firemaking != null)
             {
@@ -903,7 +979,7 @@ public sealed class Game
             }
         }
 
-        HUD?.Render(batch, screenWidth, screenHeight, Survival);
+        HUD?.Render(batch, TextRenderer, screenWidth, screenHeight, Survival);
 
         if (ShowDebugHud && TextRenderer != null)
         {
@@ -927,9 +1003,52 @@ public sealed class Game
         return worldY * cy + worldX * sy + elevation * Constants.ZScale * 0.5f;
     }
 
-    private void RenderBuildGhost(Silk.NET.OpenGL.GL gl)
+    private void RenderBuildGhost(PrimitiveBatch batch)
     {
-        // TODO: Implement build ghost rendering
+        // Translucent preview of the pending structure at the cursor tile:
+        // gold footprint where it can be placed, red where it can't.
+        if (BuildingPendingId == null || BuildCursor == null || Camera == null || World == null
+            || SpriteRenderer == null || BuildingSystem?.Registry == null
+            || Inventory == null || SkillManager == null)
+            return;
+
+        var def = BuildingSystem.Registry.GetStructure(BuildingPendingId);
+        if (def == null) return;
+
+        var tile = World.GetTile(BuildCursor.Value.X, BuildCursor.Value.Y);
+        if (tile == null) return;
+
+        bool biomeOk = tile.Biome == null || def.BiomeCompatibility.Length == 0
+            || def.BiomeCompatibility.Contains(tile.Biome.Id);
+        bool valid = biomeOk
+            && SkillManager.GetSkillLevel("construction") >= def.RequiresSkillLevel;
+
+        float worldX = BuildCursor.Value.X * Constants.TileSize + Constants.TileSize / 2f;
+        float worldY = BuildCursor.Value.Y * Constants.TileSize + Constants.TileSize / 2f;
+        float elev = tile.HasWater ? tile.GetSurfaceElevation() : tile.Elevation;
+        var screen = Camera.WorldToScreen(worldX, worldY, elev);
+
+        float half = Constants.TileSize * 0.5f * Camera.Zoom;
+        uint tex = SpriteRenderer.GetSpriteTexture(def.SpriteKey);
+        if (tex != 0)
+            batch.DrawTexturedScreenQuad(screen.X, screen.Y, half * 0.9f, half * 0.9f, tex, 255, 255, 255, 140);
+        else
+            batch.DrawScreenQuad(screen.X, screen.Y, half * 0.9f, half * 0.9f, 200, 180, 120, 100);
+
+        byte r = valid ? (byte)222 : (byte)220;
+        byte g = valid ? (byte)192 : (byte)80;
+        byte b = valid ? (byte)132 : (byte)80;
+        DrawGhostRing(batch, screen.X, screen.Y, half, half, 2f, r, g, b);
+    }
+
+    // Footprint outline from four thin quads (mirrors the panels' ring helper).
+    private static void DrawGhostRing(PrimitiveBatch batch, float cx, float cy,
+        float halfW, float halfH, float t, byte r, byte g, byte b)
+    {
+        batch.DrawScreenQuad(cx, cy - halfH + t * 0.5f, halfW, t * 0.5f, r, g, b);
+        batch.DrawScreenQuad(cx, cy + halfH - t * 0.5f, halfW, t * 0.5f, r, g, b);
+        batch.DrawScreenQuad(cx - halfW + t * 0.5f, cy, t * 0.5f, halfH, r, g, b);
+        batch.DrawScreenQuad(cx + halfW - t * 0.5f, cy, t * 0.5f, halfH, r, g, b);
     }
 
     private void RenderPanels(Silk.NET.OpenGL.GL gl, PrimitiveBatch batch, int screenWidth, int screenHeight)
@@ -951,7 +1070,8 @@ public sealed class Game
                     SkillManager, screenWidth, screenHeight);
                 break;
             case GameState.BuildingPanel:
-                BuildingPanel?.Render(batch, TextRenderer, screenWidth, screenHeight);
+                BuildingPanel?.Render(batch, TextRenderer, SpriteRenderer, BuildingSystem,
+                    Inventory, SkillManager, screenWidth, screenHeight);
                 break;
             case GameState.GearPanel:
                 GearPanel?.Render(batch, TextRenderer, SpriteRenderer, Player?.Gear, Inventory,

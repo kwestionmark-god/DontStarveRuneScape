@@ -199,11 +199,16 @@ public sealed class SpriteRenderer : IDisposable
         batch.DrawScreenQuad(screen.X, screen.Y, 4f * camera.Zoom, 4f * camera.Zoom, 255, 255, 120);
     }
 
-    public void RenderStructure(Structure structure, PrimitiveBatch batch, Camera camera)
+    public void RenderStructure(Structure structure, PrimitiveBatch batch, Camera camera, float elevation)
     {
-        var screen = camera.WorldToScreen(structure.WorldX, structure.WorldY, 0f);
+        var screen = camera.WorldToScreen(structure.WorldX, structure.WorldY, elevation);
         float half = 16f * camera.Zoom;
-        batch.DrawScreenQuad(screen.X, screen.Y, half, half, 150, 150, 160);
+        // Real structure sprite (structure/*.png), gray quad fallback.
+        uint tex = GetSpriteTexture(structure.StructureDef.SpriteKey);
+        if (tex != 0)
+            batch.DrawTexturedScreenQuad(screen.X, screen.Y, half * 0.95f, half * 0.95f, tex, 255, 255, 255, 255);
+        else
+            batch.DrawScreenQuad(screen.X, screen.Y, half, half, 150, 150, 160);
     }
 
     public void RenderFire(FireInstance fire, PrimitiveBatch batch, Camera camera)
