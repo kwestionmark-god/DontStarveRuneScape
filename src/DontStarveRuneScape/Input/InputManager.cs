@@ -169,6 +169,8 @@ public sealed class InputManager
 
     private void HandleMouseButton(MouseButton button, bool pressed)
     {
+        if (button == MouseButton.Left)
+            InputState.MouseLeftDown = pressed;
         if (pressed)
         {
             if (button == MouseButton.Left)

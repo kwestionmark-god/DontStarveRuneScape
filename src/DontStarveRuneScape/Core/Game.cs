@@ -561,24 +561,32 @@ public sealed class Game
             }
         }
 
-        // HUD notifications
+        // HUD notifications + windows
         if (HUD != null)
         {
             var actionSys = Player?.ActionSystem;
+            HUD.SetVitals(Survival, actionSys?.Stamina);
             if (actionSys != null)
             {
                 HUD.SetNotifications(actionSys.Notifications);
                 if (actionSys.Active != null && actionSys.Active.State == ActionState.Running)
                 {
-                    string skillName = actionSys.Active.ActionType == ActionType.Woodcutting ? "Woodcutting" : "Mining";
-                    HUD.SetActionProgress(actionSys.Active.Progress, skillName);
+                    string skillName = actionSys.Active.ActionType switch
+                    {
+                        ActionType.Woodcutting => "Woodcutting",
+                        ActionType.Mining => "Mining",
+                        ActionType.Foraging => "Foraging",
+                        _ => "Action",
+                    };
+                    HUD.SetActionProgress(actionSys.Active.Progress, skillName, _lastScreenW, _lastScreenH);
                 }
                 else
                 {
-                    HUD.SetActionProgress(0f, "");
+                    HUD.SetActionProgress(0f, "", _lastScreenW, _lastScreenH);
                 }
-                HUD.TickNotifications(dt);
+                HUD.Tick(dt);
             }
+            HUD.UpdateInput(InputManager?.InputState, _lastScreenW, _lastScreenH);
         }
 
         // Camera (Playing only; orbit/pan keys route to panels in panel states)
@@ -721,7 +729,8 @@ public sealed class Game
     /// grants skill XP (repeatable via commas); DSR_TEST_CLICK="x,y" scripts a
     /// left mouse click at screen pixel (x,y) two frames after injection; more
     /// clicks separated by ';' ("x1,y1;x2,y2") apply one per frame so a BUILD
-    /// click can be followed by a placement click.
+    /// click can be followed by a placement click; DSR_TEST_DAMAGE=1 triggers
+    /// the HUD damage flash (no combat damage source exists yet).
     /// </summary>
     private void InjectTestHooks()
     {
@@ -803,6 +812,32 @@ public sealed class Game
                 var parts = pair.Split(',');
                 if (parts.Length == 2 && int.TryParse(parts[0], out var px) && int.TryParse(parts[1], out var py))
                     _pendingClicks.Add((px, py));
+            }
+        }
+
+        if (Environment.GetEnvironmentVariable("DSR_TEST_DAMAGE") == "1")
+            HUD?.TriggerDamageFlash();
+
+        // Start a foraging action on the first harvestable tool-free node (the
+        // foraging path has no tool gate) so the action-progress window is
+        // exercised headlessly.
+        var actionEnv = Environment.GetEnvironmentVariable("DSR_TEST_ACTION");
+        if (!string.IsNullOrWhiteSpace(actionEnv) && Player?.ActionSystem != null
+            && SkillManager != null && Inventory != null && World != null)
+        {
+            for (int y = 0; y < World.Height; y++)
+            {
+                bool started = false;
+                for (int x = 0; x < World.Width; x++)
+                {
+                    var node = World.GetTile(x, y)?.ResourceNode;
+                    if (node == null || node.IsDepleted) continue;
+                    if (!string.IsNullOrEmpty(node.ResourceDef?.ToolRequirement)) continue;
+                    Player.ActionSystem.StartAction(ActionType.Foraging, node, SkillManager, Inventory);
+                    started = true;
+                    break;
+                }
+                if (started) break;
             }
         }
     }
@@ -1010,7 +1045,7 @@ public sealed class Game
             }
         }
 
-        HUD?.Render(batch, TextRenderer, screenWidth, screenHeight, Survival);
+        HUD?.Render(batch, TextRenderer, screenWidth, screenHeight);
 
         if (ShowDebugHud && TextRenderer != null)
         {

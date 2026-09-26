@@ -45,6 +45,7 @@ public sealed class InputState
     public float MouseY { get; set; }
     public bool MouseLeftClick { get; set; }
     public bool MouseRightClick { get; set; }
+    public bool MouseLeftDown { get; set; } // held; survives frames (drag support)
     public float ZoomDelta { get; set; } // Mouse wheel
     public bool ToggleDebugHud { get; set; } // F3
 

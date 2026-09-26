@@ -1,31 +1,67 @@
 namespace DontStarveRuneScape.UI;
 
-using Silk.NET.OpenGL;
 using DontStarveRuneScape.Actions;
+using DontStarveRuneScape.Input;
 using DontStarveRuneScape.Render;
 using DontStarveRuneScape.Survival;
 
 /// <summary>
-/// HUD — Heads-up display showing health, hunger, stamina, notifications, action progress.
+/// HUD — Heads-up display: OpenTTD-style draggable/collapsible windows (vitals,
+/// action progress), floating notifications, and the damage flash.
 /// </summary>
 public sealed class HUD
 {
     private List<ActionNotification> _notifications = [];
-    private float _actionProgress = 0f;
-    private string _actionSkillName = "";
+    private readonly HudWindowManager _windows = new();
+    private readonly VitalsHudWindow _vitals;
+    private readonly ActionHudWindow _action;
+    private bool _actionPlaced;
+    private float _damageFlash;
+
+    public HUD()
+    {
+        _vitals = new VitalsHudWindow(18f, 18f);
+        _action = new ActionHudWindow(18f, 18f);
+        _windows.Add(_vitals);
+        _windows.Add(_action);
+        _action.Visible = false;
+    }
+
+    public T? Find<T>() where T : HudWindow => _windows.Find<T>();
 
     public void SetNotifications(List<ActionNotification> notifications)
     {
         _notifications = notifications;
     }
 
-    public void SetActionProgress(float progress, string skillName)
+    public void SetVitals(SurvivalSystem? survival, StaminaPool? stamina)
     {
-        _actionProgress = progress;
-        _actionSkillName = skillName;
+        _vitals.SetData(survival, stamina);
     }
 
-    public void TickNotifications(float dt)
+    public void SetActionProgress(float progress, string skillName, int screenW, int screenH)
+    {
+        bool running = progress > 0f;
+        if (running && !_actionPlaced)
+        {
+            // First show: center-bottom, above the notifications area.
+            _action.X = MathF.Max(18f, screenW * 0.5f - _action.PlateW * 0.5f);
+            _action.Y = MathF.Max(18f, screenH - 150f);
+            _actionPlaced = true;
+        }
+        if (running)
+            _action.SetProgress(progress, skillName);
+        _action.Visible = running;
+    }
+
+    /// <summary>Retained-mode input for the windows (drag, collapse, raise).</summary>
+    public void UpdateInput(InputState? state, int screenW, int screenH)
+    {
+        if (state == null) return;
+        _windows.Update(new UiInput(state), state.MouseLeftDown, screenW, screenH);
+    }
+
+    public void Tick(float dt)
     {
         for (int i = _notifications.Count - 1; i >= 0; i--)
         {
@@ -33,52 +69,41 @@ public sealed class HUD
             if (_notifications[i].IsExpired)
                 _notifications.RemoveAt(i);
         }
+        // Damage flash decays over ~1.25s regardless of framerate.
+        _damageFlash = Math.Max(0f, _damageFlash - dt * 0.8f);
     }
 
-    public void TriggerDamageFlash() { }
+    public void TriggerDamageFlash() => _damageFlash = 1f;
 
-    public void Render(GL gl, int screenWidth, int screenHeight) { }
-
-    public void Render(PrimitiveBatch batch, TextRenderer? text, int screenWidth, int screenHeight, SurvivalSystem? survival)
+    public void Render(PrimitiveBatch batch, TextRenderer? text, int screenWidth, int screenHeight)
     {
-        float x = 18f;
-        float y = 18f;
-        float w = 180f;
-        float h = 10f;
+        _windows.Render(batch, text);
 
-        float hp = survival == null || survival.MaxHp <= 0 ? 1f : Math.Clamp(survival.Hp / survival.MaxHp, 0f, 1f);
-        float hunger = survival == null ? 1f : Math.Clamp(survival.GetHungerPercent(), 0f, 1f);
-        float action = Math.Clamp(_actionProgress, 0f, 1f);
-
-        DrawBar(batch, x, y, w, h, hp, 180, 50, 50);
-        DrawBar(batch, x, y + 16f, w, h, hunger, 200, 140, 40);
-        if (action > 0f)
-            DrawBar(batch, x, y + 32f, w, h, action, 90, 170, 220);
+        // Damage flash: red edge vignette, decaying over ~2s.
+        if (_damageFlash > 0f)
+        {
+            byte a = (byte)(130 * Math.Clamp(_damageFlash, 0f, 1f));
+            const float t = 40f;
+            batch.DrawScreenQuad(screenWidth * 0.5f, t * 0.5f, screenWidth * 0.5f, t * 0.5f, 200, 30, 30, a);
+            batch.DrawScreenQuad(screenWidth * 0.5f, screenHeight - t * 0.5f, screenWidth * 0.5f, t * 0.5f, 200, 30, 30, a);
+            batch.DrawScreenQuad(t * 0.5f, screenHeight * 0.5f, t * 0.5f, screenHeight * 0.5f, 200, 30, 30, a);
+            batch.DrawScreenQuad(screenWidth - t * 0.5f, screenHeight * 0.5f, t * 0.5f, screenHeight * 0.5f, 200, 30, 30, a);
+        }
 
         if (text == null) return;
 
-        // Notifications under the bars, fading over their last second.
-        float ny = y + 58f;
+        // Notifications under the vitals window, fading over their last second.
+        float ny = 112f;
         for (int i = 0; i < _notifications.Count && i < 6; i++)
         {
             var n = _notifications[i];
             float fade = Math.Clamp((n.Duration - n.Elapsed) / 1.0f, 0f, 1f);
             byte r = (byte)(n.Color.R * fade), g = (byte)(n.Color.G * fade), b = (byte)(n.Color.B * fade);
             var (tw, _) = text.Measure(n.Text, 13, false);
-            float cx = x + 4f + tw * 0.5f;
+            float cx = 18f + 4f + tw * 0.5f;
             batch.DrawScreenQuad(cx, ny, tw * 0.5f + 5f, 9f, 12, 10, 8, 170);
             text.DrawText(batch, n.Text, cx, ny, 13, r, g, b);
             ny += 19f;
         }
-    }
-
-    private static void DrawBar(PrimitiveBatch batch, float x, float y, float w, float h, float fill, byte r, byte g, byte b)
-    {
-        float cx = x + w * 0.5f;
-        float cy = y + h * 0.5f;
-        batch.DrawScreenQuad(cx, cy, w * 0.5f + 2f, h * 0.5f + 2f, 12, 10, 8);
-        batch.DrawScreenQuad(cx, cy, w * 0.5f, h * 0.5f, 30, 24, 18);
-        float filled = Math.Max(2f, w * fill);
-        batch.DrawScreenQuad(x + filled * 0.5f, cy, filled * 0.5f, h * 0.5f - 1f, r, g, b);
     }
 }

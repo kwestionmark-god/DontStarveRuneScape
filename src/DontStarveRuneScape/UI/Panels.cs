@@ -33,6 +33,10 @@ public sealed class TradePanel
         Visible = false;
     }
 
+    // No selectable content yet; kept for InputRouter consistency.
+    public void HandleKey(Silk.NET.Input.Key key) { }
+    public void HandleConfirm() { }
+
     public List<(string itemId, int quantity, int sellPrice)> CollectSellableItems()
     {
         return new List<(string, int, int)>();
@@ -61,6 +65,10 @@ public sealed class QuestPanel
 
     public void Close() => Visible = false;
 
+    // No selectable content yet; kept for InputRouter consistency.
+    public void HandleKey(Silk.NET.Input.Key key) { }
+    public void HandleConfirm() { }
+
     public void Render(PrimitiveBatch batch, TextRenderer? text, int screenWidth, int screenHeight)
         => PanelChrome.DrawPlaceholder(batch, text, screenWidth, screenHeight, "QUEST");
 }
@@ -80,6 +88,9 @@ public sealed class RecruitPanel
     }
 
     public void Close() => Visible = false;
+
+    // No selectable content yet; kept for InputRouter consistency.
+    public void HandleConfirm() { }
 
     public void Render(PrimitiveBatch batch, TextRenderer? text, int screenWidth, int screenHeight)
         => PanelChrome.DrawPlaceholder(batch, text, screenWidth, screenHeight, "RECRUIT");
@@ -106,6 +117,9 @@ public sealed class DiplomacyPanel
         FactionInfo = null;
         Visible = false;
     }
+
+    // No selectable content yet; kept for InputRouter consistency.
+    public void HandleConfirm() { }
 
     public void Render(PrimitiveBatch batch, TextRenderer? text, int screenWidth, int screenHeight)
         => PanelChrome.DrawPlaceholder(batch, text, screenWidth, screenHeight, "DIPLOMACY");
