@@ -31,6 +31,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   produce, XP grant. `RecipeRegistry` parses the actual recipes.json shape
   (recipe_id / input_items pairs / output_item) that nothing loaded before —
   the old RecipeDef model was written for a different shape and was unused.
+- **Gear panel (G)** — nine equipment slots (Weapon/Head/Chest/Legs/Boots/
+  Gloves/Cape/Ammo/Shield) with the equipped item, damage/attack totals, and
+  the inventory's equippable items; click an equipped slot to unequip, click
+  an equippable row (or Up/Down + click) to equip/unequip — keeping the
+  inventory slot flag and PlayerGear in sync. `GearItem.LoadAll` now really
+  loads Data/gear.json (weapons/armor/tools sections, keyed envelope,
+  JsonElement-safe; equip slot derived from the item id, which the data
+  lacks; cached; tools get a Durability field). New `Inventory.UnequipItem`.
 
 ### Fixed
 - **Stack sizes ignored item data**: `Inventory.GetStackSize` used hardcoded

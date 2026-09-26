@@ -445,6 +445,12 @@ public sealed class Game
                 _lastScreenW, _lastScreenH);
         }
 
+        if (State == GameState.GearPanel && GearPanel != null && Player != null
+            && Inventory != null && InputManager != null)
+        {
+            GearPanel.Update(InputManager.InputState, Player.Gear, Inventory, _lastScreenW, _lastScreenH);
+        }
+
         // Clear one-shot input flags at END of frame
         InputManager?.ClearFrame();
     }
@@ -948,7 +954,8 @@ public sealed class Game
                 BuildingPanel?.Render(batch, TextRenderer, screenWidth, screenHeight);
                 break;
             case GameState.GearPanel:
-                GearPanel?.Render(batch, TextRenderer, screenWidth, screenHeight);
+                GearPanel?.Render(batch, TextRenderer, SpriteRenderer, Player?.Gear, Inventory,
+                    screenWidth, screenHeight);
                 break;
             case GameState.TradePanel:
                 TradePanel?.Render(batch, TextRenderer, screenWidth, screenHeight);

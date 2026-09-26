@@ -743,13 +743,248 @@ public sealed class BuildingPanel
 }
 
 /// <summary>
-/// GearPanel — Equipment/gear UI panel (placeholder until it gets content).
+/// GearPanel — Equipment view: nine slots (Weapon/Head/Chest/Legs/Boots/Gloves/
+/// Cape/Ammo/Shield) with the equipped item, plus totals and the inventory's
+/// equippable items (items present in gear.json). Click an equipped slot to
+/// unequip; click an equippable row (or Up/Down + click) to equip/unequip.
+/// Equipping updates both the inventory slot flag and PlayerGear.
 /// </summary>
 public sealed class GearPanel
 {
     public bool Visible { get; set; } = false;
-    public void Render(PrimitiveBatch batch, TextRenderer? text, int screenWidth, int screenHeight)
-        => PanelChrome.DrawPlaceholder(batch, text, screenWidth, screenHeight, "GEAR");
+
+    private const float ContentW = 780f;
+    private const float ContentH = 470f;
+    private const float RowH = 44f;
+    private const float RowGap = 2f;
+    private const int EquippableRows = 15;
+    private const float EquippableRowH = 20f;
+
+    private static readonly string[] SlotNames =
+        { "weapon", "head", "chest", "legs", "boots", "gloves", "cape", "ammo", "shield" };
+    private static readonly string[] SlotLabels =
+        { "Weapon", "Head", "Chest", "Legs", "Boots", "Gloves", "Cape", "Ammo", "Shield" };
+
+    // Cached absolute rects (set by Layout, which Update and Render both call).
+    private float _cx, _cy;
+    private float _rowX, _rowW;
+    private readonly float[] _rowY = new float[SlotNames.Length];
+    private float _detailX, _detailW, _detailY;
+    private float _listY;
+
+    private int _selected;
+    private int _equippableCount;            // set by Update; bounds HandleKey
+
+    public void HandleKey(Key key)
+    {
+        if (key == Key.Up && _selected > 0)
+            _selected--;
+        else if (key == Key.Down && _selected < _equippableCount - 1)
+            _selected++;
+    }
+
+    /// <summary>Mouse handling; call once per frame from Game.Update while open.</summary>
+    public void Update(InputState input, PlayerGear? gear, Inventory inventory, int screenW, int screenH)
+    {
+        Layout(screenW, screenH);
+        var ui = new UiInput(input);
+
+        var equippable = EquippableSlots(inventory);
+        _equippableCount = equippable.Count;
+
+        for (int i = 0; i < equippable.Count && i < EquippableRows; i++)
+        {
+            if (ui.TryClick(_detailX, _listY + i * EquippableRowH, _detailW, EquippableRowH))
+            {
+                _selected = i;
+                ToggleEquip(inventory, gear, equippable[i].ItemId!);
+            }
+        }
+
+        // Click an equipped slot row to unequip it.
+        for (int i = 0; i < SlotNames.Length; i++)
+        {
+            var equipped = gear?.GetEquipped(SlotNames[i]);
+            if (equipped == null) continue;
+            if (ui.TryClick(_rowX, _rowY[i], _rowW, RowH))
+            {
+                inventory.UnequipItem(equipped.Id);
+                gear!.Unequip(SlotNames[i]);
+            }
+        }
+    }
+
+    public void Render(PrimitiveBatch batch, TextRenderer? text, SpriteRenderer? sprites,
+        PlayerGear? gear, Inventory inventory, int screenW, int screenHeight)
+    {
+        Layout(screenW, screenHeight);
+        if (text == null) return;
+
+        PanelChrome.Draw(batch, text, screenW, screenHeight, "GEAR", ContentW, ContentH,
+            out _, out _, out _, out _);
+
+        for (int i = 0; i < SlotNames.Length; i++)
+            RenderSlotRow(batch, text, sprites, gear, SlotNames[i], SlotLabels[i], i);
+
+        RenderRight(batch, text, sprites, gear, inventory);
+    }
+
+    private void RenderSlotRow(PrimitiveBatch batch, TextRenderer text, SpriteRenderer? sprites,
+        PlayerGear? gear, string slotName, string label, int i)
+    {
+        float y = _rowY[i];
+        float cy = y + RowH * 0.5f;
+        var equipped = gear?.GetEquipped(slotName);
+
+        // Row well.
+        batch.DrawScreenQuad(_rowX + _rowW * 0.5f, cy, _rowW * 0.5f, RowH * 0.5f, 26, 18, 12);
+        DrawLeft(batch, text, label, _rowX + 10f, cy, 13, 150, 140, 130);
+
+        if (equipped == null)
+        {
+            DrawRight(batch, text, "empty", _rowX + _rowW - 10f, cy, 13, 110, 100, 90);
+            return;
+        }
+
+        var display = Data.ItemCatalog.Get(equipped.Id);
+        uint tex = sprites?.GetSpriteTexture(display?.SpriteKey ?? equipped.SpriteKey) ?? 0;
+        float chipX = _rowX + 96f;
+        if (tex != 0)
+        {
+            batch.DrawTexturedScreenQuad(chipX, cy, 15f, 15f, tex, 255, 255, 255, 255);
+        }
+        else
+        {
+            batch.DrawScreenQuad(chipX, cy, 14f, 14f, 60, 48, 36);
+            text.DrawText(batch, GlyphOf(display?.Name ?? equipped.Name), chipX, cy, 11,
+                PanelChrome.TextR, PanelChrome.TextG, PanelChrome.TextB, bold: true);
+        }
+
+        DrawLeft(batch, text, equipped.Name, _rowX + 122f, cy, 14,
+            PanelChrome.TextR, PanelChrome.TextG, PanelChrome.TextB, bold: true);
+        DrawRight(batch, text, $"Dmg {equipped.Damage:0}  Atk +{equipped.AttackBonus:0}",
+            _rowX + _rowW - 10f, cy, 13, 200, 190, 160);
+    }
+
+    private void RenderRight(PrimitiveBatch batch, TextRenderer text, SpriteRenderer? sprites,
+        PlayerGear? gear, Inventory inventory)
+    {
+        float dividerX = _detailX - 10f;
+        batch.DrawScreenQuad(dividerX, _detailY + 205f, 0.5f, 205f,
+            PanelChrome.BorderR, PanelChrome.BorderG, PanelChrome.BorderB, 90);
+
+        // Totals.
+        DrawLeft(batch, text, "Totals", _detailX, _detailY + 6f, 13, 150, 140, 130);
+        float damage = gear?.Weapon?.Damage ?? 0f;
+        DrawLeft(batch, text, $"Damage {damage:0}", _detailX, _detailY + 30f, 14,
+            PanelChrome.TextR, PanelChrome.TextG, PanelChrome.TextB);
+        DrawLeft(batch, text, $"Attack +{gear?.GetTotalAttackBonus() ?? 0f:0}", _detailX, _detailY + 52f, 14,
+            PanelChrome.TextR, PanelChrome.TextG, PanelChrome.TextB);
+        DrawLeft(batch, text, $"Defence +{gear?.GetTotalDefenceBonus() ?? 0f:0}", _detailX, _detailY + 74f, 14,
+            PanelChrome.TextR, PanelChrome.TextG, PanelChrome.TextB);
+
+        // Equippable inventory items (present in gear.json).
+        DrawLeft(batch, text, "Equippable", _detailX, _detailY + 104f, 13, 150, 140, 130);
+        var equippable = EquippableSlots(inventory);
+        for (int i = 0; i < equippable.Count && i < EquippableRows; i++)
+        {
+            var slot = equippable[i];
+            float y = _listY + i * EquippableRowH + EquippableRowH * 0.5f;
+            bool selected = i == _selected;
+            bool isEquipped = slot.IsEquipped;
+            if (selected)
+                batch.DrawScreenQuad(_detailX + _detailW * 0.5f, y, _detailW * 0.5f, EquippableRowH * 0.5f, 34, 26, 20);
+
+            var display = Data.ItemCatalog.Get(slot.ItemId!);
+            DrawLeft(batch, text, display?.Name ?? slot.ItemId!, _detailX + 8f, y, 13,
+                isEquipped ? (byte)200 : (byte)170,
+                isEquipped ? (byte)170 : (byte)160,
+                isEquipped ? (byte)60 : (byte)140);
+            if (isEquipped)
+                DrawRight(batch, text, "Wielded", _detailX + _detailW - 8f, y, 12, 200, 170, 60, bold: true);
+        }
+    }
+
+    private static List<InventorySlot> EquippableSlots(Inventory inventory)
+    {
+        var gear = Data.GearItem.LoadAll();
+        var slots = new List<InventorySlot>();
+        foreach (var slot in inventory.Slots)
+        {
+            if (slot.ItemId != null && gear.ContainsKey(slot.ItemId))
+                slots.Add(slot);
+        }
+        return slots;
+    }
+
+    // Equip/unequip keeps both sources of truth in sync: the inventory slot
+    // flag and the PlayerGear slot.
+    private static void ToggleEquip(Inventory inventory, PlayerGear? gear, string itemId)
+    {
+        if (gear == null) return;
+        if (!Data.GearItem.LoadAll().TryGetValue(itemId, out var gearItem)) return;
+
+        bool isEquipped = false;
+        foreach (var slot in inventory.Slots)
+        {
+            if (slot.ItemId == itemId && slot.IsEquipped)
+            {
+                isEquipped = true;
+                break;
+            }
+        }
+
+        if (isEquipped)
+        {
+            inventory.UnequipItem(itemId);
+            gear.Unequip(gearItem.Slot);
+        }
+        else
+        {
+            inventory.EquipItem(itemId);
+            gear.Equip(gearItem);
+        }
+    }
+
+    private static string GlyphOf(string name)
+    {
+        var parts = name.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        return parts.Length >= 2
+            ? $"{char.ToUpperInvariant(parts[0][0])}{char.ToUpperInvariant(parts[1][0])}"
+            : name.Length >= 2 ? name[..2].ToUpperInvariant() : name.ToUpperInvariant();
+    }
+
+    private void Layout(int screenW, int screenH)
+    {
+        float plateH = ContentH + 32f + 34f;
+        float cy = screenH * 0.5f - plateH * 0.5f;
+        _cx = screenW * 0.5f - (ContentW + 32f) * 0.5f + 16f;
+        _cy = cy + 34f + 16f;
+
+        _rowX = _cx + 4f;
+        _rowW = ContentW * 0.52f;
+        for (int i = 0; i < SlotNames.Length; i++)
+            _rowY[i] = _cy + 4f + i * (RowH + RowGap);
+
+        _detailX = _cx + ContentW * 0.58f;
+        _detailW = ContentW - ContentW * 0.58f - 4f;
+        _detailY = _cy + 4f;
+        _listY = _detailY + 126f;
+    }
+
+    private static void DrawLeft(PrimitiveBatch batch, TextRenderer text, string s,
+        float left, float centerY, int size, byte r, byte g, byte b, bool bold = false)
+    {
+        var (tw, _) = text.Measure(s, size, bold);
+        text.DrawText(batch, s, left + tw * 0.5f, centerY, size, r, g, b, bold: bold);
+    }
+
+    private static void DrawRight(PrimitiveBatch batch, TextRenderer text, string s,
+        float right, float centerY, int size, byte r, byte g, byte b, bool bold = false)
+    {
+        var (tw, _) = text.Measure(s, size, bold);
+        text.DrawText(batch, s, right - tw * 0.5f, centerY, size, r, g, b, bold: bold);
+    }
 }
 
 /// <summary>

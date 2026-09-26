@@ -1,6 +1,9 @@
 namespace DontStarveRuneScape.Data;
 
+using System.Text.Json;
+using System.Collections.Generic;
 using System.Text.Json.Serialization;
+using DontStarveRuneScape.Config;
 using DontStarveRuneScape.Core;
 
 /// <summary>
@@ -82,11 +85,86 @@ public sealed class GearItem
     public string SpriteKey { get; set; } = string.Empty;
     public string Description { get; set; } = string.Empty;
 
+    /// <summary>Tool durability (tools section only; 0 when unset).</summary>
+    public int Durability { get; set; }
+
+    private static Dictionary<string, GearItem>? _cache;
+
+    /// <summary>All gear from Data/gear.json (weapons/armor/tools sections),
+    /// keyed by item id, loaded once and cached. Equip slot is derived from the
+    /// item id: the data has no slot field.</summary>
     public static Dictionary<string, GearItem> LoadAll()
     {
-        // This will be populated from GearDef registry at runtime
-        return [];
+        if (_cache != null) return _cache;
+
+        var gear = new Dictionary<string, GearItem>(StringComparer.OrdinalIgnoreCase);
+        try
+        {
+            var root = DataLoader.LoadJson(Constants.GearFile);
+            if (root.ValueKind == JsonValueKind.Object)
+            {
+                foreach (var sectionName in new[] { "weapons", "armor", "tools" })
+                {
+                    if (!root.TryGetProperty(sectionName, out var section) ||
+                        section.ValueKind != JsonValueKind.Object)
+                        continue;
+                    foreach (var entry in section.EnumerateObject())
+                    {
+                        if (entry.Value.ValueKind != JsonValueKind.Object) continue;
+                        var item = ParseGearItem(entry.Value, entry.Name);
+                        if (item != null) gear[item.Id] = item;
+                    }
+                }
+            }
+        }
+        catch { /* missing file: empty registry, panels fall back to ids */ }
+        _cache = gear;
+        return gear;
     }
+
+    private static GearItem? ParseGearItem(JsonElement e, string sectionKey)
+    {
+        string? id = GetStr(e, "item_id") ?? sectionKey;
+        if (string.IsNullOrEmpty(id)) return null;
+        return new GearItem
+        {
+            Id = id,
+            Name = GetStr(e, "name") ?? id,
+            Type = GetStr(e, "gear_type") ?? string.Empty,
+            Slot = SlotFromId(id),
+            Damage = GetFloat(e, "damage"),
+            AttackBonus = GetFloat(e, "attack_bonus"),
+            DefenceBonus = GetFloat(e, "defence_bonus"),
+            SpeedBonus = GetFloat(e, "speed_bonus"),
+            RequiredLevel = GetInt(e, "required_combat_level") ?? 1,
+            Tier = GetInt(e, "tier") ?? 1,
+            SpriteKey = GetStr(e, "sprite_key") ?? id,
+            Durability = GetInt(e, "durability") ?? 0,
+        };
+    }
+
+    // gear.json has no slot field; the equip slot comes from the item id suffix.
+    private static string SlotFromId(string itemId)
+    {
+        if (itemId.EndsWith("_helmet") || itemId.EndsWith("_hood") || itemId.EndsWith("_coif")) return "head";
+        if (itemId.EndsWith("_chestplate") || itemId.EndsWith("_armor") || itemId.EndsWith("_platebody")) return "chest";
+        if (itemId.EndsWith("_legs") || itemId.EndsWith("_greaves") || itemId.EndsWith("_platelegs")) return "legs";
+        if (itemId.EndsWith("_boots")) return "boots";
+        if (itemId.EndsWith("_gloves") || itemId.EndsWith("_gauntlets")) return "gloves";
+        if (itemId.EndsWith("_cape")) return "cape";
+        if (itemId.EndsWith("_shield")) return "shield";
+        if (itemId.EndsWith("_ammo") || itemId.EndsWith("_arrows") || itemId.EndsWith("_bolts")) return "ammo";
+        return "weapon"; // weapons and hand tools (axe, pickaxe, swords, spears)
+    }
+
+    private static string? GetStr(JsonElement e, string key) =>
+        e.TryGetProperty(key, out var v) && v.ValueKind == JsonValueKind.String ? v.GetString() : null;
+
+    private static float GetFloat(JsonElement e, string key) =>
+        e.TryGetProperty(key, out var v) && v.ValueKind == JsonValueKind.Number ? v.GetSingle() : 0f;
+
+    private static int? GetInt(JsonElement e, string key) =>
+        e.TryGetProperty(key, out var v) && v.ValueKind == JsonValueKind.Number ? v.GetInt32() : null;
 }
 
 /// <summary>

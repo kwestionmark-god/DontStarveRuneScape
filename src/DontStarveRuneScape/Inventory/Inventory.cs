@@ -152,6 +152,16 @@ public sealed class Inventory
         }
     }
 
+    /// <summary>Unequip every stack of an item (clears the equipped flag).</summary>
+    public void UnequipItem(string itemId)
+    {
+        foreach (var slot in Slots)
+        {
+            if (slot.ItemId == itemId)
+                slot.IsEquipped = false;
+        }
+    }
+
     private string GetToolType(string itemId)
     {
         if (itemId.EndsWith("_axe")) return "axe";
