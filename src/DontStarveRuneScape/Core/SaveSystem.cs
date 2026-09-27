@@ -22,9 +22,11 @@ public sealed class SaveSystem
 
     private readonly string _saveDirectory;
 
-    public SaveSystem()
+    public SaveSystem(string? directory = null)
     {
-        _saveDirectory = Path.Combine(
+        // Optional directory parameter is a test seam; production uses the
+        // per-user saves folder.
+        _saveDirectory = directory ?? Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
             "DontStarveRuneScape", "saves");
         Directory.CreateDirectory(_saveDirectory);

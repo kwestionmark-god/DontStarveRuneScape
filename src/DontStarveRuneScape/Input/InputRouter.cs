@@ -73,6 +73,21 @@ public sealed class InputRouter
                 else
                     HandleGenericPanelInput(key);
                 break;
+            case GameState.Paused:
+                if (key == Key.Escape || key == Key.Q)
+                    _game.SetState(GameState.Playing);
+                else if (key == Key.Up || key == Key.Down)
+                    _game.PauseMenu?.HandleKey(key);
+                else if (key == Key.Enter || key == Key.Space)
+                    _game.PauseMenu?.HandleConfirm();
+                break;
+            case GameState.SettingsPanel:
+                if (key == Key.Escape || key == Key.Q)
+                    _game.SetState(GameState.Paused);
+                else if (key == Key.Up || key == Key.Down || key == Key.Left
+                    || key == Key.Right || key == Key.Enter || key == Key.Space)
+                    _game.SettingsPanel?.HandleKey(key);
+                break;
         }
     }
 
@@ -82,6 +97,13 @@ public sealed class InputRouter
             _interactSystem.HandleInteract();
         else if (key == Key.F)
             _fireInteraction.HandleLightFire();
+        else if (key == Key.Escape)
+        {
+            // Placement mode already consumes Escape to cancel the placement
+            // (UpdatePlacement reads ClosePanel); pause only outside it.
+            if (!_game.BuildMode)
+                _game.SetState(GameState.Paused);
+        }
         else if (key == Key.C || key == Key.I)
             _game.SetState(GameState.InventoryOpen);
         else if (key == Key.Tab)

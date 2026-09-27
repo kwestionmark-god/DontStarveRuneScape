@@ -36,6 +36,8 @@ public static class Keybindings
         ["open_gear_panel"] = Key.G,
         ["close_crafting"] = Key.Q,
         ["close_panel"] = Key.Escape,
+        ["open_pause_menu"] = Key.Escape,
+        ["open_settings"] = Key.Escape,
 
         // Interaction
         ["interact"] = Key.E,
@@ -134,6 +136,17 @@ public static class Keybindings
             "interact",  // Negotiate
             "confirm",   // Accept
         ],
+        [GameState.Paused] =
+        [
+            "close_panel",  // Resume
+            "confirm",      // Activate selected button
+        ],
+        [GameState.SettingsPanel] =
+        [
+            "move_up", "move_down", "move_left", "move_right",
+            "close_panel",  // Back to the pause menu
+            "confirm",      // Cycle selected option
+        ],
     };
 
     /// <summary>
@@ -156,6 +169,8 @@ public static class Keybindings
         ["open_gear_panel"] = "G",
         ["close_crafting"] = "Q",
         ["close_panel"] = "ESC",
+        ["open_pause_menu"] = "ESC",
+        ["open_settings"] = "ESC",
         ["interact"] = "E",
         ["confirm"] = "ENTER",
         ["confirm_alt"] = "SPACE",

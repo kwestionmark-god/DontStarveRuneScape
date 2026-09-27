@@ -30,6 +30,8 @@ using DontStarveRuneScape.UI;
 using DontStarveRuneScape.Interactions;
 using Silk.NET.Input;
 using Silk.NET.SDL;
+using ConfSettings = DontStarveRuneScape.Config.Settings;
+using ConfDisplay = DontStarveRuneScape.Config.DisplayModes;
 using SurvCharDef = DontStarveRuneScape.Survival.CharacterDefinition;
 
 /// <summary>
@@ -118,6 +120,14 @@ public sealed class Game
     public TitleScreen? TitleScreen { get; set; }
     public LoadingScreen? LoadingScreen { get; set; }
     public CharacterSelectPanel? CharacterSelectPanel { get; set; }
+    public PauseMenu? PauseMenu { get; set; }
+    public SettingsPanel? SettingsPanel { get; set; }
+
+    /// <summary>User settings (loaded at startup, persisted by the settings panel).</summary>
+    public ConfSettings? Settings { get; private set; }
+
+    /// <summary>Raised when display settings change; Program.cs applies them to the window.</summary>
+    public Action<ConfSettings>? DisplaySettingsChanged;
 
     // Build mode (PLAYING sub-state)
     public bool BuildMode { get; set; }
@@ -153,6 +163,9 @@ public sealed class Game
         InputManager = new InputManager();
         TitleScreen = new TitleScreen();
         LoadingScreen = new LoadingScreen();
+        Settings = ConfSettings.Load();
+        PauseMenu = new PauseMenu(this);
+        SettingsPanel = new SettingsPanel();
         _bootstrap = new Bootstrap(this, null);
     }
 
@@ -196,10 +209,11 @@ public sealed class Game
         var oldState = State;
         State = newState;
 
-        // Handle panel closing
+        // Handle panel closing (Paused/SettingsPanel also demand a clean slate:
+        // the pause menu is only ever shown over a closed-panel state).
         if (InputRouter != null)
         {
-            if (newState == GameState.Playing)
+            if (newState is GameState.Playing or GameState.Paused or GameState.SettingsPanel)
             {
                 InputRouter.CloseAllPanels();
             }
@@ -248,6 +262,12 @@ public sealed class Game
             case GameState.DashboardOpen:
                 if (Dashboard != null) Dashboard.Visible = true;
                 break;
+            case GameState.Paused:
+                if (PauseMenu != null) PauseMenu.Visible = true;
+                break;
+            case GameState.SettingsPanel:
+                if (SettingsPanel != null) SettingsPanel.Visible = true;
+                break;
             case GameState.CharacterSelect:
                 if (CharacterSelectPanel == null)
                 {
@@ -268,6 +288,18 @@ public sealed class Game
         if (newState != GameState.QuestPanel && QuestPanel != null) QuestPanel.Visible = false;
         if (newState != GameState.RecruitPanel && RecruitPanel != null) RecruitPanel.Visible = false;
         if (newState != GameState.DiplomacyPanel && DiplomacyPanel != null) DiplomacyPanel.Visible = false;
+
+        // The settings panel replaces the pause menu plate while it is open;
+        // the menu itself shows only in the Paused state.
+        if (newState != GameState.Paused && PauseMenu != null)
+            PauseMenu.Visible = false;
+        if (newState != GameState.SettingsPanel && SettingsPanel != null)
+            SettingsPanel.Visible = false;
+
+        // Fresh pause menu (arriving from anywhere except its settings panel):
+        // clear the status line and selection.
+        if (newState == GameState.Paused && oldState != GameState.SettingsPanel)
+            PauseMenu?.Reset();
 
         // Trigger world generation / save loading
         if ((oldState == GameState.Title || oldState == GameState.CharacterSelect) && newState == GameState.Loading)
@@ -296,6 +328,17 @@ public sealed class Game
     }
 
     /// <summary>
+    /// Push the current display settings to the window owner (Program.cs
+    /// subscribes with DisplaySettingsChanged). Called by the settings panel
+    /// after a video row changes and by the smoketest hook.
+    /// </summary>
+    public void ApplyDisplaySettings()
+    {
+        if (Settings != null)
+            DisplaySettingsChanged?.Invoke(Settings);
+    }
+
+    /// <summary>
     /// Enter placement mode for a structure (called by the building panel):
     /// the panel closes and the next world click places it.
     /// </summary>
@@ -313,15 +356,19 @@ public sealed class Game
     private void UpdatePlacement()
     {
         if (!BuildMode || BuildingPendingId == null) return;
-        if (InputManager == null || Camera == null || World == null
-            || BuildingSystem == null || Inventory == null || SkillManager == null) return;
 
-        var input = InputManager.InputState;
-        if (input.ClosePanel)
+        // Escape cancels first, before any system-dependent work, so the
+        // placement cancel works regardless of which systems are up.
+        if (InputManager?.InputState.ClosePanel == true)
         {
             CancelPlacement();
             return;
         }
+
+        if (InputManager == null || Camera == null || World == null
+            || BuildingSystem == null || Inventory == null || SkillManager == null) return;
+
+        var input = InputManager.InputState;
 
         // Hovered tile from the mouse position (approximate, ignoring elevation).
         var (wx, wy) = Camera.ScreenToWorld(input.MouseX, input.MouseY);
@@ -441,26 +488,34 @@ public sealed class Game
             }
         }
 
-        // Always-tick systems (even under panels)
-        Survival?.Tick(dt);
-
-        if (Inventory != null && Player != null)
+        // Always-tick systems (even under panels); the pause menu freezes
+        // them too (hunger holds and food stops spoiling while paused).
+        if (State is not (GameState.Paused or GameState.SettingsPanel))
         {
-            var spoilageMessages = Inventory.Tick(dt);
-            foreach (var msg in spoilageMessages)
+            Survival?.Tick(dt);
+
+            if (Inventory != null && Player != null)
             {
-                Player.ActionSystem?.AddNotification(msg, (255, 200, 50));
+                var spoilageMessages = Inventory.Tick(dt);
+                foreach (var msg in spoilageMessages)
+                {
+                    Player.ActionSystem?.AddNotification(msg, (255, 200, 50));
+                }
             }
         }
 
-        // Autosave
+        // Autosave (interval from user settings; 0 disables it)
         if (State == GameState.Playing && SaveSystem != null)
         {
-            _autosaveTimer += dt;
-            if (_autosaveTimer >= Constants.AutosaveInterval)
+            float interval = Settings?.AutosaveInterval ?? Constants.AutosaveInterval;
+            if (interval > 0f)
             {
-                _autosaveTimer = 0f;
-                SaveSystem.Save(this, 0);
+                _autosaveTimer += dt;
+                if (_autosaveTimer >= interval)
+                {
+                    _autosaveTimer = 0f;
+                    SaveSystem.Save(this, 0);
+                }
             }
         }
 
@@ -517,6 +572,17 @@ public sealed class Game
             && Inventory != null && InputManager != null)
         {
             GearPanel.Update(InputManager.InputState, Player.Gear, Inventory, _lastScreenW, _lastScreenH);
+        }
+
+        // Pause menu + settings panel over the frozen world.
+        if (State == GameState.Paused && PauseMenu != null && InputManager != null)
+        {
+            PauseMenu.Update(InputManager.InputState, _lastScreenW, _lastScreenH);
+        }
+
+        if (State == GameState.SettingsPanel && SettingsPanel != null && InputManager != null)
+        {
+            SettingsPanel.Update(InputManager.InputState, this, _lastScreenW, _lastScreenH);
         }
 
         // Flush pending notifications so same-frame messages (placement,
@@ -730,7 +796,9 @@ public sealed class Game
     /// left mouse click at screen pixel (x,y) two frames after injection; more
     /// clicks separated by ';' ("x1,y1;x2,y2") apply one per frame so a BUILD
     /// click can be followed by a placement click; DSR_TEST_DAMAGE=1 triggers
-    /// the HUD damage flash (no combat damage source exists yet).
+    /// the HUD damage flash (no combat damage source exists yet);
+    /// DSR_TEST_DISPLAY applies a display mode/resolution through the settings
+    /// callback ("fullscreen", "borderless", or "1280x720"-style size).
     /// </summary>
     private void InjectTestHooks()
     {
@@ -817,6 +885,34 @@ public sealed class Game
 
         if (Environment.GetEnvironmentVariable("DSR_TEST_DAMAGE") == "1")
             HUD?.TriggerDamageFlash();
+
+        if (float.TryParse(Environment.GetEnvironmentVariable("DSR_TEST_HUDSCALE"),
+                out var hudScale) && Settings != null)
+        {
+            Settings.HudScale = hudScale;
+        }
+
+        // Display hook: apply a mode/resolution through the real settings path
+        // so display changes can be captured headlessly ("fullscreen",
+        // "borderless", or "1280x720"-style size).
+        var displayEnv = Environment.GetEnvironmentVariable("DSR_TEST_DISPLAY");
+        if (!string.IsNullOrWhiteSpace(displayEnv) && Settings != null)
+        {
+            if (displayEnv == "fullscreen")
+                Settings.DisplayMode = ConfDisplay.Fullscreen;
+            else if (displayEnv == "borderless")
+                Settings.DisplayMode = ConfDisplay.Borderless;
+            else
+            {
+                var parts = displayEnv.Split('x');
+                if (parts.Length == 2 && int.TryParse(parts[0], out var w) && int.TryParse(parts[1], out var h))
+                {
+                    Settings.WindowWidth = w;
+                    Settings.WindowHeight = h;
+                }
+            }
+            ApplyDisplaySettings();
+        }
 
         // Start a foraging action on the first harvestable tool-free node (the
         // foraging path has no tool gate) so the action-progress window is
@@ -1154,6 +1250,12 @@ public sealed class Game
                 break;
             case GameState.DiplomacyPanel:
                 DiplomacyPanel?.Render(batch, TextRenderer, screenWidth, screenHeight);
+                break;
+            case GameState.Paused:
+                PauseMenu?.Render(batch, TextRenderer, screenWidth, screenHeight);
+                break;
+            case GameState.SettingsPanel:
+                SettingsPanel?.Render(batch, TextRenderer, screenWidth, screenHeight);
                 break;
         }
     }

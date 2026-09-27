@@ -17,6 +17,10 @@ public abstract class HudWindow
     public bool Collapsed { get; set; }
     public bool Visible { get; set; } = true;
 
+    /// <summary>Scale multiplier for plate, chrome, text, and content
+    /// (user setting; hit-testing uses the same scaled rects).</summary>
+    public float Scale { get; set; } = 1f;
+
     protected readonly float ContentW;
     protected readonly float ContentH;
 
@@ -24,6 +28,15 @@ public abstract class HudWindow
     private const float TitleH = 20f;
     private const float Border = 2f;
     private const float CollapseW = 14f;
+
+    // Scaled chrome metrics (content width scales too; RenderContent receives
+    // a scaled origin and reads Scale for its own metrics).
+    private float SPad => Pad * Scale;
+    private float STitleH => TitleH * Scale;
+    private float SBorder => Border * Scale;
+    private float SCollapseW => CollapseW * Scale;
+    /// <summary>Scaled content width.</summary>
+    protected float ScaledContentW => ContentW * Scale;
 
     private bool _dragging;
     private float _dragDx, _dragDy;
@@ -41,9 +54,9 @@ public abstract class HudWindow
     }
 
     /// <summary>Plate width.</summary>
-    public float PlateW => ContentW + Pad * 2f;
+    public float PlateW => (ContentW + Pad * 2f) * Scale;
     /// <summary>Plate height (collapsed = title bar only).</summary>
-    public float PlateH => TitleH + (Collapsed ? Pad * 0.5f : ContentH + Pad * 2f);
+    public float PlateH => STitleH + (Collapsed ? SPad * 0.5f : (ContentH + Pad * 2f) * Scale);
 
     /// <summary>Retained-mode input: collapse toggle, title drag, clamp to screen.</summary>
     public void Update(UiInput ui, bool mouseHeld, int screenW, int screenH)
@@ -52,14 +65,14 @@ public abstract class HudWindow
 
         // Collapse button sits inside the title bar; query it before the title
         // rect so the drag start cannot consume its click.
-        float btnX = X + PlateW - CollapseW - 3f;
-        if (ui.TryClick(btnX, Y + 3f, CollapseW, TitleH - 6f))
+        float btnX = X + PlateW - SCollapseW - 3f * Scale;
+        if (ui.TryClick(btnX, Y + 3f * Scale, SCollapseW, STitleH - 6f * Scale))
         {
             Collapsed = !Collapsed;
             return;
         }
 
-        if (ui.TryClick(X, Y, PlateW, TitleH))
+        if (ui.TryClick(X, Y, PlateW, STitleH))
         {
             _dragging = true;
             _dragDx = ui.MouseX - X;
@@ -83,33 +96,35 @@ public abstract class HudWindow
     public void Render(PrimitiveBatch batch, TextRenderer? text)
     {
         if (!Visible) return;
+        float s = Scale;
 
         float cx = X + PlateW * 0.5f;
         float cy = Y + PlateH * 0.5f;
 
-        batch.DrawScreenQuad(cx, cy, PlateW * 0.5f + Border, PlateH * 0.5f + Border,
+        batch.DrawScreenQuad(cx, cy, PlateW * 0.5f + SBorder, PlateH * 0.5f + SBorder,
             PanelChrome.BorderR, PanelChrome.BorderG, PanelChrome.BorderB);
         batch.DrawScreenQuad(cx, cy, PlateW * 0.5f, PlateH * 0.5f,
             PanelChrome.PlateR, PanelChrome.PlateG, PanelChrome.PlateB);
 
-        text?.DrawText(batch, Title, cx - CollapseW * 0.5f, Y + TitleH * 0.5f, 13,
+        text?.DrawText(batch, Title, cx - SCollapseW * 0.5f, Y + STitleH * 0.5f,
+            (int)MathF.Round(13f * s),
             PanelChrome.BorderR, PanelChrome.BorderG, PanelChrome.BorderB, bold: true);
-        batch.DrawScreenQuad(cx, Y + TitleH, PlateW * 0.5f - Border, 0.5f,
+        batch.DrawScreenQuad(cx, Y + STitleH, PlateW * 0.5f - SBorder, 0.5f,
             PanelChrome.BorderR, PanelChrome.BorderG, PanelChrome.BorderB, 120);
 
         // Collapse indicator: − when expanded, + when collapsed.
-        float btnX = X + PlateW - CollapseW - 3f;
-        float btnCx = btnX + CollapseW * 0.5f;
-        float btnCy = Y + TitleH * 0.5f;
-        batch.DrawScreenQuad(btnCx, btnCy, CollapseW * 0.5f, (TitleH - 6f) * 0.5f, 60, 45, 35);
-        batch.DrawScreenQuad(btnCx, btnCy, CollapseW * 0.25f, 0.75f,
+        float btnX = X + PlateW - SCollapseW - 3f * s;
+        float btnCx = btnX + SCollapseW * 0.5f;
+        float btnCy = Y + STitleH * 0.5f;
+        batch.DrawScreenQuad(btnCx, btnCy, SCollapseW * 0.5f, (STitleH - 6f * s) * 0.5f, 60, 45, 35);
+        batch.DrawScreenQuad(btnCx, btnCy, SCollapseW * 0.25f, 0.75f * s,
             PanelChrome.BorderR, PanelChrome.BorderG, PanelChrome.BorderB);
         if (Collapsed)
-            batch.DrawScreenQuad(btnCx, btnCy, 0.75f, CollapseW * 0.25f,
+            batch.DrawScreenQuad(btnCx, btnCy, 0.75f * s, SCollapseW * 0.25f,
                 PanelChrome.BorderR, PanelChrome.BorderG, PanelChrome.BorderB);
 
         if (!Collapsed)
-            RenderContent(batch, text, X + Pad, Y + TitleH + Pad);
+            RenderContent(batch, text, X + SPad, Y + STitleH + SPad);
     }
 
     /// <summary>Fill the content rect (top-left anchored, expanded only).</summary>
@@ -182,6 +197,8 @@ public sealed class VitalsHudWindow : HudWindow
     protected override void RenderContent(PrimitiveBatch batch, TextRenderer? text,
         float contentX, float contentY)
     {
+        float s = Scale;
+        float rowH = RowH * s;
         float hp = _survival == null || _survival.MaxHp <= 0
             ? 1f : Math.Clamp(_survival.Hp / _survival.MaxHp, 0f, 1f);
         float hunger = _survival == null ? 1f : Math.Clamp(_survival.GetHungerPercent(), 0f, 1f);
@@ -189,31 +206,37 @@ public sealed class VitalsHudWindow : HudWindow
             ? 1f : Math.Clamp(_stamina.Current / _stamina.MaxStamina, 0f, 1f);
 
         DrawRow(batch, text, contentX, contentY, "HP", hp, _survival?.Hp ?? 0f, _survival?.MaxHp ?? 0f, 180, 50, 50);
-        DrawRow(batch, text, contentX, contentY + RowH, "Hunger", hunger, _survival?.Hunger ?? 0f, _survival?.MaxHunger ?? 0f, 200, 140, 40);
-        DrawRow(batch, text, contentX, contentY + RowH * 2f, "Stamina", stamina, _stamina?.Current ?? 0f, _stamina?.MaxStamina ?? 0f, 100, 190, 90);
+        DrawRow(batch, text, contentX, contentY + rowH, "Hunger", hunger, _survival?.Hunger ?? 0f, _survival?.MaxHunger ?? 0f, 200, 140, 40);
+        DrawRow(batch, text, contentX, contentY + rowH * 2f, "Stamina", stamina, _stamina?.Current ?? 0f, _stamina?.MaxStamina ?? 0f, 100, 190, 90);
     }
 
     private void DrawRow(PrimitiveBatch batch, TextRenderer? text, float x, float y,
         string label, float fill, float value, float max, byte r, byte g, byte b)
     {
-        // Label left, bar in the middle, numeric value right.
-        float barX = x + 56f;
-        float barW = ContentW - 56f - 40f;
-        float barCy = y + RowH * 0.5f;
+        float s = Scale;
+        float barH = BarH * s;
+        float rowH = RowH * s;
 
-        batch.DrawScreenQuad(barX + barW * 0.5f, barCy, barW * 0.5f + 1f, BarH * 0.5f + 1f, 12, 10, 8);
-        batch.DrawScreenQuad(barX + barW * 0.5f, barCy, barW * 0.5f, BarH * 0.5f, 30, 24, 18);
+        // Label left, bar in the middle, numeric value right.
+        float barX = x + 56f * s;
+        float barW = ScaledContentW - 96f * s;
+        float barCy = y + rowH * 0.5f;
+
+        batch.DrawScreenQuad(barX + barW * 0.5f, barCy, barW * 0.5f + 1f * s, barH * 0.5f + 1f * s, 12, 10, 8);
+        batch.DrawScreenQuad(barX + barW * 0.5f, barCy, barW * 0.5f, barH * 0.5f, 30, 24, 18);
         // Quarter ticks.
         for (int i = 1; i < 4; i++)
-            batch.DrawScreenQuad(barX + barW * i / 4f, barCy, 0.5f, BarH * 0.5f, 12, 10, 8);
-        float filled = Math.Max(1.5f, barW * fill);
-        batch.DrawScreenQuad(barX + filled * 0.5f, barCy, filled * 0.5f, BarH * 0.5f - 1f, r, g, b);
+            batch.DrawScreenQuad(barX + barW * i / 4f, barCy, 0.5f, barH * 0.5f, 12, 10, 8);
+        float filled = Math.Max(1.5f * s, barW * fill);
+        batch.DrawScreenQuad(barX + filled * 0.5f, barCy, filled * 0.5f, barH * 0.5f - 1f * s, r, g, b);
 
         if (text == null) return;
-        text.DrawText(batch, label, x + 4f, barCy, 11, PanelChrome.TextR, PanelChrome.TextG, PanelChrome.TextB);
+        text.DrawText(batch, label, x + 4f * s, barCy, (int)MathF.Round(11f * s),
+            PanelChrome.TextR, PanelChrome.TextG, PanelChrome.TextB);
         string valueText = max > 0f ? $"{(int)MathF.Ceiling(value)}/{(int)MathF.Ceiling(max)}" : $"{(int)MathF.Ceiling(value)}";
-        var (vw, _) = text.Measure(valueText, 10);
-        text.DrawText(batch, valueText, x + 4f + 56f + barW + (40f - vw) * 0.5f, barCy, 10,
+        int valueSize = Math.Max(8, (int)MathF.Round(10f * s));
+        var (vw, _) = text.Measure(valueText, valueSize);
+        text.DrawText(batch, valueText, x + 4f * s + 56f * s + barW + (40f * s - vw) * 0.5f, barCy, valueSize,
             PanelChrome.TextR, PanelChrome.TextG, PanelChrome.TextB);
     }
 }
@@ -240,16 +263,21 @@ public sealed class ActionHudWindow : HudWindow
     protected override void RenderContent(PrimitiveBatch batch, TextRenderer? text,
         float contentX, float contentY)
     {
-        float barCy = contentY + BarH * 0.5f;
-        batch.DrawScreenQuad(contentX + ContentW * 0.5f, barCy, ContentW * 0.5f + 1f, BarH * 0.5f + 1f, 12, 10, 8);
-        batch.DrawScreenQuad(contentX + ContentW * 0.5f, barCy, ContentW * 0.5f, BarH * 0.5f, 30, 24, 18);
-        float filled = Math.Max(1.5f, ContentW * _progress);
-        batch.DrawScreenQuad(contentX + filled * 0.5f, barCy, filled * 0.5f, BarH * 0.5f - 1f, 90, 170, 220);
+        float s = Scale;
+        float barH = BarH * s;
+        float barCy = contentY + barH * 0.5f;
+        batch.DrawScreenQuad(contentX + ScaledContentW * 0.5f, barCy,
+            ScaledContentW * 0.5f + 1f * s, barH * 0.5f + 1f * s, 12, 10, 8);
+        batch.DrawScreenQuad(contentX + ScaledContentW * 0.5f, barCy,
+            ScaledContentW * 0.5f, barH * 0.5f, 30, 24, 18);
+        float filled = Math.Max(1.5f * s, ScaledContentW * _progress);
+        batch.DrawScreenQuad(contentX + filled * 0.5f, barCy, filled * 0.5f, barH * 0.5f - 1f * s, 90, 170, 220);
 
         if (text == null) return;
         string pct = $"{(int)MathF.Round(_progress * 100f)}%";
-        var (pw, _) = text.Measure(pct, 10);
-        text.DrawText(batch, pct, contentX + ContentW - pw * 0.5f - 2f, barCy, 10,
+        int size = Math.Max(8, (int)MathF.Round(10f * s));
+        var (pw, _) = text.Measure(pct, size);
+        text.DrawText(batch, pct, contentX + ScaledContentW - pw * 0.5f - 2f * s, barCy, size,
             PanelChrome.TextR, PanelChrome.TextG, PanelChrome.TextB);
     }
 }

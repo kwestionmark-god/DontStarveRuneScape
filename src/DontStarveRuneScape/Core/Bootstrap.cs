@@ -247,6 +247,7 @@ public sealed class Bootstrap
 
         // UI
         _game.HUD = new HUD();
+        _game.HUD.Settings = _game.Settings;
         _game.InventoryPanel = new InventoryPanel();
         _game.SkillPanel = new SkillPanel();
         _game.CraftingPanel = new CraftingPanel();

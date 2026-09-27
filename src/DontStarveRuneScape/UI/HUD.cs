@@ -1,13 +1,15 @@
 namespace DontStarveRuneScape.UI;
 
 using DontStarveRuneScape.Actions;
+using DontStarveRuneScape.Config;
 using DontStarveRuneScape.Input;
 using DontStarveRuneScape.Render;
 using DontStarveRuneScape.Survival;
 
 /// <summary>
 /// HUD — Heads-up display: OpenTTD-style draggable/collapsible windows (vitals,
-/// action progress), floating notifications, and the damage flash.
+/// action progress), floating notifications, and the damage flash. The user
+/// settings gate each element and scale the windows.
 /// </summary>
 public sealed class HUD
 {
@@ -17,6 +19,9 @@ public sealed class HUD
     private readonly ActionHudWindow _action;
     private bool _actionPlaced;
     private float _damageFlash;
+
+    /// <summary>User settings; null leaves every element visible at scale 1.</summary>
+    public Settings? Settings { get; set; }
 
     public HUD()
     {
@@ -41,7 +46,7 @@ public sealed class HUD
 
     public void SetActionProgress(float progress, string skillName, int screenW, int screenH)
     {
-        bool running = progress > 0f;
+        bool running = progress > 0f && (Settings?.ShowActionWindow ?? true);
         if (running && !_actionPlaced)
         {
             // First show: center-bottom, above the notifications area.
@@ -77,10 +82,16 @@ public sealed class HUD
 
     public void Render(PrimitiveBatch batch, TextRenderer? text, int screenWidth, int screenHeight)
     {
+        // Settings gate each element and scale the windows.
+        float scale = Settings?.HudScale ?? 1f;
+        _vitals.Scale = scale;
+        _action.Scale = scale;
+        _vitals.Visible = Settings?.ShowVitalsWindow ?? true;
+
         _windows.Render(batch, text);
 
         // Damage flash: red edge vignette, decaying over ~2s.
-        if (_damageFlash > 0f)
+        if (_damageFlash > 0f && (Settings?.ShowDamageFlash ?? true))
         {
             byte a = (byte)(130 * Math.Clamp(_damageFlash, 0f, 1f));
             const float t = 40f;
@@ -93,6 +104,7 @@ public sealed class HUD
         if (text == null) return;
 
         // Notifications under the vitals window, fading over their last second.
+        if (Settings?.ShowNotifications == false) return;
         float ny = 112f;
         for (int i = 0; i < _notifications.Count && i < 6; i++)
         {

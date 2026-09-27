@@ -1,5 +1,6 @@
 namespace DontStarveRuneScape.Tests;
 
+using DontStarveRuneScape.Config;
 using DontStarveRuneScape.Input;
 using DontStarveRuneScape.UI;
 using Xunit;
@@ -114,5 +115,36 @@ public class HudWindowTests
 
         hud.SetActionProgress(0f, "", 1280, 720);
         Assert.False(action.Visible);
+    }
+
+    [Fact]
+    public void ActionWindow_SettingGatesVisibility()
+    {
+        var hud = new HUD { Settings = new Settings { ShowActionWindow = false } };
+        hud.SetActionProgress(0.5f, "Woodcutting", 1280, 720);
+        var action = hud.Find<ActionHudWindow>();
+        Assert.NotNull(action);
+        Assert.False(action.Visible);
+
+        hud.Settings.ShowActionWindow = true;
+        hud.SetActionProgress(0.5f, "Woodcutting", 1280, 720);
+        Assert.True(action.Visible);
+    }
+
+    [Fact]
+    public void Scale_ProportionsPlateAndHitboxes()
+    {
+        var w = new VitalsHudWindow(18f, 18f);
+        float baseW = w.PlateW, baseH = w.PlateH;
+
+        w.Scale = 2f;
+        Assert.Equal(baseW * 2f, w.PlateW);
+        Assert.Equal(baseH * 2f, w.PlateH);
+
+        // Collapse hitbox scales with the plate: click the scaled title edge.
+        w.Scale = 0.75f;
+        var state = new InputState { MouseX = 148f, MouseY = 25f, MouseLeftClick = true };
+        w.Update(new UiInput(state), true, 1280, 720);
+        Assert.True(w.Collapsed);
     }
 }

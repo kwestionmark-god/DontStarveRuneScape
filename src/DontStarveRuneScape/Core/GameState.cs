@@ -53,6 +53,12 @@ public enum GameState
 
     /// <summary>Unified tabbed menu (inventory/skills/crafting/building/gear) is open.</summary>
     DashboardOpen,
+
+    /// <summary>Pause menu open. The world is frozen: no system ticks at all.</summary>
+    Paused,
+
+    /// <summary>Settings panel open over the frozen world, entered from the pause menu.</summary>
+    SettingsPanel,
 }
 
 /// <summary>
