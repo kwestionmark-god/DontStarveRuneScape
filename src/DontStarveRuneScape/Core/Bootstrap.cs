@@ -208,6 +208,12 @@ public sealed class Bootstrap
         factionRegistry.LoadAll();
         _game.FactionRegistry = factionRegistry;
 
+        // Quest/trade progress hooks: quest gates read faction standings;
+        // crafts and buys feed quest objectives.
+        _game.QuestSystem.Factions = _game.FactionSystem;
+        _game.Crafting.OnCrafted = item => _game.QuestSystem.NotifyCraft(item);
+        _game.TradeSystem.Quests = _game.QuestSystem;
+
         // Seasons & Weather
         _game.SeasonSystem = new SeasonSystem();
         _game.WeatherSystem = new WeatherSystem();

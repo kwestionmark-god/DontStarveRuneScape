@@ -31,6 +31,20 @@ public abstract class Npc
     /// <summary>Flavor dialogue lines (loaded from the definition).</summary>
     public List<string> DialogueLines { get; } = [];
 
+    /// <summary>Merchant's starting gold (loaded from the definition); the
+    /// TradeSystem tracks it per merchant at runtime.</summary>
+    public int StartingGold { get; set; }
+
+    /// <summary>Merchant's price modifier (loaded from the definition).</summary>
+    public float PriceModifier { get; set; } = 1.0f;
+
+    /// <summary>Recruitment gates (loaded from the definition): intelligence
+    /// commerce/persuasion sub-stats and their composite sum.</summary>
+    public int RecruitCommerce { get; set; }
+    public int RecruitPersuasion { get; set; }
+    public int RecruitComposite { get; set; }
+    public List<string> AvailableBehaviors { get; } = [];
+
     public virtual void AssignBehavior(string behavior) { }
 
     /// <summary>Create an NPC instance from a typed definition.</summary>
@@ -51,7 +65,13 @@ public abstract class Npc
         npc.Health = def.Health;
         npc.MaxHealth = def.MaxHealth;
         npc.FactionId = def.Faction;
+        npc.StartingGold = def.StartingGold;
+        npc.PriceModifier = def.PriceModifier;
+        npc.RecruitCommerce = def.RecruitCommerceRequirement;
+        npc.RecruitPersuasion = def.RecruitPersuasionRequirement;
+        npc.RecruitComposite = def.RecruitCompositeStat;
         npc.AvailableQuests.AddRange(def.AvailableQuestIds);
+        npc.AvailableBehaviors.AddRange(def.AvailableBehaviors);
         foreach (var line in def.DialogueLines)
             npc.DialogueLines.Add(line);
         return npc;

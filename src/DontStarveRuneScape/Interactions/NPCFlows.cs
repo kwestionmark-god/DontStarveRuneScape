@@ -5,9 +5,9 @@ using DontStarveRuneScape.Core;
 using DontStarveRuneScape.NPC;
 
 /// <summary>
-/// NPCFlows — Handles NPC panel open/close/execute flows.
-/// Contains all logic for opening trade/quest/recruit/diplomacy panels,
-/// executing their actions, and handling keyboard confirmations.
+/// NPCFlows — Handles NPC panel open/close/execute flows: opening the
+/// trade/quest/recruit/diplomacy panels, recruiting and dismissing, and the
+/// canonical faction negotiation path shared by keyboard and mouse.
 /// </summary>
 public sealed class NPCFlows
 {
@@ -84,119 +84,7 @@ public sealed class NPCFlows
 
     // ─── Action Handlers ───────────────────────────────────────────────────
 
-    /// <summary>Route a trade action to the appropriate TradeSystem method.</summary>
-    public void HandleTradeAction(object action)
-    {
-        // Action is a tuple: (action_type, ...params)
-        if (action is not (string ActionType, object[] Params)) return;
-
-        var game = _game;
-
-        if (ActionType == "close")
-        {
-            if (game.TradePanel != null)
-                game.TradePanel.Close();
-            game.SetState(GameState.Playing);
-            return;
-        }
-
-        if (game.Player == null || game.Player.ActionSystem == null) return;
-
-        switch (ActionType)
-        {
-            case "buy":
-                if (Params.Length >= 2 &&
-                    Params[0] is string tradeItemId &&
-                    Params[1] is int qty)
-                {
-                    var result = game.TradeSystem.ExecuteBuy(tradeItemId, qty);
-                    var color = result.Success ? ((byte)100, (byte)255, (byte)100) : ((byte)255, (byte)100, (byte)100);
-                    game.Player.ActionSystem.AddNotification(result.Message, color);
-                }
-                break;
-
-            case "sell":
-                if (Params.Length >= 2 &&
-                    Params[0] is string itemId &&
-                    Params[1] is int sellQty)
-                {
-                    var result = game.TradeSystem.ExecuteSell(itemId, sellQty);
-                    var color = result.Success ? ((byte)100, (byte)255, (byte)100) : ((byte)255, (byte)100, (byte)100);
-                    game.Player.ActionSystem.AddNotification(result.Message, color);
-                }
-                break;
-
-            case "barter":
-                if (Params.Length >= 3 &&
-                    Params[0] is string playerItemId &&
-                    Params[1] is int playerQty &&
-                    Params[2] is string merchantTradeItemId)
-                {
-                    var result = game.TradeSystem.ExecuteBarter(playerItemId, playerQty, merchantTradeItemId);
-                    var color = result.Success ? ((byte)100, (byte)255, (byte)100) : ((byte)255, (byte)100, (byte)100);
-                    game.Player.ActionSystem.AddNotification(result.Message, color);
-                }
-                break;
-        }
-    }
-
-    /// <summary>Process quest panel action tuples.</summary>
-    public void HandleQuestAction((string ActionType, object[] Params) action)
-    {
-        var game = _game;
-
-        if (action.ActionType == "close")
-        {
-            if (game.QuestPanel != null)
-                game.QuestPanel.Close();
-            game.SetState(GameState.Playing);
-            return;
-        }
-
-        if (action.ActionType == "accept_quest" && action.Params.Length >= 1)
-        {
-            string questId = (string)action.Params[0];
-            if (game.QuestSystem != null && game.Player != null && game.NPCSystem != null)
-            {
-                var nearby = game.NPCSystem.CheckProximity(game.Player);
-                if (nearby != null)
-                {
-                    string npcType = nearby.NpcType;
-                    if (npcType != "quest_giver" && npcType != "faction_leader")
-                    {
-                        if (game.Player.ActionSystem != null)
-                            game.Player.ActionSystem.AddNotification("This NPC cannot offer quests.", ((byte)180, (byte)100, (byte)100));
-                        game.SetState(GameState.Playing);
-                        return;
-                    }
-
-                    if (nearby.AvailableQuests != null && !nearby.AvailableQuests.Contains(questId))
-                    {
-                        if (game.Player.ActionSystem != null)
-                            game.Player.ActionSystem.AddNotification($"{nearby.Name} does not offer this quest.", ((byte)180, (byte)100, (byte)100));
-                        game.SetState(GameState.Playing);
-                        return;
-                    }
-
-                    var result = game.QuestSystem.AcceptQuest(game.Player, nearby, questId);
-                    if (game.Player.ActionSystem != null)
-                    {
-                        var color = result.Success ? ((byte)100, (byte)255, (byte)100) : ((byte)180, (byte)100, (byte)100);
-                        game.Player.ActionSystem.AddNotification(result.Message, color);
-                    }
-                    game.SetState(GameState.Playing);
-                }
-                else
-                {
-                    if (game.Player.ActionSystem != null)
-                        game.Player.ActionSystem.AddNotification("No quest giver nearby.", ((byte)180, (byte)100, (byte)100));
-                    game.SetState(GameState.Playing);
-                }
-            }
-        }
-    }
-
-    /// <summary>Handle recruit panel action tuples.</summary>
+    /// <summary>Handle recruit panel action tuples (from the panel callback).</summary>
     public void HandleRecruitAction((string ActionType, object[] Params) action)
     {
         var game = _game;
@@ -340,8 +228,6 @@ public sealed class NPCFlows
         // Quest tracking counts successful negotiations only
         if (success && game.QuestSystem != null)
             game.QuestSystem.RecordNegotiation(factionId);
-
-        CloseDiplomacyPanel();
     }
 
     // ─── Close Methods ─────────────────────────────────────────────────────
@@ -362,114 +248,5 @@ public sealed class NPCFlows
         if (game.DiplomacyPanel != null)
             game.DiplomacyPanel.Close();
         game.SetState(GameState.Playing);
-    }
-
-    // ─── Keyboard Confirm Handlers ─────────────────────────────────────────
-
-    /// <summary>Handle Enter/Space in trade panel: execute current buy/sell/barter selection.</summary>
-    public void HandleTradeAcceptKeyboard()
-    {
-        var game = _game;
-        if (game.TradePanel == null || game.TradePanel.TradeSession == null) return;
-
-        string tab = game.TradePanel.Tab;
-        var player = game.Player;
-
-        if (tab == "buy" && game.TradePanel.SelectedMerchantIndex >= 0)
-        {
-            var items = game.TradePanel.TradeSystem.GetTradeItemsForMerchant(game.TradePanel.TradeSession);
-            if (game.TradePanel.SelectedMerchantIndex < items.Count)
-            {
-                var item = items[game.TradePanel.SelectedMerchantIndex];
-                var result = game.TradeSystem.ExecuteBuy(item.TradeItemId, game.TradePanel.BuyQuantity);
-                if (player != null && player.ActionSystem != null)
-                    player.ActionSystem.AddNotification(result.Message, result.Success ? ((byte)100, (byte)255, (byte)100) : ((byte)255, (byte)100, (byte)100));
-            }
-        }
-        else if (tab == "sell" && game.TradePanel.SelectedPlayerIndex >= 0)
-        {
-            var sellableItems = game.TradePanel.CollectSellableItems();
-            if (game.TradePanel.SelectedPlayerIndex < sellableItems.Count)
-            {
-                var (itemId, quantity, _) = sellableItems[game.TradePanel.SelectedPlayerIndex];
-                var result = game.TradeSystem.ExecuteSell(itemId, game.TradePanel.SellQuantity);
-                if (player != null && player.ActionSystem != null)
-                    player.ActionSystem.AddNotification(result.Message, result.Success ? ((byte)100, (byte)255, (byte)100) : ((byte)255, (byte)100, (byte)100));
-            }
-        }
-        else if (tab == "barter")
-        {
-            var sellableItems = game.TradePanel.CollectSellableItems();
-            if (game.TradePanel.SelectedPlayerIndex is int pIdx && pIdx >= 0 && pIdx < sellableItems.Count)
-            {
-                var (playerItemId, playerQty, _) = sellableItems[pIdx];
-                if (game.TradePanel.SelectedMerchantIndex is int mIdx && game.TradePanel.TradeSession != null)
-                {
-                    var items = game.TradePanel.TradeSystem.GetTradeItemsForMerchant(game.TradePanel.TradeSession);
-                    if (mIdx >= 0 && mIdx < items.Count)
-                    {
-                        var merchantItem = items[mIdx];
-                        var result = game.TradeSystem.ExecuteBarter(playerItemId, 1, merchantItem.TradeItemId);
-                        if (player != null && player.ActionSystem != null)
-                            player.ActionSystem.AddNotification(result.Message, result.Success ? ((byte)100, (byte)255, (byte)100) : ((byte)255, (byte)100, (byte)100));
-                    }
-                }
-            }
-        }
-
-        // Close trade panel after any keyboard trade action
-        if (game.TradePanel != null)
-        {
-            game.TradePanel.Visible = false;
-            game.SetState(GameState.Playing);
-        }
-    }
-
-    /// <summary>Handle Enter/Space in quest panel: accept the selected quest.</summary>
-    public void HandleQuestAcceptKeyboard()
-    {
-        var game = _game;
-        if (game.QuestPanel == null || game.QuestPanel.SelectedQuestId == null) return;
-
-        string questId = game.QuestPanel.SelectedQuestId;
-        var player = game.Player;
-
-        if (game.QuestSystem != null && player != null && game.NPCSystem != null)
-        {
-            var nearby = game.NPCSystem.CheckProximity(player);
-            if (nearby != null)
-            {
-                string npcType = nearby.NpcType;
-                if (npcType != "quest_giver" && npcType != "faction_leader")
-                {
-                    if (player.ActionSystem != null)
-                        player.ActionSystem.AddNotification("This NPC cannot offer quests.", ((byte)180, (byte)100, (byte)100));
-                    return;
-                }
-
-                if (nearby.AvailableQuests != null && !nearby.AvailableQuests.Contains(questId))
-                {
-                    if (player.ActionSystem != null)
-                        player.ActionSystem.AddNotification($"{nearby.Name} does not offer this quest.", ((byte)180, (byte)100, (byte)100));
-                    return;
-                }
-
-                var result = game.QuestSystem.AcceptQuest(player, nearby, questId);
-                if (player.ActionSystem != null)
-                    player.ActionSystem.AddNotification(result.Message, result.Success ? ((byte)100, (byte)255, (byte)100) : ((byte)180, (byte)100, (byte)100));
-            }
-            else
-            {
-                if (player.ActionSystem != null)
-                    player.ActionSystem.AddNotification("No NPC found near you to offer this quest.", ((byte)200, (byte)150, (byte)100));
-            }
-        }
-
-        // Close quest panel after keyboard accept
-        if (game.QuestPanel != null)
-        {
-            game.QuestPanel.Visible = false;
-            game.SetState(GameState.Playing);
-        }
     }
 }

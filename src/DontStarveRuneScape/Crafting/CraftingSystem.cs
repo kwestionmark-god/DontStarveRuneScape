@@ -14,6 +14,10 @@ public sealed class CraftingSystem
     /// <summary>Recipes this system crafts from; loaded at world boot.</summary>
     public RecipeRegistry? Registry { get; set; }
 
+    /// <summary>Invoked with the output item id after a successful craft;
+    /// wired to the QuestSystem's NotifyCraft for quest progress.</summary>
+    public Action<string>? OnCrafted { get; set; }
+
     public void Tick(float dt) { }
 
     /// <summary>Try to craft a recipe: skill gate, ingredient gate, all-or-nothing
@@ -49,6 +53,7 @@ public sealed class CraftingSystem
             inventory.RemoveItem(itemId, quantity);
 
         inventory.AddItem(recipe.OutputItem, recipe.OutputQuantity);
+        OnCrafted?.Invoke(recipe.OutputItem);
 
         var levelUpMessages = skillManager.AddXpWithNotification(recipe.RequiredSkill, recipe.XpReward);
         return new CraftResult

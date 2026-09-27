@@ -32,16 +32,32 @@ public sealed class InputRouter
                 HandlePlayingInput(key);
                 break;
             case GameState.TradePanel:
-                HandleTradePanelInput(key);
+                if (key == Key.Up || key == Key.Down)
+                    _game.TradePanel?.HandleKey(key);
+                else if (key == Key.Enter || key == Key.Space)
+                    _game.TradePanel?.HandleConfirm();
+                else
+                    HandleGenericPanelInput(key);
                 break;
             case GameState.QuestPanel:
-                HandleQuestPanelInput(key);
+                if (key == Key.Up || key == Key.Down)
+                    _game.QuestPanel?.HandleKey(key);
+                else if (key == Key.Enter || key == Key.Space)
+                    _game.QuestPanel?.HandleConfirm();
+                else
+                    HandleGenericPanelInput(key);
                 break;
             case GameState.RecruitPanel:
-                HandleRecruitPanelInput(key);
+                if (key == Key.Enter || key == Key.Space)
+                    _game.RecruitPanel?.HandleConfirm();
+                else
+                    HandleGenericPanelInput(key);
                 break;
             case GameState.DiplomacyPanel:
-                HandleDiplomacyPanelInput(key);
+                if (key == Key.Enter || key == Key.Space)
+                    _game.DiplomacyPanel?.HandleConfirm();
+                else
+                    HandleGenericPanelInput(key);
                 break;
             case GameState.SkillPanel:
                 if (key == Key.Up || key == Key.Down)
@@ -114,6 +130,43 @@ public sealed class InputRouter
             _game.SetState(GameState.BuildingPanel);
         else if (key == Key.G)
             _game.SetState(GameState.GearPanel);
+        else if (key == Key.T)
+            OpenNpcPanelByType("merchant", "No merchant nearby.");
+        else if (key == Key.U)
+            OpenNpcPanelByType("quest_giver", "No quest giver nearby.");
+        else if (key == Key.K)
+            OpenNpcPanelByType("recruit", "No recruit nearby.");
+        else if (key == Key.L)
+            // Diplomacy is a faction overview: scope it to a nearby leader's
+            // faction when one is close, else open unscoped.
+            _npcFlows.OpenDiplomacyPanel(
+                _game.NPCSystem?.FindNearby(_game.Player!, "faction_leader")?.FactionId);
+    }
+
+    /// <summary>Open an NPC panel scoped to the nearest NPC of the given type;
+    /// notify when none is nearby.</summary>
+    private void OpenNpcPanelByType(string type, string noneNearby)
+    {
+        var npc = _game.NPCSystem?.FindNearby(_game.Player!, type);
+        if (npc == null)
+        {
+            if (_game.Player?.ActionSystem != null)
+                _game.Player.ActionSystem.AddNotification(noneNearby, ((byte)200, (byte)150, (byte)100));
+            return;
+        }
+
+        switch (type)
+        {
+            case "merchant" when npc is NPC.MerchantNpc merchant:
+                _npcFlows.OpenTradePanel(merchant);
+                break;
+            case "recruit" when npc is NPC.RecruitNpc recruit:
+                _npcFlows.OpenRecruitPanel(recruit);
+                break;
+            default:
+                _npcFlows.OpenQuestPanel(npc);
+                break;
+        }
     }
 
     private void HandleGenericPanelInput(Key key)
@@ -132,67 +185,16 @@ public sealed class InputRouter
             GameState.CraftingPanel => key == Key.H,
             GameState.BuildingPanel => key == Key.B,
             GameState.GearPanel => key == Key.G,
+            GameState.TradePanel => key == Key.T,
+            GameState.QuestPanel => key == Key.U,
+            GameState.RecruitPanel => key == Key.K,
+            GameState.DiplomacyPanel => key == Key.L,
             _ => false,
         };
         if (toggleBack)
         {
             CloseAllPanels();
             _game.SetState(GameState.Playing);
-        }
-    }
-
-    private void HandleTradePanelInput(Key key)
-    {
-        if (key == Key.Escape || key == Key.Q)
-        {
-            if (_game.TradePanel != null)
-            {
-                _game.TradePanel.Close();
-            }
-            _game.SetState(GameState.Playing);
-        }
-        else if (key == Key.Enter || key == Key.Space)
-        {
-            _npcFlows.HandleTradeAcceptKeyboard();
-        }
-    }
-
-    private void HandleQuestPanelInput(Key key)
-    {
-        if (key == Key.Escape || key == Key.Q)
-        {
-            if (_game.QuestPanel != null)
-                _game.QuestPanel.Close();
-            _game.SetState(GameState.Playing);
-        }
-        else if (key == Key.Enter || key == Key.Space)
-        {
-            _npcFlows.HandleQuestAcceptKeyboard();
-        }
-    }
-
-    private void HandleRecruitPanelInput(Key key)
-    {
-        if (key == Key.Escape || key == Key.Q)
-        {
-            _npcFlows.CloseRecruitPanel();
-        }
-    }
-
-    private void HandleDiplomacyPanelInput(Key key)
-    {
-        if (key == Key.Escape || key == Key.Q)
-        {
-            _npcFlows.CloseDiplomacyPanel();
-        }
-        else if (key == Key.Enter || key == Key.Space)
-        {
-            // Negotiate on Enter/Space
-            if (_game.DiplomacyPanel != null)
-            {
-                var action = ("negotiate", new object[0]);
-                _npcFlows.HandleDiplomacyAction(action);
-            }
         }
     }
 
@@ -213,10 +215,10 @@ public sealed class InputRouter
         if (_game.CraftingPanel != null) _game.CraftingPanel.Visible = false;
         if (_game.BuildingPanel != null) _game.BuildingPanel.Visible = false;
         if (_game.GearPanel != null) _game.GearPanel.Visible = false;
-        if (_game.TradePanel != null) _game.TradePanel.Visible = false;
-        if (_game.QuestPanel != null) _game.QuestPanel.Visible = false;
-        if (_game.RecruitPanel != null) _game.RecruitPanel.Visible = false;
-        if (_game.DiplomacyPanel != null) _game.DiplomacyPanel.Visible = false;
+        if (_game.TradePanel != null) _game.TradePanel.Close();
+        if (_game.QuestPanel != null) _game.QuestPanel.Close();
+        if (_game.RecruitPanel != null) _game.RecruitPanel.Close();
+        if (_game.DiplomacyPanel != null) _game.DiplomacyPanel.Close();
         if (_game.Dashboard != null) _game.Dashboard.Visible = false;
     }
 }

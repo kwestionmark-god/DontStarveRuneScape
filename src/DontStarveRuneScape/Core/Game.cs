@@ -623,6 +623,8 @@ public sealed class Game
             {
                 var result = actionSys.Update(dt);
                 actionSys.ProcessCompletion(result, Inventory, SkillManager, FoodRegistry);
+                if (result?.ItemId is not null && result.Quantity > 0)
+                    QuestSystem?.NotifyCollect(result.ItemId, result.Quantity);
                 actionSys.UpdateNotifications(dt);
             }
         }
