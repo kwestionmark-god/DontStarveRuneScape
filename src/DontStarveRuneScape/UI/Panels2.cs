@@ -1312,6 +1312,22 @@ public sealed class DashboardPanel
         else if (key == Key.Right || key == Key.Down) SetActive(Tabs[(i + 1) % Tabs.Length]);
     }
     public void HandleConfirm() => OnTabSelected?.Invoke(ActiveTab);
+    public void Update(InputState input, int screenWidth, int screenHeight)
+    {
+        var ui = new UiInput(input);
+        float x = screenWidth * 0.5f - 325f;
+        float y = screenHeight * 0.5f - 158f;
+        for (int i = 0; i < Tabs.Length; i++)
+        {
+            float buttonX = x + 5f + i * 130f;
+            if (ui.TryClick(buttonX, y + 25f, 120f, 40f))
+            {
+                SetActive(Tabs[i]);
+                HandleConfirm();
+                return;
+            }
+        }
+    }
     public void Render(PrimitiveBatch batch, TextRenderer? text, int screenWidth, int screenHeight)
     {
         PanelChrome.Draw(batch, text, screenWidth, screenHeight, "DASHBOARD", 650, 350,

@@ -328,6 +328,40 @@ public sealed class Game
             SetState(GameState.DashboardOpen);
     }
 
+    /// <summary>Open the panel represented by the active dashboard tab.</summary>
+    public void OpenDashboardTab(string tab)
+    {
+        if (Dashboard == null) return;
+        Dashboard.SetActive(tab);
+        switch (Dashboard.ActiveTab)
+        {
+            case "inventory":
+                SetState(GameState.InventoryOpen);
+                break;
+            case "skills":
+                SetState(GameState.SkillPanel);
+                break;
+            case "crafting":
+                SetState(GameState.CraftingPanel);
+                break;
+            case "quests":
+                if (QuestPanel == null || QuestSystem == null || Player == null) return;
+                QuestPanel.SetPlayer(Player);
+                SetState(GameState.QuestPanel);
+                QuestPanel.OpenJournal();
+                break;
+            case "diplomacy":
+                if (DiplomacyPanel == null) return;
+                DiplomacyPanel.Player = Player;
+                SetState(GameState.DiplomacyPanel);
+                DiplomacyPanel.OpenOverview();
+                break;
+            default:
+                OpenDashboard(Dashboard.ActiveTab);
+                break;
+        }
+    }
+
     /// <summary>
     /// Push the current display settings to the window owner (Program.cs
     /// subscribes with DisplaySettingsChanged). Called by the settings panel
@@ -578,7 +612,9 @@ public sealed class Game
         if (InputManager != null)
         {
             var panelInput = InputManager.InputState;
-            if (State == GameState.TradePanel && TradePanel != null && Inventory != null && SkillManager != null)
+            if (State == GameState.DashboardOpen && Dashboard != null)
+                Dashboard.Update(panelInput, _lastScreenW, _lastScreenH);
+            else if (State == GameState.TradePanel && TradePanel != null && Inventory != null && SkillManager != null)
                 TradePanel.Update(panelInput, TradePanel.TradeSystem, Inventory, SkillManager, _lastScreenW, _lastScreenH);
             else if (State == GameState.QuestPanel && QuestPanel != null && QuestSystem != null && Inventory != null && SkillManager != null)
                 QuestPanel.Update(panelInput, QuestSystem, Inventory, SkillManager, _lastScreenW, _lastScreenH);

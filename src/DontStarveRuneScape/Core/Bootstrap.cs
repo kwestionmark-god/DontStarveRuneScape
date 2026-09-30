@@ -299,7 +299,7 @@ public sealed class Bootstrap
         _game.DiplomacyPanel.Registry = _game.FactionRegistry;
         _game.DiplomacyPanel.System = _game.FactionSystem;
         _game.DiplomacyPanel.OnAction = npcFlows.HandleDiplomacyAction;
-        _game.Dashboard.OnTabSelected = tab => _game.OpenDashboard(tab);
+        _game.Dashboard.OnTabSelected = _game.OpenDashboardTab;
         _game.InteractSystem = new Interactions.InteractSystem(_game, npcFlows);
         _game.FireInteraction = new Interactions.FireInteraction(_game);
         _game.InputRouter = new InputRouter(_game, _game.InteractSystem, _game.FireInteraction, npcFlows);

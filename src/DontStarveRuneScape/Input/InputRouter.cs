@@ -56,7 +56,9 @@ public sealed class InputRouter
                     HandleGenericPanelInput(key);
                 break;
             case GameState.DiplomacyPanel:
-                if (key == Key.Enter || key == Key.Space)
+                if (key == Key.Up || key == Key.Down)
+                    _game.DiplomacyPanel?.HandleKey(key);
+                else if (key == Key.Enter || key == Key.Space)
                     _game.DiplomacyPanel?.HandleConfirm();
                 else
                     HandleGenericPanelInput(key);
