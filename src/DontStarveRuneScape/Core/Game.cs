@@ -85,6 +85,7 @@ public sealed class Game
     public QuestSystem? QuestSystem { get; set; }
     public FactionSystem? FactionSystem { get; set; }
     public NpcRegistry? NpcRegistry { get; set; }
+    public MonsterRegistry? MonsterRegistry { get; set; }
     public TradeItemRegistry? TradeRegistry { get; set; }
     public QuestRegistry? QuestRegistry { get; set; }
     public FactionRegistry? FactionRegistry { get; set; }
@@ -574,6 +575,19 @@ public sealed class Game
             GearPanel.Update(InputManager.InputState, Player.Gear, Inventory, _lastScreenW, _lastScreenH);
         }
 
+        if (InputManager != null)
+        {
+            var panelInput = InputManager.InputState;
+            if (State == GameState.TradePanel && TradePanel != null && Inventory != null && SkillManager != null)
+                TradePanel.Update(panelInput, TradePanel.TradeSystem, Inventory, SkillManager, _lastScreenW, _lastScreenH);
+            else if (State == GameState.QuestPanel && QuestPanel != null && QuestSystem != null && Inventory != null && SkillManager != null)
+                QuestPanel.Update(panelInput, QuestSystem, Inventory, SkillManager, _lastScreenW, _lastScreenH);
+            else if (State == GameState.RecruitPanel && RecruitPanel != null)
+                RecruitPanel.Update(panelInput, SkillManager, _lastScreenW, _lastScreenH);
+            else if (State == GameState.DiplomacyPanel && DiplomacyPanel != null)
+                DiplomacyPanel.Update(panelInput, FactionRegistry, FactionSystem, _lastScreenW, _lastScreenH);
+        }
+
         // Pause menu + settings panel over the frozen world.
         if (State == GameState.Paused && PauseMenu != null && InputManager != null)
         {
@@ -664,7 +678,7 @@ public sealed class Game
         }
 
         // Combat
-        CombatSystem?.Tick(dt);
+        CombatSystem?.Tick(dt, Player);
 
         // Firemaking
         Firemaking?.Tick(dt);
@@ -713,10 +727,50 @@ public sealed class Game
         }
     }
 
+    /// <summary>Attack input (J): hit the nearest monster in reach with the
+    /// equipped weapon; the result shows as a notification.</summary>
+    public void HandleAttackInput()
+    {
+        if (Player == null || CombatSystem == null) return;
+        if (Player.Inventory == null || Player.SkillManager == null) return;
+
+        var result = CombatSystem.PlayerAttack(Player, Player.Inventory, Player.SkillManager);
+        if (Player.ActionSystem != null)
+            Player.ActionSystem.AddNotification(result.Message,
+                result.Success ? ((byte)100, (byte)255, (byte)100) : ((byte)255, (byte)150, (byte)100));
+    }
+
+    /// <summary>Soft-death handling (Survival.OnDeath, wired at boot): count the
+    /// death, restore HP/hunger fractions, apply the XP penalty, and clear the
+    /// monsters so the respawn is safe.</summary>
+    public void HandlePlayerDeath()
+    {
+        DeathCount++;
+
+        Survival?.Respawn();
+        SkillManager?.ApplyDeathPenalty(Constants.DeathXpPenaltyFraction);
+
+        // The monster clear is queued: CombatSystem may be mid-tick (monster
+        // kills) and must not mutate its list during iteration.
+        CombatSystem?.QueuePlayerDeath();
+
+        Player?.ActionSystem?.AddNotification(
+            "You died... and wake up, weaker but alive. The monsters scatter.",
+            ((byte)220, (byte)80, (byte)60));
+    }
+
     /// <summary>
     /// Main render loop.
     /// </summary>
     public void Render(Silk.NET.OpenGL.GL gl, int screenWidth, int screenHeight)
+        => Render(gl, screenWidth, screenHeight, screenWidth, screenHeight);
+
+    /// <summary>
+    /// Render in logical window coordinates while targeting the physical
+    /// framebuffer. On high-DPI desktops these sizes differ by the OS scale.
+    /// </summary>
+    public void Render(Silk.NET.OpenGL.GL gl, int screenWidth, int screenHeight,
+        int framebufferWidth, int framebufferHeight)
     {
         if (PrimitiveBatch == null)
             InitializeGraphics(gl);
@@ -725,7 +779,7 @@ public sealed class Game
         _lastScreenW = screenWidth;
         _lastScreenH = screenHeight;
 
-        gl.Viewport(0, 0, (uint)Math.Max(1, screenWidth), (uint)Math.Max(1, screenHeight));
+        gl.Viewport(0, 0, (uint)Math.Max(1, framebufferWidth), (uint)Math.Max(1, framebufferHeight));
         gl.Enable(Silk.NET.OpenGL.EnableCap.Blend);
         gl.BlendFunc(Silk.NET.OpenGL.BlendingFactor.SrcAlpha, Silk.NET.OpenGL.BlendingFactor.OneMinusSrcAlpha);
         gl.Disable(Silk.NET.OpenGL.EnableCap.DepthTest);
@@ -781,7 +835,7 @@ public sealed class Game
             }
             if (++_smokeFrames >= 6)
             {
-                CaptureFramebuffer(gl, screenWidth, screenHeight, SmokeTestPath);
+                CaptureFramebuffer(gl, framebufferWidth, framebufferHeight, SmokeTestPath);
                 Environment.Exit(0);
             }
         }
@@ -1060,9 +1114,14 @@ public sealed class Game
                 {
                     if (monster.IsAlive())
                     {
-                        float sortY = GetDepthSort(monster.WorldX, monster.WorldY, 0);
+                        // Same ground-height source the NPC sprites use.
+                        var mTile = World.GetTile((int)(monster.WorldX / Constants.TileSize), (int)(monster.WorldY / Constants.TileSize));
+                        float elev = mTile != null
+                            ? (mTile.HasWater ? mTile.GetSurfaceElevation() : mTile.GetElevationAt(0.5f, 0.5f))
+                            : 0f;
+                        float sortY = GetDepthSort(monster.WorldX, monster.WorldY, elev);
                         var m = monster;
-                        drawables.Add((sortY, seq++, () => SpriteRenderer.RenderMonster(m, batch, Camera)));
+                        drawables.Add((sortY, seq++, () => SpriteRenderer.RenderMonster(m, batch, Camera, elev)));
                     }
                 }
             }
@@ -1134,7 +1193,7 @@ public sealed class Game
 
         if (CombatSystem != null && Camera != null)
         {
-            CombatUI.RenderDamageNumbers(gl, CombatSystem.DamageNumbers, Camera);
+            CombatUI.RenderDamageNumbers(gl, CombatSystem.DamageNumbers, Camera, batch, TextRenderer);
             if (CombatSystem.DamageNumbers.Count > 0)
             {
                 var latest = CombatSystem.DamageNumbers[^1];

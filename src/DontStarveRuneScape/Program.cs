@@ -74,7 +74,11 @@ public static class Program
         {
             var gl = window.CreateOpenGL();
             game.Update((float)dt);
-            game.Render(gl, window.Size.X, window.Size.Y);
+            // Silk's window size is in logical desktop units; OpenGL renders
+            // into physical framebuffer pixels on high-DPI displays. Keep UI
+            // coordinates logical and stretch the viewport across the buffer.
+            var framebuffer = window.FramebufferSize;
+            game.Render(gl, window.Size.X, window.Size.Y, framebuffer.X, framebuffer.Y);
         };
         
         window.Update += (dt) =>

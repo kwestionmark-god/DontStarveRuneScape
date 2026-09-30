@@ -142,6 +142,12 @@ public sealed class NPCFlows
             }
         }
 
+        // The panel's live session is the authoritative target when NPCs are
+        // exercised without a world NPCSystem (for example, a restored or
+        // isolated interaction flow).
+        if (targetNpc == null && game.RecruitPanel?.Session is { } session && session.NpcId == npcId)
+            targetNpc = session;
+
         if (targetNpc == null)
         {
             if (game.Player != null && game.Player.ActionSystem != null)

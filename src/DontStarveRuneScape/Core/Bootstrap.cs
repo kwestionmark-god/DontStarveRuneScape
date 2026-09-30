@@ -177,6 +177,10 @@ public sealed class Bootstrap
 
         // Combat
         _game.CombatSystem = new CombatSystem();
+        _game.MonsterRegistry = new Data.MonsterRegistry();
+        _game.MonsterRegistry.LoadAll();
+        _game.CombatSystem.SpawnFromRegistry(_game.MonsterRegistry, tileMap, player);
+        _game.CombatSystem.Quests = _game.QuestSystem;
 
         // Building
         _game.BuildingSystem = new BuildingSystem();
@@ -214,6 +218,9 @@ public sealed class Bootstrap
         _game.Crafting.OnCrafted = item => _game.QuestSystem.NotifyCraft(item);
         _game.TradeSystem.Quests = _game.QuestSystem;
 
+        // Soft death: the survival hook runs the game's death handling.
+        _game.Survival.OnDeath = _game.HandlePlayerDeath;
+
         // Seasons & Weather
         _game.SeasonSystem = new SeasonSystem();
         _game.WeatherSystem = new WeatherSystem();
@@ -239,6 +246,18 @@ public sealed class Bootstrap
             player.WorldY = ty * Constants.TileSize + Constants.TileSize / 2f;
             player.TargetX = player.WorldX;
             player.TargetY = player.WorldY;
+        }
+
+        // Smoketest hook: DSR_TEST_MONSTER=<monster_id> spawns one monster of
+        // that type right next to the player (deterministic combat captures).
+        var monsterEnv = System.Environment.GetEnvironmentVariable("DSR_TEST_MONSTER");
+        if (!string.IsNullOrWhiteSpace(monsterEnv) && _game.MonsterRegistry is { } monsterRegistry
+            && _game.CombatSystem != null)
+        {
+            var def = monsterRegistry.GetMonster(monsterEnv.Trim());
+            if (def != null)
+                _game.CombatSystem.SpawnMonster(def, player.WorldX + 32f, player.WorldY,
+                    monsterRegistry.BiomeOf(def.MonsterId));
         }
 
         // Smoketest hooks: DSR_CAM_PITCH/DSR_CAM_YAW/DSR_CAM_ZOOM override the
@@ -270,6 +289,17 @@ public sealed class Bootstrap
 
         // Input
         var npcFlows = new Interactions.NPCFlows(_game);
+        _game.TradePanel.TradeSystem.Registry = _game.TradeRegistry;
+        _game.TradePanel.TradeSystem.Quests = _game.QuestSystem;
+        _game.TradePanel.Player = player;
+        _game.QuestPanel.SetPlayer(player);
+        _game.RecruitPanel.Player = player;
+        _game.RecruitPanel.OnAction = npcFlows.HandleRecruitAction;
+        _game.DiplomacyPanel.Player = player;
+        _game.DiplomacyPanel.Registry = _game.FactionRegistry;
+        _game.DiplomacyPanel.System = _game.FactionSystem;
+        _game.DiplomacyPanel.OnAction = npcFlows.HandleDiplomacyAction;
+        _game.Dashboard.OnTabSelected = tab => _game.OpenDashboard(tab);
         _game.InteractSystem = new Interactions.InteractSystem(_game, npcFlows);
         _game.FireInteraction = new Interactions.FireInteraction(_game);
         _game.InputRouter = new InputRouter(_game, _game.InteractSystem, _game.FireInteraction, npcFlows);

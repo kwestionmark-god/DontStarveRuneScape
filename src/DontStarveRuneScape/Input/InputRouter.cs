@@ -32,7 +32,7 @@ public sealed class InputRouter
                 HandlePlayingInput(key);
                 break;
             case GameState.TradePanel:
-                if (key == Key.Up || key == Key.Down)
+                if (key == Key.Up || key == Key.Down || key == Key.Left || key == Key.Right)
                     _game.TradePanel?.HandleKey(key);
                 else if (key == Key.Enter || key == Key.Space)
                     _game.TradePanel?.HandleConfirm();
@@ -48,7 +48,9 @@ public sealed class InputRouter
                     HandleGenericPanelInput(key);
                 break;
             case GameState.RecruitPanel:
-                if (key == Key.Enter || key == Key.Space)
+                if (key == Key.Up || key == Key.Down)
+                    _game.RecruitPanel?.HandleKey(key);
+                else if (key == Key.Enter || key == Key.Space)
                     _game.RecruitPanel?.HandleConfirm();
                 else
                     HandleGenericPanelInput(key);
@@ -56,6 +58,16 @@ public sealed class InputRouter
             case GameState.DiplomacyPanel:
                 if (key == Key.Enter || key == Key.Space)
                     _game.DiplomacyPanel?.HandleConfirm();
+                else
+                    HandleGenericPanelInput(key);
+                break;
+            case GameState.DashboardOpen:
+                if (key == Key.Escape || key == Key.Q)
+                    _game.SetState(GameState.Playing);
+                else if (key == Key.Left || key == Key.Right || key == Key.Up || key == Key.Down)
+                    _game.Dashboard?.HandleKey(key);
+                else if (key == Key.Enter || key == Key.Space)
+                    _game.Dashboard?.HandleConfirm();
                 else
                     HandleGenericPanelInput(key);
                 break;
@@ -113,6 +125,10 @@ public sealed class InputRouter
             _interactSystem.HandleInteract();
         else if (key == Key.F)
             _fireInteraction.HandleLightFire();
+        else if (key == Key.J)
+            _game.HandleAttackInput();
+        else if (key == Key.O)
+            _game.SetState(GameState.DashboardOpen);
         else if (key == Key.Escape)
         {
             // Placement mode already consumes Escape to cancel the placement
@@ -189,6 +205,7 @@ public sealed class InputRouter
             GameState.QuestPanel => key == Key.U,
             GameState.RecruitPanel => key == Key.K,
             GameState.DiplomacyPanel => key == Key.L,
+            GameState.DashboardOpen => key == Key.O,
             _ => false,
         };
         if (toggleBack)

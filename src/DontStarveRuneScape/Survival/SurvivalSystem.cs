@@ -164,6 +164,19 @@ public sealed class SurvivalSystem
         Hp = Math.Min(MaxHp, Hp + amount);
     }
 
+    /// <summary>
+    /// Soft-death respawn: restore HP and hunger to the Constants death
+    /// fractions and clear the dead flag (Constants.DeathRestoreHpFraction /
+    /// DeathRestoreHungerFraction).
+    /// </summary>
+    public void Respawn()
+    {
+        Hp = MaxHp * Constants.DeathRestoreHpFraction;
+        Hunger = MaxHunger * Constants.DeathRestoreHungerFraction;
+        IsDead = false;
+        StarvationTimer = 0f;
+    }
+
     /// <summary>Returns hunger/max_hunger as a 0–1 ratio.</summary>
     public float GetHungerPercent() => MaxHunger <= 0 ? 0.0f : Hunger / MaxHunger;
 

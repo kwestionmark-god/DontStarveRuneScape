@@ -15,7 +15,7 @@ public sealed class SkillManager
     {
         var skillIds = new[]
         {
-            "woodcutting", "mining", "foraging", "cooking",
+            "attack", "woodcutting", "mining", "foraging", "cooking",
             "firemaking", "crafting", "metallurgy", "construction", "intelligence"
         };
 
@@ -98,6 +98,18 @@ public sealed class SkillManager
     {
         if (_skills.TryGetValue(skillId, out var skill))
             skill.Xp += xp;
+    }
+
+    /// <summary>Soft-death XP penalty: every skill loses the given fraction of
+    /// its XP; levels re-derive from the reduced XP (no points are refunded).</summary>
+    public void ApplyDeathPenalty(float fraction)
+    {
+        foreach (var skill in _skills.Values)
+        {
+            if (skill.Xp <= 0) continue;
+            skill.Xp -= skill.Xp * fraction;
+            skill.Level = CalculateLevelFromXp(skill.Xp);
+        }
     }
 
     /// <summary>Spend an unallocated stat point on a sub-stat. Returns false for unknown

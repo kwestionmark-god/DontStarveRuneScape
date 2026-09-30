@@ -179,11 +179,23 @@ public sealed class SpriteRenderer : IDisposable
         }
     }
 
-    public void RenderMonster(Monster monster, PrimitiveBatch batch, Camera camera)
+    public void RenderMonster(Monster monster, PrimitiveBatch batch, Camera camera, float elevation = 0f)
     {
-        var screen = camera.WorldToScreen(monster.WorldX, monster.WorldY, 0f);
+        // Real monster sprite by id (monster/*.png), red quad fallback.
+        uint tex = GetSpriteTexture(monster.SpriteKey);
+        // Ground point: the world position is the monster's feet.
+        var screen = camera.WorldToScreen(monster.WorldX, monster.WorldY, elevation);
         float half = 16f * camera.Zoom;
-        batch.DrawScreenQuad(screen.X, screen.Y, half, half, 200, 60, 60);
+        // Anchor bottom-center: feet at the ground point at any zoom/pitch.
+        float cx = screen.X;
+        float cy = screen.Y - half;
+
+        DrawShadow(batch, screen.X, screen.Y, half, 180);
+
+        if (tex != 0)
+            batch.DrawTexturedScreenQuad(cx, cy, half, half, tex, 255, 255, 255);
+        else
+            batch.DrawScreenQuad(cx, cy, half, half, 200, 60, 60);
     }
 
     public void RenderNPC(Npc npc, PrimitiveBatch batch, Camera camera, float elevation)

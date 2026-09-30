@@ -277,6 +277,7 @@ public static class Constants
     public const float PlayerHpPerCombatLevel = 1.0f;   // HP gain per Combat level (stub)
     public const float CombatBaseAttackCooldown = 1.5f; // Base attack cooldown in seconds (unarmed)
     public const float CombatSpeedStatCooldownReduction = 0.3f; // Cooldown reduction per speed stat point
+    public const float PlayerAttackRange = 128f;        // Player melee reach in px (2 tiles)
     public const float CombatDamageNumberRiseRate = 30.0f; // Damage number rise rate (px/s)
     public const float DeathClearMonstersRadius = 0.0f; // Radius in tiles to clear monsters on death (0 = all)
 
@@ -287,7 +288,15 @@ public static class Constants
 
     // ─── Monster Spawning ────────────────────────────────────────────────
 
-    public const int InitialMonsterSpawnRadiusTiles = 20; // Spawn radius in tiles
+    public const int InitialMonsterSpawnRadiusTiles = 20; // Min distance in tiles from the player spawn for initial monsters
+    public const int MonstersPerType = 2;               // Instances spawned per monster type per biome
+    public const float MonsterRespawnSeconds = 60f;     // Seconds before a cleared monster's spawn point repopulates
+    public const float MonsterAttackRange = 64f;        // Melee reach in px (monsters.json has no attack_range)
+    public const float MonsterLeashMultiplier = 1.5f;   // Chase drop-out distance = AggroRange * this
+    public const float MonsterIdleSeconds = 1.5f;       // Idle pause before picking a patrol point
+    public const float MonsterPatrolRadius = 128f;      // Patrol wander distance from home (px)
+    public const float MonsterFleeHealthFraction = 0.3f; // Flee while HP fraction is below this
+    public const float MonsterAggroCooldownAfterFlee = 5f; // Calm-down seconds after fleeing out of range
 
     // ─── Save System ──────────────────────────────────────────────────────
 
@@ -306,6 +315,7 @@ public static class Constants
     public const string GearFile = "Data/gear.json";
     public const string StructuresFile = "Data/structures.json";
     public const string NpcsFile = "Data/npcs.json";
+    public const string MonstersFile = "Data/monsters.json";
     public const string TradeItemsFile = "Data/trade_items.json";
     public const string QuestsFile = "Data/quests.json";
     public const string FactionsFile = "Data/factions.json";

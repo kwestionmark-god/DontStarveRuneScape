@@ -1301,7 +1301,29 @@ public sealed class GearPanel
 public sealed class DashboardPanel
 {
     public bool Visible { get; set; } = false;
-    public void SetActive(string tab) { }
+    public string[] Tabs { get; } = ["inventory", "skills", "crafting", "quests", "diplomacy"];
+    public string ActiveTab { get; private set; } = "inventory";
+    public Action<string>? OnTabSelected { get; set; }
+    public void SetActive(string tab) { if (Tabs.Contains(tab)) ActiveTab = tab; }
+    public void HandleKey(Key key)
+    {
+        int i = Array.IndexOf(Tabs, ActiveTab);
+        if (key == Key.Left || key == Key.Up) SetActive(Tabs[(i + Tabs.Length - 1) % Tabs.Length]);
+        else if (key == Key.Right || key == Key.Down) SetActive(Tabs[(i + 1) % Tabs.Length]);
+    }
+    public void HandleConfirm() => OnTabSelected?.Invoke(ActiveTab);
     public void Render(PrimitiveBatch batch, TextRenderer? text, int screenWidth, int screenHeight)
-        => PanelChrome.DrawPlaceholder(batch, text, screenWidth, screenHeight, "DASHBOARD");
+    {
+        PanelChrome.Draw(batch, text, screenWidth, screenHeight, "DASHBOARD", 650, 350,
+            out float x, out float y, out _, out _);
+        if (text == null) return;
+        for (int i=0;i<Tabs.Length;i++)
+        {
+            float cx=x+65+i*130;
+            batch.DrawScreenQuad(cx,y+45,60,20,Tabs[i]==ActiveTab?(byte)80:(byte)30,50,25);
+            text.DrawText(batch,Tabs[i].ToUpperInvariant(),cx,y+45,12,PanelChrome.TextR,PanelChrome.TextG,PanelChrome.TextB,bold:Tabs[i]==ActiveTab);
+        }
+        text.DrawText(batch,$"{ActiveTab.ToUpperInvariant()}  ·  Use ←/→ and Enter to open",x+325,y+200,16,PanelChrome.TextR,PanelChrome.TextG,PanelChrome.TextB);
+        text.DrawText(batch,"O or Esc closes",x+325,y+315,13,160,150,130);
+    }
 }
