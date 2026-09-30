@@ -5,11 +5,13 @@ using Silk.NET.Input;
 using Silk.NET.OpenGL;
 using DontStarveRuneScape.Building;
 using DontStarveRuneScape.Crafting;
+using DontStarveRuneScape.Core;
 using DontStarveRuneScape.Input;
 using DontStarveRuneScape.Render;
 using DontStarveRuneScape.Skills;
 using DontStarveRuneScape.Inventory;
 using DontStarveRuneScape.Data;
+using DontStarveRuneScape.NPC;
 
 /// <summary>
 /// InventoryPanel — 20-slot inventory grid (4 columns x 5 rows) with a detail
@@ -1301,6 +1303,7 @@ public sealed class GearPanel
 public sealed class DashboardPanel
 {
     public bool Visible { get; set; } = false;
+    public Game? Game { get; set; }
     public string[] Tabs { get; } = ["inventory", "skills", "crafting", "quests", "diplomacy"];
     public string ActiveTab { get; private set; } = "inventory";
     public Action<string>? OnTabSelected { get; set; }
@@ -1328,18 +1331,118 @@ public sealed class DashboardPanel
             }
         }
     }
+
+    public bool UpdateReturnButton(InputState input, int screenWidth)
+    {
+        var ui = new UiInput(input);
+        return ui.TryClick(screenWidth - 142f, 14f, 128f, 34f);
+    }
+
+    public void RenderReturnButton(PrimitiveBatch batch, TextRenderer? text, int screenWidth)
+    {
+        float x = screenWidth - 78f;
+        batch.DrawScreenQuad(x, 31f, 64f, 17f, PanelChrome.BorderR, PanelChrome.BorderG, PanelChrome.BorderB, 220);
+        batch.DrawScreenQuad(x, 31f, 61f, 14f, PanelChrome.PlateR, PanelChrome.PlateG, PanelChrome.PlateB, 255);
+        text?.DrawText(batch, "O  DASHBOARD", x, 31f, 11, PanelChrome.TextR, PanelChrome.TextG, PanelChrome.TextB, bold: true);
+    }
+
     public void Render(PrimitiveBatch batch, TextRenderer? text, int screenWidth, int screenHeight)
     {
         PanelChrome.Draw(batch, text, screenWidth, screenHeight, "DASHBOARD", 650, 350,
             out float x, out float y, out _, out _);
         if (text == null) return;
-        for (int i=0;i<Tabs.Length;i++)
+        for (int i = 0; i < Tabs.Length; i++)
         {
-            float cx=x+65+i*130;
-            batch.DrawScreenQuad(cx,y+45,60,20,Tabs[i]==ActiveTab?(byte)80:(byte)30,50,25);
-            text.DrawText(batch,Tabs[i].ToUpperInvariant(),cx,y+45,12,PanelChrome.TextR,PanelChrome.TextG,PanelChrome.TextB,bold:Tabs[i]==ActiveTab);
+            float cx = x + 65 + i * 130;
+            bool active = Tabs[i] == ActiveTab;
+            batch.DrawScreenQuad(cx, y + 45, 60, 20, active ? (byte)80 : (byte)30, 50, 25);
+            text.DrawText(batch, Tabs[i].ToUpperInvariant(), cx, y + 45, 12,
+                PanelChrome.TextR, PanelChrome.TextG, PanelChrome.TextB, bold: active);
         }
-        text.DrawText(batch,$"{ActiveTab.ToUpperInvariant()}  ·  Use ←/→ and Enter to open",x+325,y+200,16,PanelChrome.TextR,PanelChrome.TextG,PanelChrome.TextB);
-        text.DrawText(batch,"O or Esc closes",x+325,y+315,13,160,150,130);
+
+        RenderOverview(batch, text, x, y);
+        text.DrawText(batch, "Choose a tab · Enter or click to open · O / Esc closes",
+            x + 325, y + 330, 12, 160, 150, 130);
+    }
+
+    private void RenderOverview(PrimitiveBatch batch, TextRenderer text, float x, float y)
+    {
+        var game = Game;
+        var player = game?.Player;
+        var inventory = player?.Inventory ?? game?.Inventory;
+        var skills = player?.SkillManager ?? game?.SkillManager;
+        var activeQuests = game?.QuestSystem?.Active.Count ?? 0;
+        var completedQuests = game?.QuestSystem?.Completed.Count ?? 0;
+        var items = inventory?.Slots.Count(slot => slot.ItemId != null && slot.Quantity > 0) ?? 0;
+        var recruits = player?.RecruitedNpcs.Count ?? 0;
+        var season = game?.SeasonSystem?.CurrentSeason ?? "unknown";
+        string biome = "unknown";
+        if (player != null && game?.World != null)
+        {
+            var (tx, ty) = player.GetTilePosition();
+            biome = game.World.GetTile(tx, ty)?.Biome?.Id ?? biome;
+        }
+
+        // Left column: immediate player and world state.
+        batch.DrawScreenQuad(x + 127, y + 194, 122, 111, 24, 17, 11, 210);
+        Left(batch, text, "CURRENT STATUS", x + 16, y + 105, 12, PanelChrome.BorderR, PanelChrome.BorderG, PanelChrome.BorderB, true);
+        Left(batch, text, $"Season  {Pretty(season)}", x + 16, y + 132, 13);
+        Left(batch, text, $"Biome   {Pretty(biome)}", x + 16, y + 154, 13);
+        Left(batch, text, $"HP      {Value(game?.Survival?.Hp)} / {Value(game?.Survival?.MaxHp)}", x + 16, y + 176, 13);
+        Left(batch, text, $"Hunger  {Value(game?.Survival?.Hunger)} / {Value(game?.Survival?.MaxHunger)}", x + 16, y + 198, 13);
+        Left(batch, text, $"Items   {items} / {inventory?.Slots.Count ?? 0} slots", x + 16, y + 220, 13);
+        Left(batch, text, $"Recruits {recruits}   Deaths {game?.DeathCount ?? 0}", x + 16, y + 242, 12);
+
+        // Right column: actionable counts tied to the selected destination.
+        batch.DrawScreenQuad(x + 464, y + 194, 180, 111, 24, 17, 11, 210);
+        Left(batch, text, "AT A GLANCE", x + 292, y + 105, 12, PanelChrome.BorderR, PanelChrome.BorderG, PanelChrome.BorderB, true);
+        switch (ActiveTab)
+        {
+            case "inventory":
+                Left(batch, text, $"Gold  {inventory?.GetItemQuantity(TradeSystem.GoldItemId) ?? 0}", x + 292, y + 137, 14);
+                Left(batch, text, $"Occupied slots  {items}", x + 292, y + 162, 14);
+                Left(batch, text, $"Equipped weapon  {player?.Gear?.Weapon?.Name ?? "None"}", x + 292, y + 187, 13);
+                Left(batch, text, "Open inventory to eat or inspect items.", x + 292, y + 226, 12, 180, 170, 150);
+                break;
+            case "skills":
+                Left(batch, text, $"Attack {skills?.GetSkillLevel("attack") ?? 1}   Intelligence {skills?.GetSkillLevel("intelligence") ?? 1}", x + 292, y + 137, 13);
+                Left(batch, text, $"Woodcutting {skills?.GetSkillLevel("woodcutting") ?? 1}   Mining {skills?.GetSkillLevel("mining") ?? 1}", x + 292, y + 162, 12);
+                Left(batch, text, $"Active quests  {activeQuests}", x + 292, y + 187, 13);
+                Left(batch, text, "Spend skill points in the skills panel.", x + 292, y + 226, 12, 180, 170, 150);
+                break;
+            case "crafting":
+                Left(batch, text, $"Known recipes  {game?.Crafting?.Registry?.Recipes.Count ?? 0}", x + 292, y + 137, 14);
+                Left(batch, text, $"Unlocked recipes  {player?.UnlockedRecipes.Count ?? 0}", x + 292, y + 162, 14);
+                Left(batch, text, $"Crafting level  {skills?.GetSkillLevel("crafting") ?? 1}", x + 292, y + 187, 14);
+                Left(batch, text, "Check ingredients and gates before crafting.", x + 292, y + 226, 12, 180, 170, 150);
+                break;
+            case "quests":
+                Left(batch, text, $"Active  {activeQuests}", x + 292, y + 137, 14);
+                Left(batch, text, $"Completed  {completedQuests}", x + 292, y + 162, 14);
+                Left(batch, text, "Accept new work by speaking with quest givers.", x + 292, y + 201, 12, 180, 170, 150);
+                break;
+            case "diplomacy":
+                Left(batch, text, $"Known factions  {game?.FactionRegistry?.Factions.Count ?? 0}", x + 292, y + 137, 14);
+                Left(batch, text, $"Recruitable companions  {recruits}", x + 292, y + 162, 14);
+                Left(batch, text, "Negotiate with faction leaders to build standing.", x + 292, y + 201, 12, 180, 170, 150);
+                break;
+        }
+        Left(batch, text, ActiveTab.ToUpperInvariant(), x + 292, y + 265, 12,
+            PanelChrome.BorderR, PanelChrome.BorderG, PanelChrome.BorderB, true);
+    }
+
+    private static string Pretty(string value) => string.IsNullOrEmpty(value)
+        ? "Unknown"
+        : string.Join(' ', value.Split('_', StringSplitOptions.RemoveEmptyEntries)
+            .Select(word => char.ToUpperInvariant(word[0]) + word[1..]));
+
+    private static string Value(float? value) => value.HasValue ? MathF.Round(value.Value).ToString("0") : "—";
+
+    private static void Left(PrimitiveBatch batch, TextRenderer text, string value,
+        float left, float y, int size, byte r = PanelChrome.TextR, byte g = PanelChrome.TextG,
+        byte b = PanelChrome.TextB, bool bold = false)
+    {
+        var (width, _) = text.Measure(value, size, bold);
+        text.DrawText(batch, value, left + width * 0.5f, y, size, r, g, b, bold: bold);
     }
 }

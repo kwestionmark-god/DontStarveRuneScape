@@ -50,6 +50,8 @@ public sealed class Game
     public float LoadingProgress { get; set; }
     public float PlayTime { get; private set; }
     public int DeathCount { get; set; }
+    /// <summary>True while a panel opened from the dashboard can return to it.</summary>
+    public bool DashboardReturnAvailable { get; private set; }
 
     // World & Player
     public TileMap? World { get; set; }
@@ -210,6 +212,9 @@ public sealed class Game
         var oldState = State;
         State = newState;
 
+        if (newState is GameState.Playing or GameState.Paused or GameState.SettingsPanel)
+            DashboardReturnAvailable = false;
+
         // Handle panel closing (Paused/SettingsPanel also demand a clean slate:
         // the pause menu is only ever shown over a closed-panel state).
         if (InputRouter != null)
@@ -336,23 +341,28 @@ public sealed class Game
         switch (Dashboard.ActiveTab)
         {
             case "inventory":
+                DashboardReturnAvailable = true;
                 SetState(GameState.InventoryOpen);
                 break;
             case "skills":
+                DashboardReturnAvailable = true;
                 SetState(GameState.SkillPanel);
                 break;
             case "crafting":
+                DashboardReturnAvailable = true;
                 SetState(GameState.CraftingPanel);
                 break;
             case "quests":
                 if (QuestPanel == null || QuestSystem == null || Player == null) return;
                 QuestPanel.SetPlayer(Player);
+                DashboardReturnAvailable = true;
                 SetState(GameState.QuestPanel);
                 QuestPanel.OpenJournal();
                 break;
             case "diplomacy":
                 if (DiplomacyPanel == null) return;
                 DiplomacyPanel.Player = Player;
+                DashboardReturnAvailable = true;
                 SetState(GameState.DiplomacyPanel);
                 DiplomacyPanel.OpenOverview();
                 break;
@@ -360,6 +370,15 @@ public sealed class Game
                 OpenDashboard(Dashboard.ActiveTab);
                 break;
         }
+    }
+
+    /// <summary>Return to the dashboard when the current panel was opened from it.</summary>
+    public bool TryReturnToDashboard()
+    {
+        if (!DashboardReturnAvailable || Dashboard == null || State is GameState.DashboardOpen or GameState.Playing)
+            return false;
+        SetState(GameState.DashboardOpen);
+        return true;
     }
 
     /// <summary>
@@ -612,6 +631,10 @@ public sealed class Game
         if (InputManager != null)
         {
             var panelInput = InputManager.InputState;
+            if (State != GameState.DashboardOpen && DashboardReturnAvailable && Dashboard != null
+                && Dashboard.UpdateReturnButton(panelInput, _lastScreenW))
+                TryReturnToDashboard();
+
             if (State == GameState.DashboardOpen && Dashboard != null)
                 Dashboard.Update(panelInput, _lastScreenW, _lastScreenH);
             else if (State == GameState.TradePanel && TradePanel != null && Inventory != null && SkillManager != null)
@@ -1355,6 +1378,9 @@ public sealed class Game
                 SettingsPanel?.Render(batch, TextRenderer, screenWidth, screenHeight);
                 break;
         }
+
+        if (DashboardReturnAvailable && State != GameState.DashboardOpen)
+            Dashboard?.RenderReturnButton(batch, TextRenderer, screenWidth);
     }
 
     /// <summary>

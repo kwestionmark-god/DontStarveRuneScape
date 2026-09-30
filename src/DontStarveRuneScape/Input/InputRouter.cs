@@ -25,6 +25,11 @@ public sealed class InputRouter
     /// <summary>Handle an input key based on current state.</summary>
     public void Handle(Key key)
     {
+        // The dashboard is a persistent hub only for panels launched from it.
+        // NPC interaction panels keep their usual NPC-scoped close behavior.
+        if (key == Key.O && _game.TryReturnToDashboard())
+            return;
+
         // Handle panel-specific input
         switch (_game.State)
         {

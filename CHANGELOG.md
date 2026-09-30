@@ -8,6 +8,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Dashboard hub (O)** — live player/survival, location, inventory, quest,
+  crafting, and faction summaries; choose destinations by mouse or keyboard,
+  then return from dashboard-launched panels with O or the on-screen button.
+  Quest and faction views expose a global journal and faction overview while
+  NPC-scoped interactions remain unchanged.
 - **Skills panel (Tab)** — first interactive UI panel: OSRS-style grid with one
   row per skill (glyph, name, level, XP bar) and a detail block with clickable
   `[+]` buttons for per-skill stat-point spending. Establishes the shared panel

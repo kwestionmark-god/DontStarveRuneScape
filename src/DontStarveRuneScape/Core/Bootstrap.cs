@@ -283,7 +283,7 @@ public sealed class Bootstrap
         _game.QuestPanel = new QuestPanel();
         _game.RecruitPanel = new RecruitPanel();
         _game.DiplomacyPanel = new DiplomacyPanel();
-        _game.Dashboard = new DashboardPanel();
+        _game.Dashboard = new DashboardPanel { Game = _game };
         _game.TitleScreen = new TitleScreen();
         _game.LoadingScreen = new LoadingScreen();
 
