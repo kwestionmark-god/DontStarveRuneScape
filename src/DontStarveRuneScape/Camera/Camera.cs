@@ -12,6 +12,8 @@ public sealed class Camera
 {
     private float _yaw = 0f;           // Horizontal orbit (radians)
     private float _pitch = 0.5236f;    // Vertical tilt (radians) - default ~30°
+    private float _cosYaw = 1f, _sinYaw;
+    private float _cosPitch = 0.8660254f, _sinPitch = 0.5f;
     private World.TileMap? _world;     // For focus-elevation anchoring
     private float _focusElev = 0f;     // Ground elevation under the camera focus
     private float _zoom = Constants.CameraZoomDefault;
@@ -49,6 +51,7 @@ public sealed class Camera
     {
         _screenWidth = screenWidth;
         _screenHeight = screenHeight;
+        UpdateTrigCache();
     }
 
     /// <summary>
@@ -82,6 +85,7 @@ public sealed class Camera
         float pitchMin = Constants.CameraPitchMin * MathF.PI / 180f;
         float pitchMax = Constants.CameraPitchMax * MathF.PI / 180f;
         _pitch = Math.Clamp(_pitch, pitchMin, pitchMax);
+        UpdateTrigCache();
 
         // Zoom - mouse wheel handled separately via InputState.ZoomDelta
         if (inputState.ZoomDelta != 0)
@@ -137,15 +141,11 @@ public sealed class Camera
         float elevOffset = (elevation - _focusElev) * Constants.ZScale * Constants.TerrainHeightScale;
 
         // Rotate by yaw
-        float cosYaw = MathF.Cos(_yaw);
-        float sinYaw = MathF.Sin(_yaw);
-        float rotX = relX * cosYaw - relY * sinYaw;
-        float rotY = relX * sinYaw + relY * cosYaw;
+        float rotX = relX * _cosYaw - relY * _sinYaw;
+        float rotY = relX * _sinYaw + relY * _cosYaw;
 
         // Apply pitch (tilt) - project Y with elevation
-        float cosPitch = MathF.Cos(_pitch);
-        float sinPitch = MathF.Sin(_pitch);
-        float projectedY = rotY * cosPitch - elevOffset * sinPitch;
+        float projectedY = rotY * _cosPitch - elevOffset * _sinPitch;
 
         // Apply zoom and center on screen (Y anchored lower at shallow pitch)
         float screenX = _screenWidth * 0.5f + rotX * _zoom;
@@ -166,15 +166,12 @@ public sealed class Camera
         float relScreenY = (screenY - _screenHeight * AnchorY) / _zoom;
 
         // Reverse pitch (approximate, ignoring elevation)
-        float cosPitch = MathF.Cos(_pitch);
-        float rotY = relScreenY / cosPitch;
+        float rotY = relScreenY / _cosPitch;
         float rotX = relScreenX;
 
         // Reverse yaw
-        float cosYaw = MathF.Cos(-_yaw);
-        float sinYaw = MathF.Sin(-_yaw);
-        float worldRelX = rotX * cosYaw - rotY * sinYaw;
-        float worldRelY = rotX * sinYaw + rotY * cosYaw;
+        float worldRelX = rotX * _cosYaw + rotY * _sinYaw;
+        float worldRelY = -rotX * _sinYaw + rotY * _cosYaw;
 
         return (_panX + worldRelX, _panY + worldRelY);
     }
@@ -234,6 +231,7 @@ public sealed class Camera
             float pitchMax = Constants.CameraPitchMax * MathF.PI / 180f;
             _pitch = Math.Clamp(pitchDeg.Value * MathF.PI / 180f, pitchMin, pitchMax);
         }
+        UpdateTrigCache();
         if (zoom.HasValue)
             _zoom = Math.Clamp(zoom.Value, Constants.CameraZoomMin, Constants.CameraZoomMax);
     }
@@ -245,5 +243,13 @@ public sealed class Camera
     {
         _screenWidth = width;
         _screenHeight = height;
+    }
+
+    private void UpdateTrigCache()
+    {
+        _cosYaw = MathF.Cos(_yaw);
+        _sinYaw = MathF.Sin(_yaw);
+        _cosPitch = MathF.Cos(_pitch);
+        _sinPitch = MathF.Sin(_pitch);
     }
 }

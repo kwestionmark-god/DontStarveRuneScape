@@ -21,6 +21,7 @@ public sealed class TileRenderer : IDisposable
     private readonly Dictionary<string, uint> _terrainTextures = new();
     // Reused per-frame painter-order scratch (avoids per-frame allocation),
     private readonly List<(float Depth, int X, int Y)> _order = new();
+    private readonly List<(float X, float Y, float U, float V, byte R, byte G, byte B, byte A)> _waterPoints = new(4);
     private bool _disposed;
 
     public TileRenderer(GL gl)
@@ -232,16 +233,28 @@ public sealed class TileRenderer : IDisposable
         uint tex = GetTerrainTexture("water");
         float ts = Constants.TileSize;
         const int SUB = 2; // sheet cells per tile per axis
-        var pts = new System.Collections.Generic.List<(float X, float Y, float U, float V, byte R, byte G, byte B, byte A)>(4);
+        var pts = _waterPoints;
 
         for (int ty = yMin; ty < yMax; ty++)
         for (int tx = xMin; tx < xMax; tx++)
         {
+            var tile = world.Tiles[tx, ty];
+            if (tile == null) continue;
+            // A bilinear tile cannot dip below the minimum of its four corners.
+            // Entirely dry tiles contribute no water geometry, so skip the
+            // repeated smoothed-bed samples for the common inland case.
+            var corners = tile.CornerElevations;
+            if (corners == null || corners.Length != 4)
+            {
+                if (tile.Elevation >= Constants.SeaLevel) continue;
+            }
+            else if (Math.Min(Math.Min(corners[0], corners[1]), Math.Min(corners[2], corners[3])) >= Constants.SeaLevel)
+                continue;
+
             for (int j = 0; j < SUB; j++)
             for (int i = 0; i < SUB; i++)
             {
                 float gx0 = tx + i / (float)SUB, gy0 = ty + j / (float)SUB;
-                var tile = world.Tiles[tx, ty];
                 // Depth grading uses the SHALLOWER of the smoothed bed and the
                 // tile's local heightfield: smoothing never overstates depth at
                 // a dry lip (that showed saturated water through the parallax
@@ -482,6 +495,19 @@ public sealed class TileRenderer : IDisposable
         Tile tile, float surface, float time)
     {
         float ts = Constants.TileSize;
+        // The sampled bilinear surface stays within its corner range. Avoid
+        // the 25 heightfield reads on tiles that cannot meet the shoreline.
+        var corners = tile.CornerElevations;
+        if (corners == null || corners.Length != 4)
+        {
+            if (tile.Elevation >= surface + 0.15f || tile.Elevation <= surface - 0.4f) return;
+        }
+        else
+        {
+            float min = Math.Min(Math.Min(corners[0], corners[1]), Math.Min(corners[2], corners[3]));
+            float max = Math.Max(Math.Max(corners[0], corners[1]), Math.Max(corners[2], corners[3]));
+            if (min >= surface + 0.15f || max <= surface - 0.4f) return;
+        }
         const int N = PatchSub + 1;
         Span<float> g = stackalloc float[N * N];
         bool straddle = false;

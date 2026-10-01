@@ -151,6 +151,7 @@ public sealed class Game
 
     // Autosave
     private float _autosaveTimer = 0f;
+    private readonly List<(float Depth, int Seq, Action Draw)> _renderDrawables = new();
 
     // Flavor text for loading screen
     private string _flavorText = "";
@@ -1142,7 +1143,8 @@ public sealed class Game
     {
         // One shared painter's list for terrain AND sprites: identical depth
         // keys mean elevated terrain correctly occludes sprites behind it.
-        var drawables = new List<(float Depth, int Seq, Action Draw)>();
+        var drawables = _renderDrawables;
+        drawables.Clear();
         int seq = 0;
 
         if (TileRenderer != null && Camera != null && World != null)

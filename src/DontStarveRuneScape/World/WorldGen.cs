@@ -70,9 +70,13 @@ public static class WorldGen
         var elevation = new float[width, height];
         var moisture = new float[width, height];
 
-        // Domain warp offsets for variation
-        float warpX = seed * 1000.0f;
-        float warpY = seed * 2000.0f;
+        // Keep seed offsets small enough that float precision still preserves
+        // individual tile coordinates. Multiplying a full random int seed by
+        // 1000 made these offsets ~1e12; adding x/y then rounded away hundreds
+        // of tiles at a time, producing almost constant noise for new games.
+        var seedRandom = new Random(seed);
+        float warpX = seedRandom.NextSingle() * 256f;
+        float warpY = seedRandom.NextSingle() * 256f;
 
         for (int x = 0; x < width; x++)
         {
