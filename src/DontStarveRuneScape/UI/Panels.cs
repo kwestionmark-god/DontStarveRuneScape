@@ -55,18 +55,22 @@ public sealed class TradePanel
         else if(key==Key.Down) SelectedIndex=Math.Min(Math.Max(0,CurrentCount-1),SelectedIndex+1);
     }
     private int CurrentCount => Tab=="buy"?BuyRows.Count:SellRows.Count;
+    private Inventory? _inventory;
+    private SkillManager? _skills;
     public void HandleConfirm()
     {
-        if (Player?.Inventory == null || Player.SkillManager == null || TradeSession == null) return;
+        var inv = _inventory ?? Player?.Inventory;
+        var skills = _skills ?? Player?.SkillManager;
+        if (inv == null || skills == null || TradeSession == null) return;
         TradeResult result;
-        if(Tab=="buy" && SelectedIndex<BuyRows.Count) result=TradeSystem.ExecuteBuy(BuyRows[SelectedIndex].TradeItemId,BuyQuantity,TradeSession,Player.Inventory,Player.SkillManager);
-        else if(Tab=="sell" && SelectedIndex<SellRows.Count) result=TradeSystem.ExecuteSell(SellRows[SelectedIndex].ItemId,SellQuantity,TradeSession,Player.Inventory);
+        if(Tab=="buy" && SelectedIndex<BuyRows.Count) result=TradeSystem.ExecuteBuy(BuyRows[SelectedIndex].TradeItemId,BuyQuantity,TradeSession,inv,skills);
+        else if(Tab=="sell" && SelectedIndex<SellRows.Count) result=TradeSystem.ExecuteSell(SellRows[SelectedIndex].ItemId,SellQuantity,TradeSession,inv);
         else return;
         Status=result.Message;
     }
     public void Update(InputState input, TradeSystem system, Inventory inventory, SkillManager skills, int screenW, int screenH)
     {
-        TradeSystem.Registry=system.Registry; TradeSystem.Quests=system.Quests;
+        TradeSystem.Registry=system.Registry; TradeSystem.Quests=system.Quests; _inventory=inventory; _skills=skills;
         BuyRows=TradeSession==null?[]:TradeSystem.GetTradeItemsForMerchant(TradeSession);
         SellRows=TradeSystem.Registry?.TradeItems.Values.Select(d=>(d.ItemId,inventory.GetItemQuantity(d.ItemId),d.SellPrice)).Where(r=>r.SellPrice>0).DistinctBy(r=>r.ItemId).ToList()??[];
         SelectedIndex=Math.Clamp(SelectedIndex,0,Math.Max(0,CurrentCount-1));
@@ -100,6 +104,8 @@ public sealed class QuestPanel
     public List<QuestDef> Rows { get; private set; }=[];
     private bool _journalMode;
     private QuestSystem? _system;
+    private Inventory? _inventory;
+    private SkillManager? _skills;
     public void SetPlayer(Player p)=>Player=p;
     public bool OpenSession(Npc npc){Session=npc;Visible=true;SelectedIndex=0;Status="";return npc.AvailableQuests.Count>0;}
     public void OpenJournal(){Session=null;_journalMode=true;Visible=true;SelectedIndex=0;Status="";}
@@ -107,23 +113,26 @@ public sealed class QuestPanel
     public void HandleKey(Key key){if(key==Key.Up)SelectedIndex=Math.Max(0,SelectedIndex-1);else if(key==Key.Down)SelectedIndex=Math.Min(Math.Max(0,Rows.Count-1),SelectedIndex+1);}
     public void HandleConfirm()
     {
-        if(Player?.Inventory==null||Player.SkillManager==null||(!_journalMode&&Session==null)||SelectedIndex>=Rows.Count)return;
+        var inv = _inventory ?? Player?.Inventory;
+        var skills = _skills ?? Player?.SkillManager;
+        if (inv == null || skills == null || (!_journalMode&&Session==null)||SelectedIndex>=Rows.Count)return;
+        var player = Player ?? new Player(0f,0f){SkillManager=skills};
         var q=Rows[SelectedIndex]; QuestResult r;
         if(_journalMode)
         {
             if(_system?.IsCompleted(q.QuestId)==true){Status="That quest is already complete.";return;}
             if(_system?.IsAccepted(q.QuestId)!=true){Status="Quests must be accepted from an NPC.";return;}
-            r=_system.ConditionsMet(q,Player.Inventory)
-                ? _system.Claim(Player,Session??new QuestGiverNpc(),q.QuestId,Player.Inventory,Player.SkillManager)
+            r=_system.ConditionsMet(q,inv)
+                ? _system.Claim(player,Session??new QuestGiverNpc(),q.QuestId,inv,skills)
                 : new QuestResult{Message="Objectives are still in progress."};
         }
-        else if(_system?.IsAccepted(q.QuestId)==true) r=_system.Claim(Player,Session!,q.QuestId,Player.Inventory,Player.SkillManager);
-        else r=_system?.AcceptQuest(Player,Session!,q.QuestId)??new QuestResult{Message="Quest system unavailable."};
+        else if(_system?.IsAccepted(q.QuestId)==true) r=_system.Claim(player,Session!,q.QuestId,inv,skills);
+        else r=_system?.AcceptQuest(player,Session!,q.QuestId)??new QuestResult{Message="Quest system unavailable."};
         Status=r.Message;
     }
     public void Update(InputState input, QuestSystem system, Inventory inventory, SkillManager skills,int w,int h)
     {
-        _system=system;
+        _system=system; _inventory=inventory; _skills=skills;
         if(system.Registry==null) Rows=[];
         else if(_journalMode)
         {
@@ -151,11 +160,12 @@ public sealed class RecruitPanel
     public bool Visible{get;set;} public Player? Player{get;set;} public RecruitNpc? Session{get;private set;}
     public int SelectedIndex{get;private set;} public string Status{get;private set;}="";
     public Action<(string ActionType,object[] Params)>? OnAction{get;set;}
+    private SkillManager? _skills;
     public bool OpenSession(RecruitNpc npc){Session=npc;Visible=true;SelectedIndex=0;return true;}
     public void Close(){Visible=false;Session=null;}
     public void HandleKey(Key key){if(key==Key.Up)SelectedIndex=Math.Max(0,SelectedIndex-1);else if(key==Key.Down)SelectedIndex=Math.Min(Math.Max(0,(Session?.AvailableBehaviors.Count??0)-1),SelectedIndex+1);}
-    public void HandleConfirm(){if(Session==null||Player?.SkillManager==null||SelectedIndex>=Session.AvailableBehaviors.Count)return;var c=Player.SkillManager.GetEffectiveStat("intelligence","commerce");var p=Player.SkillManager.GetEffectiveStat("intelligence","persuasion");if(c<Session.RecruitCommerce||p<Session.RecruitPersuasion||c+p<Session.RecruitComposite){Status=$"Requires commerce {Session.RecruitCommerce}, persuasion {Session.RecruitPersuasion}, combined {Session.RecruitComposite}.";return;}OnAction?.Invoke(("recruit",[Session.NpcId,Session.AvailableBehaviors[SelectedIndex]]));}
-    public void Update(InputState input,SkillManager? skills,int w,int h){var ui=new UiInput(input);float x=w/2f-325,y=h/2f-193;for(int i=0;i<(Session?.AvailableBehaviors.Count??0);i++)if(ui.TryClick(x,y+42+i*NpcPanelLayout.RowH,650,NpcPanelLayout.RowH)){SelectedIndex=i;HandleConfirm();}}
+    public void HandleConfirm(){var skills=_skills??Player?.SkillManager;if(Session==null||skills==null||SelectedIndex>=Session.AvailableBehaviors.Count)return;var c=skills.GetEffectiveStat("intelligence","commerce");var p=skills.GetEffectiveStat("intelligence","persuasion");if(c<Session.RecruitCommerce||p<Session.RecruitPersuasion||c+p<Session.RecruitComposite){Status=$"Requires commerce {Session.RecruitCommerce}, persuasion {Session.RecruitPersuasion}, combined {Session.RecruitComposite}.";return;}OnAction?.Invoke(("recruit",[Session.NpcId,Session.AvailableBehaviors[SelectedIndex]]));Close();}
+    public void Update(InputState input,SkillManager? skills,int w,int h){_skills=skills;var ui=new UiInput(input);float x=w/2f-325,y=h/2f-193;for(int i=0;i<(Session?.AvailableBehaviors.Count??0);i++)if(ui.TryClick(x,y+42+i*NpcPanelLayout.RowH,650,NpcPanelLayout.RowH)){SelectedIndex=i;HandleConfirm();}}
     public void Render(PrimitiveBatch b,TextRenderer? t,int w,int h){NpcPanelLayout.Frame(b,t,w,h,"RECRUIT",out var x,out var y);if(t==null)return;NpcPanelLayout.Label(b,t,$"{Session?.Name??"Recruit"} · commerce {Session?.RecruitCommerce} · persuasion {Session?.RecruitPersuasion}",x,y+15,15);if(Session!=null)for(int i=0;i<Session.AvailableBehaviors.Count&&i<7;i++)NpcPanelLayout.Row(b,t,x,y+42+i*NpcPanelLayout.RowH,650,$"Serve as {Session.AvailableBehaviors[i]}","RECRUIT",i==SelectedIndex);NpcPanelLayout.Label(b,t,string.IsNullOrEmpty(Status)?"↑/↓ choose   Enter recruit   Esc close":Status,x+325,y+390,13,200,180,130);}
 }
 
@@ -178,7 +188,7 @@ public sealed class DiplomacyPanel
         else if(key==Key.Down)_selectedFaction=(_selectedFaction+1)%factions.Count;
         SelectOverviewFaction();
     }
-    public void HandleConfirm(){if(FactionInfo==null)return;float before=System?.StandingOf(FactionInfo.FactionId)??QuestSystem.DefaultStanding;OnAction?.Invoke(("negotiate",[]));float after=System?.StandingOf(FactionInfo.FactionId)??before;Status=$"Standing: {FactionSystem.TierName(after)} ({after:P0})";}
+    public void HandleConfirm(){if(FactionInfo==null)return;float before=System?.StandingOf(FactionInfo.FactionId)??QuestSystem.DefaultStanding;OnAction?.Invoke(("negotiate",[FactionInfo.FactionId]));float after=System?.StandingOf(FactionInfo.FactionId)??before;Status=$"Standing: {FactionSystem.TierName(after)} ({after:P0})";}
     public void Update(InputState input,FactionRegistry? registry,FactionSystem? system,int w,int h)
     {
         Registry=registry;System=system;

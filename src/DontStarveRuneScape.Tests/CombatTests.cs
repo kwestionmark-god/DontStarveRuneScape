@@ -60,7 +60,7 @@ public class CombatTests
 
         Assert.True(result.Success);
         var monster = Assert.Single(system.Monsters);
-        Assert.Equal(7, monster.Health); // 1 unarmed - 2 defence, min 1
+        Assert.Equal(9, monster.Health); // unarmed 1 + 0 bonus - 2 defence, min 1 → 10 - 1
         var dn = Assert.Single(system.DamageNumbers);
         Assert.Equal(1, (int)dn.Value);
     }

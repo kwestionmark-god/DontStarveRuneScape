@@ -26,6 +26,7 @@ public sealed class CombatSystem
 
     public void Tick(float dt, Player? player = null)
     {
+        if (_playerAttackCooldown > 0) _playerAttackCooldown = MathF.Max(0f, _playerAttackCooldown - dt);
         UpdateRespawns(dt, player);
 
         foreach (var monster in Monsters)
@@ -37,11 +38,7 @@ public sealed class CombatSystem
         // Clearing the world after the player's death (all monsters, per
         // DeathClearMonstersRadius = 0) — after the loop, the death may be
         // detected mid-iteration.
-        if (_pendingPlayerDeath)
-        {
-            _pendingPlayerDeath = false;
-            ClearMonsters();
-        }
+        ConsumePendingPlayerDeath();
 
         // Update damage numbers
         for (int i = DamageNumbers.Count - 1; i >= 0; i--)
@@ -153,6 +150,15 @@ public sealed class CombatSystem
     /// <summary>Queue a monster clear for the next Tick (the player died
     /// outside this system's tick — e.g. starvation).</summary>
     public void QueuePlayerDeath() => _pendingPlayerDeath = true;
+
+    /// <summary>Run a queued death clear immediately; Game.Update calls this
+    /// so the clear lands on the next update even outside playing states.</summary>
+    public void ConsumePendingPlayerDeath()
+    {
+        if (!_pendingPlayerDeath) return;
+        _pendingPlayerDeath = false;
+        ClearMonsters();
+    }
 
     private void UpdateRespawns(float dt, Player? player)
     {

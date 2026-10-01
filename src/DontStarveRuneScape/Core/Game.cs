@@ -583,6 +583,10 @@ public sealed class Game
             }
         }
 
+        // A death queued outside the combat tick (e.g. starvation) clears the
+        // world's monsters on the next update, whatever the state.
+        CombatSystem?.ConsumePendingPlayerDeath();
+
         // Always-tick systems (even under panels); the pause menu freezes
         // them too (hunger holds and food stops spoiling while paused).
         if (State is not (GameState.Paused or GameState.SettingsPanel))

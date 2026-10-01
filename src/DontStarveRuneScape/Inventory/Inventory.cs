@@ -95,30 +95,32 @@ public sealed class Inventory
         return availableSpace >= quantity;
     }
 
-    /// <summary>Remove an item from the inventory.</summary>
+    /// <summary>Remove an item from the inventory. Drains across stacked
+    /// slots; nothing is removed unless the total covers the quantity.</summary>
     public bool RemoveItem(string itemId, int quantity)
     {
         if (string.IsNullOrEmpty(itemId) || quantity <= 0)
             return false;
 
+        if (GetItemQuantity(itemId) < quantity)
+            return false;
+
+        int remaining = quantity;
         foreach (var slot in Slots)
         {
-            if (slot.ItemId == itemId)
+            if (remaining == 0) break;
+            if (slot.ItemId != itemId) continue;
+            int take = Math.Min(slot.Quantity, remaining);
+            slot.Quantity -= take;
+            remaining -= take;
+            if (slot.Quantity == 0)
             {
-                if (slot.Quantity >= quantity)
-                {
-                    slot.Quantity -= quantity;
-                    if (slot.Quantity == 0)
-                    {
-                        slot.ItemId = null;
-                        slot.SpoilageTimer = 0f;
-                        slot.MaxSpoilageTime = 0f;
-                    }
-                    return true;
-                }
+                slot.ItemId = null;
+                slot.SpoilageTimer = 0f;
+                slot.MaxSpoilageTime = 0f;
             }
         }
-        return false;
+        return true;
     }
 
     /// <summary>Get quantity of an item in inventory.</summary>

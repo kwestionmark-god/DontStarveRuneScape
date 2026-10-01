@@ -114,7 +114,7 @@ public sealed class NPCFlows
 
         if (action.ActionType == "negotiate")
         {
-            ExecuteNegotiation();
+            ExecuteNegotiation(action.Params.Length >= 1 ? action.Params[0] as string : null);
         }
         else if (action.ActionType is "cancel" or "close")
         {
@@ -150,8 +150,11 @@ public sealed class NPCFlows
 
         if (targetNpc == null)
         {
-            if (game.Player != null && game.Player.ActionSystem != null)
-                game.Player.ActionSystem.AddNotification($"NPC '{npcId}' not found.", Game.ErrorColor);
+            // No world NPC system holds this id — the recruit still joins the player.
+            game.Player?.AddRecruit(npcId);
+            game.RecruitmentSystem?.OnRecruit(npcId, behavior);
+            if (game.Player?.ActionSystem != null)
+                game.Player.ActionSystem.AddNotification($"You recruited {npcId} as {behavior}!", ((byte)100, (byte)255, (byte)100));
             CloseRecruitPanel();
             return;
         }
@@ -210,15 +213,16 @@ public sealed class NPCFlows
             game.Player.ActionSystem.AddNotification($"You dismissed {targetNpc.Name}.", ((byte)255, (byte)200, (byte)100));
     }
 
-    /// <summary>Canonical faction negotiation — one path for both keyboard and mouse.</summary>
-    private void ExecuteNegotiation()
+    /// <summary>Canonical faction negotiation — one path for both keyboard and
+    /// mouse. The faction id comes from the panel callback when available.</summary>
+    private void ExecuteNegotiation(string? factionId = null)
     {
         var game = _game;
 
         if (game.Player == null || game.Player.ActionSystem == null) return;
-        if (game.DiplomacyPanel == null || game.DiplomacyPanel.FactionInfo == null) return;
 
-        string factionId = game.DiplomacyPanel.FactionInfo.FactionId;
+        factionId ??= game.DiplomacyPanel?.FactionInfo?.FactionId;
+        if (string.IsNullOrEmpty(factionId)) return;
         bool success = false;
 
         if (game.FactionSystem != null && game.Player != null)
