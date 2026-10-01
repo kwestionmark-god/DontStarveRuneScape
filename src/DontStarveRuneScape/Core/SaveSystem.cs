@@ -425,6 +425,7 @@ public sealed class DepletedNodeSnapshot
     public int TileY { get; set; }
     public string ResourceId { get; set; } = string.Empty;
     public float RegrowTime { get; set; }
+    public float Density { get; set; }
 }
 
 public sealed class SeasonSnapshot

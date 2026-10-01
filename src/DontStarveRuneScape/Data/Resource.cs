@@ -35,6 +35,10 @@ public sealed class ResourceDef : DataRecord
     [JsonPropertyName("depletion_count")]
     public int DepletionCount { get; set; } = 1;
 
+    /// <summary>Whether a finite resource node vanishes when its reserve is exhausted.</summary>
+    [JsonPropertyName("disappears_when_depleted")]
+    public bool DisappearsWhenDepleted { get; set; }
+
     [JsonPropertyName("regrow_time")]
     public float Regrow { get; set; } = 0f;
 

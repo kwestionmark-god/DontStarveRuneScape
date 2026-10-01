@@ -41,6 +41,9 @@ public sealed class SpriteRenderer : IDisposable
 
     public void RenderResource(ResourceNode resource, PrimitiveBatch batch, Camera camera, float elevation, int tileX, int tileY, World.Tile? tile = null)
     {
+        if (resource.IsDepleted && resource.ResourceDef?.DisappearsWhenDepleted == true)
+            return;
+
         float half = 24f
             * (resource.ResourceDef?.DisplayScale > 0 ? resource.ResourceDef.DisplayScale : FallbackScale(resource))
             * resource.SizeScale
@@ -79,6 +82,10 @@ public sealed class SpriteRenderer : IDisposable
         }
         if (tex == 0)
             tex = GetSpriteTexture(spriteKey);
+        // Some resource families do not have a bespoke depleted/young image.
+        // Reuse the intact node artwork instead of drawing the colored fallback.
+        if (tex == 0 && resource.ResourceDef is { } resourceDef && spriteKey != resourceDef.SpriteKey)
+            tex = GetSpriteTexture(resourceDef.SpriteKey);
 
         // Ground-decal resources (water pools etc.) are drawn flat on their
         // tile's projected footprint — never as billboards.

@@ -491,7 +491,11 @@ public static class ResourcePlacer
 
                     if (random.NextSingle() < scaledDensity)
                     {
-                        tile.ResourceNode = new ResourceNode(resourceId, def, 1.0f)
+                        // Density here is the node's harvest reserve, not the
+                        // placement probability computed above. A negative
+                        // depletion count denotes an inexhaustible source.
+                        float reserve = def.DepletionCount < 0 ? 1f : Math.Max(1, def.DepletionCount);
+                        tile.ResourceNode = new ResourceNode(resourceId, def, reserve)
                         {
                             GrowthStage = 2, // Start mature
                             SizeScale = scale,

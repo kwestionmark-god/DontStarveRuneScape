@@ -1251,7 +1251,7 @@
       "yield_quantity": 1,
       "xp_reward": 5.0,
       "depletion_count": 6,
-      "regrow_time": 120.0,
+      "regrow_time": 0.0,
       "sprite_key": "world/loose_stones",
       "requires_tool": null,
       "required_level": 1,
@@ -1264,7 +1264,8 @@
         "swamp": 0.2
       },
       "display_scale": 0.5,
-      "size_variance": 0.2
+      "size_variance": 0.2,
+      "disappears_when_depleted": true
     },
     {
       "id": "beehive",

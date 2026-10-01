@@ -275,7 +275,8 @@ public sealed class Inventory
         {
             var slotData = snapshot.Slots[i];
             var slot = Slots[i];
-            slot.ItemId = string.IsNullOrEmpty(slotData.ItemId) ? null : slotData.ItemId;
+            slot.ItemId = string.IsNullOrEmpty(slotData.ItemId) ? null
+                : slotData.ItemId == "loose_stones" ? "stone" : slotData.ItemId;
             slot.Quantity = slotData.Quantity;
             slot.SpoilageTimer = 0f;
             slot.MaxSpoilageTime = slotData.SpoilageRemaining;

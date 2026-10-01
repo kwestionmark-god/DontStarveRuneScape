@@ -11,20 +11,20 @@ public sealed class ResourceNode
 {
     public string ResourceId { get; set; } = string.Empty;
     public ResourceDef? ResourceDef { get; set; }
-    public float Density { get; set; } = 1.0f;        // Current density (0-1+)
-    public float MaxDensity { get; set; } = 1.0f;     // Maximum density for this node
-    public int GrowthStage { get; set; } = 0;         // 0 = depleted, 1 = sapling/young, 2 = mature
-    public float RegrowTime { get; set; } = 0f;       // Time until next growth stage
+    public float Density { get; set; } = 1.0f;        // Remaining harvest charges
+    public float MaxDensity { get; set; } = 1.0f;     // Generated harvest-charge capacity
+    public int GrowthStage { get; set; } = 0;         // 0 = depleted, 1 = recovering, 2 = full
+    public float RegrowTime { get; set; } = 0f;       // Time until one charge returns
     public float LastHarvestTime { get; set; } = 0f;
     public int TotalHarvests { get; set; } = 0;
-    public bool IsDepleted => Density <= 0f;
+    public bool IsDepleted => ResourceDef?.DepletionCount < 0 ? false : Density <= 0f;
 
     /// <summary>Per-node size multiplier, rolled at placement (bigger = rarer).</summary>
     public float SizeScale { get; set; } = 1f;
 
     // Additional properties for action system compatibility
     public int XpReward => (int)(ResourceDef?.Xp ?? 0);
-    public string YieldItem => ResourceDef?.Id ?? string.Empty;
+    public string YieldItem => ResourceDef?.YieldItem ?? string.Empty;
     public int YieldQuantity => ResourceDef?.Yield ?? 1;
     public bool RequiresTool => ResourceDef?.RequiresTool ?? false;
 
@@ -56,22 +56,20 @@ public sealed class ResourceNode
                 return (string.Empty, 0, 0);
         }
 
-        // Calculate yield based on density and tool efficiency
+        // Density stores remaining successful harvests. A negative depletion
+        // count means inexhaustible; output quantity stays independent of reserve.
         int baseYield = def.Yield;
-        int quantity = Math.Max(1, (int)(baseYield * Density * toolEfficiency));
-        quantity = Math.Min(quantity, (int)MaxDensity);
+        int quantity = Math.Max(1, (int)(baseYield * toolEfficiency));
 
-        // Deplete
-        Density -= quantity / (float)def.Yield;
-        if (Density < 0) Density = 0;
+        if (def.DepletionCount >= 0)
+            Density = Math.Max(0f, Density - 1f);
 
-        // Set regrow time
-        if (Density <= 0 && def.Regrow > 0)
-        {
+        if (Density < MaxDensity && def.Regrow > 0)
             RegrowTime = def.Regrow;
-            GrowthStage = 0; // Depleted
-        }
-        else if (Density > 0 && Density < MaxDensity)
+
+        if (Density <= 0)
+            GrowthStage = 0;
+        else if (Density < MaxDensity)
         {
             GrowthStage = 1; // Regrowing
         }
@@ -83,7 +81,7 @@ public sealed class ResourceNode
         LastHarvestTime = 0; // Will be set by world time
         TotalHarvests++;
 
-        return (def.Id, quantity, (int)def.Xp);
+        return (def.YieldItem, quantity, (int)def.Xp);
     }
 
     /// <summary>
@@ -107,27 +105,22 @@ public sealed class ResourceNode
             }
         }
 
-        RegrowTime -= dt * seasonMult;
-        if (RegrowTime <= 0)
+        if (RegrowTime > 0f)
         {
-            // Advance growth stage
-            float regrowAmount = def.Regrow > 0 ? (MaxDensity / (def.Regrow / 60f)) : 0.01f; // Per second
-            Density = Math.Min(MaxDensity, Density + regrowAmount * dt * seasonMult);
+            RegrowTime -= dt * seasonMult;
+            if (RegrowTime > 0f) return;
+        }
 
-            if (Density <= 0)
-            {
-                GrowthStage = 0;
-                RegrowTime = def.Regrow;
-            }
-            else if (Density < MaxDensity)
-            {
-                GrowthStage = 1;
-            }
-            else
-            {
-                GrowthStage = 2;
-                RegrowTime = 0;
-            }
+        Density = Math.Min(MaxDensity, Density + 1f);
+        if (Density >= MaxDensity)
+        {
+            GrowthStage = 2;
+            RegrowTime = 0f;
+        }
+        else
+        {
+            GrowthStage = Density <= 0f ? 0 : 1;
+            RegrowTime = def.Regrow;
         }
     }
 

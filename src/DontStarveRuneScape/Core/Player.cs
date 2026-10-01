@@ -265,7 +265,7 @@ public sealed class Player
 
                 var node = tile.ResourceNode;
                 if (node == null) continue;
-                if (node.IsDepleted && node.RegrowTime <= 0) continue;
+                if (node.IsDepleted) continue;
 
                 // Calculate center of tile
                 float nodeX = nx * tileSize + tileSize / 2f;

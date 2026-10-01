@@ -1169,6 +1169,8 @@ public sealed class Game
                     var tile = World.Tiles[x, y];
                     if (tile?.ResourceNode != null)
                     {
+                        if (tile.ResourceNode.IsDepleted && tile.ResourceNode.ResourceDef?.DisappearsWhenDepleted == true)
+                            continue;
                         // Ground height at the tile center is the bilinear
                         // value of the corner heights, not tile.Elevation —
                         // on slopes those differ enough to float the sprite.

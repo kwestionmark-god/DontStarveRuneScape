@@ -135,7 +135,7 @@ public sealed class TileMap
     }
 
     /// <summary>
-    /// Get all depleted resource nodes for saving.
+    /// Get resource nodes with a reserve below their generated maximum for saving.
     /// </summary>
     public DepletedNodeSnapshot[] GetDepletedNodes()
     {
@@ -145,7 +145,7 @@ public sealed class TileMap
             for (int y = 0; y < Height; y++)
             {
                 var node = Tiles[x, y].ResourceNode;
-                if (node != null && node.IsDepleted)
+                if (node != null && node.Density < node.MaxDensity)
                 {
                     result.Add(new DepletedNodeSnapshot
                     {
@@ -153,6 +153,7 @@ public sealed class TileMap
                         TileY = y,
                         ResourceId = node.ResourceId,
                         RegrowTime = node.RegrowTime,
+                        Density = node.Density,
                     });
                 }
             }
@@ -171,8 +172,9 @@ public sealed class TileMap
             var tile = GetTile(d.TileX, d.TileY);
             if (tile != null && tile.ResourceNode != null)
             {
-                tile.ResourceNode.Density = 0f; // Mark as depleted
+                tile.ResourceNode.Density = d.Density; // Old saves default to zero (fully depleted).
                 tile.ResourceNode.RegrowTime = d.RegrowTime;
+                tile.ResourceNode.GrowthStage = d.Density <= 0f ? 0 : 1;
             }
         }
     }
@@ -186,7 +188,9 @@ public sealed class TileMap
         if (tile?.ResourceNode != null)
         {
             tile.ResourceNode.Density = 0f; // Mark as depleted
-            tile.ResourceNode.RegrowTime = 0f;
+            if (tile.ResourceNode.RegrowTime <= 0f)
+                tile.ResourceNode.RegrowTime = tile.ResourceNode.ResourceDef?.Regrow ?? 0f;
+            tile.ResourceNode.GrowthStage = 0;
         }
     }
 }
