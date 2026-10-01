@@ -171,7 +171,15 @@ public sealed class InputRouter
         else if (key == Key.T)
             OpenNpcPanelByType("merchant", "No merchant nearby.");
         else if (key == Key.U)
-            OpenNpcPanelByType("quest_giver", "No quest giver nearby.");
+        {
+            var questGiver = _game.Player is { } player
+                ? _game.NPCSystem?.FindNearbyQuestGiver(player)
+                : null;
+            if (questGiver != null)
+                _npcFlows.OpenQuestPanel(questGiver);
+            else if (_game.Player?.ActionSystem != null)
+                _game.Player.ActionSystem.AddNotification("No quest giver nearby.", ((byte)200, (byte)150, (byte)100));
+        }
         else if (key == Key.K)
             OpenNpcPanelByType("recruit", "No recruit nearby.");
         else if (key == Key.L)

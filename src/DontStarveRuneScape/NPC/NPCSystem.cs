@@ -66,6 +66,26 @@ public sealed class NPCSystem
         return best;
     }
 
+    /// <summary>Find the nearest active NPC who actually offers at least one quest.</summary>
+    public Npc? FindNearbyQuestGiver(Player player)
+    {
+        Npc? best = null;
+        float bestDistSq = 128 * 128;
+        foreach (var npc in NPCs)
+        {
+            if (!npc.IsActive || npc.AvailableQuests.Count == 0) continue;
+            float dx = npc.WorldX - player.WorldX;
+            float dy = npc.WorldY - player.WorldY;
+            float distSq = dx * dx + dy * dy;
+            if (distSq < bestDistSq)
+            {
+                bestDistSq = distSq;
+                best = npc;
+            }
+        }
+        return best;
+    }
+
     /// <summary>Assign NPC to structure.</summary>
     public (bool Success, string Message) AssignNpcToStructure(string npcId, string structureId)
     {

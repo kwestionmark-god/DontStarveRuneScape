@@ -64,6 +64,10 @@ public sealed class QuestSystem
         var quest = Registry?.GetQuest(questId);
         if (quest == null)
             return new QuestResult { Success = false, Message = "Unknown quest." };
+        if (!npc.AvailableQuests.Contains(questId))
+            return new QuestResult { Success = false, Message = $"{npc.Name} is not offering that quest." };
+        if (!string.IsNullOrEmpty(quest.GiverNpcType) && quest.GiverNpcType != npc.NpcType)
+            return new QuestResult { Success = false, Message = "This quest belongs to a different kind of quest giver." };
         if (IsAccepted(questId))
             return new QuestResult { Success = false, Message = "That quest is already active." };
         if (!quest.IsRepeatable && IsCompleted(questId))

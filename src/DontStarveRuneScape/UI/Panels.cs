@@ -107,7 +107,7 @@ public sealed class QuestPanel
     private Inventory? _inventory;
     private SkillManager? _skills;
     public void SetPlayer(Player p)=>Player=p;
-    public bool OpenSession(Npc npc){Session=npc;Visible=true;SelectedIndex=0;Status="";return npc.AvailableQuests.Count>0;}
+    public bool OpenSession(Npc npc){Session=npc;_journalMode=false;Visible=true;SelectedIndex=0;Status="";return npc.AvailableQuests.Count>0;}
     public void OpenJournal(){Session=null;_journalMode=true;Visible=true;SelectedIndex=0;Status="";}
     public void Close(){Visible=false;Session=null;_journalMode=false;}
     public void HandleKey(Key key){if(key==Key.Up)SelectedIndex=Math.Max(0,SelectedIndex-1);else if(key==Key.Down)SelectedIndex=Math.Min(Math.Max(0,Rows.Count-1),SelectedIndex+1);}
