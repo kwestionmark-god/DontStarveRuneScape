@@ -16,6 +16,7 @@ public sealed class InputManager
 
     /// <summary>Raised on every key-down event; routed by InputRouter based on GameState.</summary>
     public Action<Key>? KeyEvent;
+    public Action<char>? TextInputEvent;
 
     /// <summary>
     /// Initialize with the window.
@@ -94,7 +95,7 @@ public sealed class InputManager
 
     private void OnKeyChar(IKeyboard keyboard, char c)
     {
-        // Text input for chat, naming, etc.
+        TextInputEvent?.Invoke(c);
     }
 
     private void OnMouseDown(IMouse mouse, MouseButton button)

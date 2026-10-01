@@ -33,6 +33,21 @@ public sealed class InputRouter
         // Handle panel-specific input
         switch (_game.State)
         {
+            case GameState.Title:
+                if (key == Key.Up || key == Key.Down)
+                    _game.TitleScreen?.HandleKey(_game, key);
+                else if (key == Key.Enter || key == Key.Space)
+                    _game.TitleScreen?.HandleConfirm(_game);
+                else if (key == Key.Escape)
+                    _game.TitleScreen?.HandleBack(_game);
+                break;
+            case GameState.CharacterSelect:
+                _game.CharacterSelectPanel?.HandleKey(_game, key);
+                break;
+            case GameState.Error:
+                if (key == Key.Escape || key == Key.Enter || key == Key.Space)
+                    _game.SetState(GameState.Title);
+                break;
             case GameState.Playing:
                 HandlePlayingInput(key);
                 break;
@@ -118,7 +133,7 @@ public sealed class InputRouter
                 break;
             case GameState.SettingsPanel:
                 if (key == Key.Escape || key == Key.Q)
-                    _game.SetState(GameState.Paused);
+                    _game.SetState(_game.SettingsPanel?.ReturnState ?? GameState.Paused);
                 else if (key == Key.Up || key == Key.Down || key == Key.Left
                     || key == Key.Right || key == Key.Enter || key == Key.Space)
                     _game.SettingsPanel?.HandleKey(key);

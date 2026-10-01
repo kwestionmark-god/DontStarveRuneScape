@@ -131,6 +131,7 @@ public sealed class Game
 
     /// <summary>Raised when display settings change; Program.cs applies them to the window.</summary>
     public Action<ConfSettings>? DisplaySettingsChanged;
+    public Action? RequestExit;
 
     // Build mode (PLAYING sub-state)
     public bool BuildMode { get; set; }
@@ -170,6 +171,9 @@ public sealed class Game
         PauseMenu = new PauseMenu(this);
         SettingsPanel = new SettingsPanel();
         _bootstrap = new Bootstrap(this, null);
+        InputRouter = new InputRouter(this, new InteractSystem(this), new FireInteraction(this), new NPCFlows(this));
+        InputManager.KeyEvent = InputRouter.Handle;
+        InputManager.TextInputEvent = c => { if (State == GameState.CharacterSelect) CharacterSelectPanel?.HandleTextInput(c); };
     }
 
     public void InitializeGraphics(Silk.NET.OpenGL.GL gl)
@@ -278,7 +282,7 @@ public sealed class Game
                 if (CharacterSelectPanel == null)
                 {
                     CharacterSelectPanel = new CharacterSelectPanel();
-                    CharacterSelectPanel.SetConfirmCallback(_ => { /* handled via event */ });
+                    CharacterSelectPanel.SetConfirmCallback(def => StartNewGame(def?.Name ?? "Survivor"));
                 }
                 CharacterSelectPanel.Visible = true;
                 break;
@@ -390,6 +394,43 @@ public sealed class Game
     {
         if (Settings != null)
             DisplaySettingsChanged?.Invoke(Settings);
+    }
+
+    public void OpenSettings(GameState returnState)
+    {
+        if (SettingsPanel == null) return;
+        SettingsPanel.ReturnState = returnState;
+        SetState(GameState.SettingsPanel);
+    }
+
+    public void StartLoadingSave(int slot)
+    {
+        _worldGenError = null;
+        _worldGenResult = null;
+        LoadingProgress = 0;
+        _worldGenThread = null;
+        _bootstrap = new Bootstrap(this, slot);
+        SetState(GameState.LoadingSave);
+    }
+
+    private void StartNewGame(string name)
+    {
+        PendingCharacterDef = new SurvCharDef { Name = name };
+        Seed = Random.Shared.Next(1, int.MaxValue);
+        PlayTime = 0;
+        DeathCount = 0;
+        LoadingProgress = 0;
+        _worldGenError = null;
+        _worldGenResult = null;
+        _bootstrap = new Bootstrap(this, null);
+        SetState(GameState.Loading);
+    }
+
+    internal void RestoreSaveMetadata(SaveData data)
+    {
+        PlayTime = data.PlayTime;
+        DeathCount = data.DeathCount;
+        if (Player != null) Player.Name = string.IsNullOrWhiteSpace(data.CharacterName) ? "Survivor" : data.CharacterName;
     }
 
     /// <summary>
@@ -573,12 +614,10 @@ public sealed class Game
             }
         }
 
-        if (State == GameState.Title)
-        {
-            var input = InputManager?.InputState;
-            if (input != null && (input.Confirm || input.MouseLeftClick))
-                SetState(GameState.Loading);
-        }
+        if (State == GameState.Title && TitleScreen != null && InputManager != null)
+            TitleScreen.Update(this, InputManager.InputState, _lastScreenW, _lastScreenH);
+        if (State == GameState.CharacterSelect && CharacterSelectPanel != null && InputManager != null)
+            CharacterSelectPanel.Update(this, InputManager.InputState, _lastScreenW, _lastScreenH);
 
         // Gameplay update: the world keeps running under panels (panel states
         // draw over the live world); input-driven movement and camera stay
@@ -860,15 +899,19 @@ public sealed class Game
         switch (State)
         {
             case GameState.Title:
-                TitleScreen?.Render(batch, TextRenderer, screenWidth, screenHeight, PlayTime);
+                TitleScreen?.Render(batch, TextRenderer, screenWidth, screenHeight, PlayTime, this);
                 break;
             case GameState.CharacterSelect:
-                CharacterSelectPanel?.Render(batch, screenWidth, screenHeight);
+                CharacterSelectPanel?.Render(batch, TextRenderer, screenWidth, screenHeight, PlayTime);
+                break;
+            case GameState.SettingsPanel when SettingsPanel?.ReturnState == GameState.Title:
+                TitleScreen?.Render(batch, TextRenderer, screenWidth, screenHeight, PlayTime, this);
+                SettingsPanel?.Render(batch, TextRenderer, screenWidth, screenHeight);
                 break;
             case GameState.Loading:
             case GameState.LoadingSave:
             case GameState.Error:
-                LoadingScreen?.Render(batch, this, screenWidth, screenHeight);
+                LoadingScreen?.Render(batch, TextRenderer, this, screenWidth, screenHeight);
                 break;
             default:
                 RenderGame(gl, batch, screenWidth, screenHeight);
@@ -1411,7 +1454,7 @@ public sealed class Game
 
     // Internal methods for bootstrap
     internal void SetWorldGenThread(System.Threading.Thread thread) => _worldGenThread = thread;
-    internal void SetWorldGenResult(string result) => _worldGenResult = result;
+    internal void SetWorldGenResult(string? result) => _worldGenResult = result;
     internal void SetWorldGenError(string error) => _worldGenError = error;
     internal string? GetWorldGenError() => _worldGenError;
     internal float GetLoadingProgress() => LoadingProgress;

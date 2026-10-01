@@ -26,6 +26,7 @@ public sealed class Bootstrap
 {
     private readonly Game _game;
     private readonly int? _saveSlot;
+    private SaveData? _pendingSaveData;
 
     public Bootstrap(Game game, int? saveSlot)
     {
@@ -90,6 +91,8 @@ public sealed class Bootstrap
                 float startX = (tileMap.SpawnX + 0.5f) * Constants.TileSize;
                 float startY = (tileMap.SpawnY + 0.5f) * Constants.TileSize;
                 var player = new Player(startX, startY);
+                if (_game.PendingCharacterDef != null)
+                    player.Name = _game.PendingCharacterDef.Name;
 
                 // Initialize subsystems
                 InitializeSubsystems(tileMap, player, dataLoader);
@@ -98,6 +101,12 @@ public sealed class Bootstrap
                 _game.World = tileMap;
                 _game.Player = player;
                 _game.ResourceRegistry = resourceRegistry;
+                if (_pendingSaveData != null && _game.SaveSystem != null)
+                {
+                    _game.SaveSystem.LoadIntoGame(_pendingSaveData, _game);
+                    _game.RestoreSaveMetadata(_pendingSaveData);
+                    _pendingSaveData = null;
+                }
                 _game.SetWorldGenResult("success");
             }
             catch (System.Exception ex)
@@ -118,8 +127,9 @@ public sealed class Bootstrap
             var saveData = _game.SaveSystem.Load(_saveSlot.Value);
             if (saveData != null)
             {
-                // Restore game state from save
-                _game.SetWorldGenResult("success");
+                _pendingSaveData = saveData;
+                _game.Seed = saveData.Seed;
+                BeginWorldGen();
             }
             else
             {

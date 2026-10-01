@@ -56,11 +56,22 @@ public sealed class SaveSystem
     /// </summary>
     public SaveData? Load(int slot)
     {
-        string path = GetSlotPath(slot);
-        if (!File.Exists(path)) return null;
+        try
+        {
+            string path = GetSlotPath(slot);
+            if (!File.Exists(path)) return null;
 
-        string json = File.ReadAllText(path);
-        return JsonSerializer.Deserialize<SaveData>(json);
+            string json = File.ReadAllText(path);
+            return JsonSerializer.Deserialize<SaveData>(json);
+        }
+        catch (IOException)
+        {
+            return null;
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
     }
 
     /// <summary>
@@ -103,6 +114,7 @@ public sealed class SaveSystem
                     Seed = data?.Seed ?? 0,
                     PlayTime = data?.PlayTime ?? 0,
                     DeathCount = data?.DeathCount ?? 0,
+                    CharacterName = data?.CharacterName ?? "Survivor",
                 });
             }
             else
@@ -121,6 +133,7 @@ public sealed class SaveSystem
         {
             Version = 1,
             Seed = game.Seed,
+            CharacterName = game.Player?.Name ?? "Survivor",
             DeathCount = game.DeathCount,
             PlayTime = game.PlayTime,
             Timestamp = DateTime.UtcNow,
@@ -246,6 +259,7 @@ public sealed class SaveData
 {
     public int Version { get; set; }
     public int Seed { get; set; }
+    public string CharacterName { get; set; } = "Survivor";
     public int DeathCount { get; set; }
     public float PlayTime { get; set; }
     public DateTime Timestamp { get; set; }
@@ -274,6 +288,7 @@ public sealed class SaveSlotInfo
     public int Seed { get; set; }
     public float PlayTime { get; set; }
     public int DeathCount { get; set; }
+    public string CharacterName { get; set; } = "Survivor";
     public bool HasData => LastModified != DateTime.MinValue;
 }
 

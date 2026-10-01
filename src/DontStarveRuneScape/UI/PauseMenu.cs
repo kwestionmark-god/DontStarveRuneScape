@@ -82,7 +82,7 @@ public sealed class PauseMenu
                 _game.SetState(GameState.Playing);
                 break;
             case 1: // Settings
-                _game.SetState(GameState.SettingsPanel);
+                _game.OpenSettings(GameState.Paused);
                 break;
             case 2: // Save Game
                 _game.SaveSystem?.Save(_game, 0);

@@ -61,6 +61,7 @@ public static class Program
             options.WindowBorder = WindowBorder.Hidden;
 
         var window = Window.Create(options);
+        game.RequestExit = () => window.Close();
         game.DisplaySettingsChanged = s => ApplyDisplay(window, s);
 
         window.Load += () =>

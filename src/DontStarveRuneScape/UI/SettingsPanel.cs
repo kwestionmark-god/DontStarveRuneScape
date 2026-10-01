@@ -17,6 +17,7 @@ public sealed class SettingsPanel
 {
     public bool Visible { get; set; } = false;
     public int SelectedIndex { get; private set; }
+    public GameState ReturnState { get; set; } = GameState.Paused;
 
     private const string VideoSection = "VIDEO";
 
@@ -164,7 +165,7 @@ public sealed class SettingsPanel
         }
         else if (ui.TryClick(_backX, _btnY, BtnW, BtnH))
         {
-            _game?.SetState(GameState.Paused);
+            _game?.SetState(ReturnState);
         }
     }
 

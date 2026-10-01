@@ -25,6 +25,7 @@ using DontStarveRuneScape.Data;
 /// </summary>
 public sealed class Player
 {
+    public string Name { get; set; } = "Survivor";
     // Movement state
     public float WorldX { get; set; }
     public float WorldY { get; set; }
