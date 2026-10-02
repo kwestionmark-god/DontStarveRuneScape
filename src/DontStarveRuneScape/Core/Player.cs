@@ -34,6 +34,11 @@ public sealed class Player
     public float TargetY { get; set; }
     public bool Moving { get; set; }
 
+    /// <summary>Horizontal facing for the carried-equipment visual:
+    /// +1 right, -1 left. Follows the last horizontal move direction and the
+    /// attack target.</summary>
+    public float Facing { get; set; } = 1f;
+
     // Subsystem references (wired by Bootstrap)
     public ActionSystem? ActionSystem { get; set; }
     public PlayerGear? Gear { get; set; }
@@ -117,6 +122,10 @@ public sealed class Player
         WorldX += dx * EffectiveSpeed * dt;
         WorldY += dy * EffectiveSpeed * dt;
 
+        // Facing follows the last horizontal move direction.
+        if (dx > 0.001f) Facing = 1f;
+        else if (dx < -0.001f) Facing = -1f;
+
         // Clamp to map bounds
         float maxX = Constants.MapWidth * Constants.TileSize;
         float maxY = Constants.MapHeight * Constants.TileSize;
@@ -136,6 +145,10 @@ public sealed class Player
         float dx = TargetX - WorldX;
         float dy = TargetY - WorldY;
         float distance = MathF.Sqrt(dx * dx + dy * dy);
+
+        // Facing follows the click-to-move direction.
+        if (dx > 0.001f) Facing = 1f;
+        else if (dx < -0.001f) Facing = -1f;
 
         if (distance < 2.0f)  // Reached target (2px tolerance)
         {

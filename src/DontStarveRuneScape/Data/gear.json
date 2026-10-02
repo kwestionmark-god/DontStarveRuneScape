@@ -285,6 +285,45 @@
       "sprite_key": "items/pickaxe",
       "tier": 1,
       "durability": 100
+    },
+    "stone_axe": {
+      "item_id": "stone_axe",
+      "name": "Stone Axe",
+      "gear_type": "tool",
+      "damage": 3,
+      "attack_bonus": 1,
+      "defence_bonus": 0,
+      "speed_bonus": -0.1,
+      "required_combat_level": 1,
+      "sprite_key": "items/stone_axe",
+      "tier": 1,
+      "durability": 100
+    },
+    "stone_pickaxe": {
+      "item_id": "stone_pickaxe",
+      "name": "Stone Pickaxe",
+      "gear_type": "tool",
+      "damage": 2,
+      "attack_bonus": 1,
+      "defence_bonus": 0,
+      "speed_bonus": -0.1,
+      "required_combat_level": 1,
+      "sprite_key": "items/stone_pickaxe",
+      "tier": 1,
+      "durability": 100
+    },
+    "torch": {
+      "item_id": "torch",
+      "name": "Torch",
+      "gear_type": "tool",
+      "damage": 1,
+      "attack_bonus": 0,
+      "defence_bonus": 0,
+      "speed_bonus": 0.0,
+      "required_combat_level": 1,
+      "sprite_key": "items/torch",
+      "tier": 1,
+      "durability": 100
     }
   }
 }

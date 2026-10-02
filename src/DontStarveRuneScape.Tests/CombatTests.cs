@@ -66,6 +66,17 @@ public class CombatTests
     }
 
     [Fact]
+    public void PlayerAttack_FacesTheTarget()
+    {
+        var (system, player, inv, skills) = MakeCombat(200f, 100f);
+        system.SpawnMonster(TestMonsterDef(), 260f, 100f); // to the right
+
+        system.PlayerAttack(player, inv, skills);
+
+        Assert.Equal(1f, player.Facing);
+    }
+
+    [Fact]
     public void PlayerAttack_UsesEquippedWeaponDamage()
     {
         var (system, player, inv, skills) = MakeCombat(200f, 100f);

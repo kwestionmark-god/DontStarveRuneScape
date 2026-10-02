@@ -178,8 +178,11 @@ public sealed class Bootstrap
         _game.Inventory = new Inventory();
         _game.Inventory.StackSizes = Inventory.StackSizesFromData(dataLoader.ItemsData);
 
-        // Apply starter pack
-        StarterPack.ApplyStarterPack(_game.Inventory, "default");
+        // Apply starter pack; the gear slots are created first so the starter
+        // tool/torch sync into PlayerGear and render on the character.
+        var starterGear = new Data.PlayerGear();
+        player.Gear = starterGear;
+        StarterPack.ApplyStarterPack(_game.Inventory, "default", starterGear);
 
         // Crafting
         _game.Crafting = new CraftingSystem();
@@ -330,6 +333,5 @@ public sealed class Bootstrap
         player.Inventory = _game.Inventory;
         player.Survival = _game.Survival;
         player.WeatherSystem = _game.WeatherSystem;
-        player.Gear = new Data.PlayerGear();
     }
 }

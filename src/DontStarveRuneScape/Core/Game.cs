@@ -649,7 +649,7 @@ public sealed class Game
             && InputManager != null)
         {
             InventoryPanel.Update(InputManager.InputState, Inventory, Player?.Survival, FoodRegistry,
-                _lastScreenW, _lastScreenH);
+                _lastScreenW, _lastScreenH, Player?.Gear);
         }
 
         if (State == GameState.CraftingPanel && CraftingPanel != null && Crafting != null
@@ -739,6 +739,10 @@ public sealed class Game
             if (actionSys != null)
             {
                 var result = actionSys.Update(dt);
+                // A completed action swings the equipped weapon-slot item
+                // (weapons/tools/torch).
+                if (result != null && Player.Gear?.Weapon != null)
+                    SpriteRenderer?.TriggerPlayerSwing();
                 actionSys.ProcessCompletion(result, Inventory, SkillManager, FoodRegistry);
                 if (result?.ItemId is not null && result.Quantity > 0)
                     QuestSystem?.NotifyCollect(result.ItemId, result.Quantity);
@@ -823,6 +827,10 @@ public sealed class Game
         if (Player.Inventory == null || Player.SkillManager == null) return;
 
         var result = CombatSystem.PlayerAttack(Player, Player.Inventory, Player.SkillManager);
+        // The swing plays on every real attack (hit or miss-roll), not on the
+        // cooldown/no-target rejections above.
+        if (result.Success)
+            SpriteRenderer?.TriggerPlayerSwing();
         if (Player.ActionSystem != null)
             Player.ActionSystem.AddNotification(result.Message,
                 result.Success ? ((byte)100, (byte)255, (byte)100) : ((byte)255, (byte)150, (byte)100));

@@ -16,10 +16,12 @@ using DontStarveRuneScape.NPC;
 /// <summary>
 /// InventoryPanel — 20-slot inventory grid (4 columns x 5 rows) with a detail
 /// block for the selected slot: real item sprite (glyph-chip fallback),
-/// quantity vs stack size, equipped marker, food stats, and a spoilage bar.
-/// Food items get an EAT button that consumes one and applies its hunger/hp
-/// values via SurvivalSystem. Layout is computed in Layout() from the screen
-/// size alone, so Update (hit-testing) and Render stay consistent.
+/// quantity vs stack size, equipped marker, gear stats, food stats, and a
+/// spoilage bar. Food items get an EAT button; equippable items (present in
+/// gear.json) get an EQUIP/UNEQUIP button (and Enter toggles) that drive the
+/// shared equip path, keeping the inventory flag and PlayerGear in sync.
+/// Layout is computed in Layout() from the screen size alone, so Update (hit-testing)
+/// and Render stay consistent.
 /// </summary>
 public sealed class InventoryPanel
 {
@@ -33,6 +35,7 @@ public sealed class InventoryPanel
     private const float SlotSize = 64f;
     private const float SlotGap = 8f;
     private const float EatW = 150f, EatH = 30f;
+    private const float EquipW = 150f, EquipH = 30f;
 
     // Cached absolute rects (set by Layout, which Update and Render both call).
     private float _cx, _cy;                    // content rect origin
@@ -40,12 +43,13 @@ public sealed class InventoryPanel
     private readonly float[] _slotY = new float[SlotCount];
     private float _detailX, _detailY;
     private float _eatX, _eatY;
+    private float _equipX, _equipY;
 
     // Last eat result line, cleared when the selection changes.
     private string? _status;
     private bool _statusOk;
 
-    public void HandleKey(Key key)
+    public void HandleKey(Key key, Inventory inventory, PlayerGear? gear)
     {
         if (key == Key.Up)
             SelectedIndex = (SelectedIndex + SlotCount - Cols) % SlotCount;
@@ -55,14 +59,29 @@ public sealed class InventoryPanel
             SelectedIndex = (SelectedIndex + SlotCount - 1) % SlotCount;
         else if (key == Key.Right)
             SelectedIndex = (SelectedIndex + 1) % SlotCount;
+        else if (key == Key.Enter)
+        {
+            // Enter toggles the selected item's equipped state (gear items only),
+            // through the same path the EQUIP button and the gear panel use.
+            if (inventory.Slots[SelectedIndex] is { ItemId: not null, Quantity: > 0 } slot
+                && Data.GearItem.LoadAll().ContainsKey(slot.ItemId))
+            {
+                bool wasEquipped = slot.IsEquipped;
+                GearPanel.ToggleEquip(inventory, gear, slot.ItemId);
+                _status = wasEquipped ? $"Unequipped {NameOf(slot.ItemId)}."
+                                      : $"Equipped {NameOf(slot.ItemId)}.";
+                _statusOk = true;
+            }
+        }
         else
             return;
-        _status = null;
+        if (key != Key.Enter)
+            _status = null;
     }
 
     /// <summary>Mouse handling; call once per frame from Game.Update while open.</summary>
     public void Update(InputState input, Inventory inventory, Survival.SurvivalSystem? survival,
-        Survival.FoodRegistry? foods, int screenW, int screenH)
+        Survival.FoodRegistry? foods, int screenW, int screenH, PlayerGear? gear = null)
     {
         Layout(screenW, screenH);
         var ui = new UiInput(input);
@@ -93,6 +112,19 @@ public sealed class InventoryPanel
                 _status = survival.Eat(food);
                 _statusOk = true;
             }
+        }
+
+        // EQUIP/UNEQUIP: toggle the selected item's equipped state (gear items
+        // only), keeping the inventory flag and the PlayerGear slot in sync.
+        if (ui.TryClick(_equipX, _equipY, EquipW, EquipH)
+            && inventory.Slots[SelectedIndex] is { ItemId: not null, Quantity: > 0 } equipSlot
+            && Data.GearItem.LoadAll().ContainsKey(equipSlot.ItemId))
+        {
+            bool wasEquipped = equipSlot.IsEquipped;
+            GearPanel.ToggleEquip(inventory, gear, equipSlot.ItemId);
+            _status = wasEquipped ? $"Unequipped {NameOf(equipSlot.ItemId)}."
+                                  : $"Equipped {NameOf(equipSlot.ItemId)}.";
+            _statusOk = true;
         }
     }
 
@@ -189,6 +221,16 @@ public sealed class InventoryPanel
         if (slot.IsEquipped)
             DrawLeft(batch, text, "Equipped", _detailX, _detailY + 148f, 14, 200, 170, 60, bold: true);
 
+        // Gear stats for equippable items (present in gear.json).
+        var gearItem = Data.GearItem.LoadAll().TryGetValue(id, out var gi) ? gi : null;
+        if (gearItem != null)
+        {
+            string stats = gearItem.Slot == "weapon"
+                ? $"Damage {gearItem.Damage:0}, Atk +{gearItem.AttackBonus:0}"
+                : $"Defence +{gearItem.DefenceBonus:0}";
+            DrawLeft(batch, text, stats, _detailX, _detailY + 172f, 13, 200, 190, 160);
+        }
+
         if (display is { IsFood: true })
         {
             string foodLine = $"Food: +{(int)display.HungerRestore} hunger, {(int)display.HpRestore} hp";
@@ -199,6 +241,18 @@ public sealed class InventoryPanel
                 PanelChrome.BorderR, PanelChrome.BorderG, PanelChrome.BorderB);
             batch.DrawScreenQuad(_eatX + EatW * 0.5f, _eatY + EatH * 0.5f, EatW * 0.5f, EatH * 0.5f, 30, 20, 10);
             text.DrawText(batch, "EAT", _eatX + EatW * 0.5f, _eatY + EatH * 0.5f, 15,
+                PanelChrome.BorderR, PanelChrome.BorderG, PanelChrome.BorderB, bold: true);
+        }
+
+        // EQUIP/UNEQUIP button for equippable items (present in gear.json);
+        // toggles through the shared path so PlayerGear stays in sync.
+        if (gearItem != null)
+        {
+            string equipLabel = slot.IsEquipped ? "UNEQUIP" : "EQUIP";
+            batch.DrawScreenQuad(_equipX + EquipW * 0.5f, _equipY + EquipH * 0.5f, EquipW * 0.5f + 2f, EquipH * 0.5f + 2f,
+                PanelChrome.BorderR, PanelChrome.BorderG, PanelChrome.BorderB);
+            batch.DrawScreenQuad(_equipX + EquipW * 0.5f, _equipY + EquipH * 0.5f, EquipW * 0.5f, EquipH * 0.5f, 30, 20, 10);
+            text.DrawText(batch, equipLabel, _equipX + EquipW * 0.5f, _equipY + EquipH * 0.5f, 14,
                 PanelChrome.BorderR, PanelChrome.BorderG, PanelChrome.BorderB, bold: true);
         }
 
@@ -246,6 +300,9 @@ public sealed class InventoryPanel
     private static string PrettifyId(string id) =>
         id.Replace('_', ' ');
 
+    private static string NameOf(string id) =>
+        Data.ItemCatalog.Get(id)?.Name ?? PrettifyId(id);
+
     private void Layout(int screenW, int screenH)
     {
         float plateH = ContentH + 32f + 34f;
@@ -266,6 +323,8 @@ public sealed class InventoryPanel
 
         _eatX = _detailX;
         _eatY = _detailY + 258f;
+        _equipX = _eatX + EatW + 12f;
+        _equipY = _eatY;
     }
 
     private static void DrawLeft(PrimitiveBatch batch, TextRenderer text, string s,
@@ -1228,8 +1287,9 @@ public sealed class GearPanel
     }
 
     // Equip/unequip keeps both sources of truth in sync: the inventory slot
-    // flag and the PlayerGear slot.
-    private static void ToggleEquip(Inventory inventory, PlayerGear? gear, string itemId)
+    // flag and the PlayerGear slot. Shared with InventoryPanel so both panels
+    // drive the same path. Internal for tests.
+    internal static void ToggleEquip(Inventory inventory, PlayerGear? gear, string itemId)
     {
         if (gear == null) return;
         if (!Data.GearItem.LoadAll().TryGetValue(itemId, out var gearItem)) return;
@@ -1253,6 +1313,16 @@ public sealed class GearPanel
         {
             inventory.EquipItem(itemId);
             gear.Equip(gearItem);
+            // Equipping into a slot retires the previous occupant: clear the
+            // replaced item's equipped flag (e.g. an axe replaces a torch in
+            // the weapon slot) so the flag agrees with PlayerGear.
+            var registry = Data.GearItem.LoadAll();
+            foreach (var slot in inventory.Slots)
+            {
+                if (!slot.IsEquipped || slot.ItemId == null || slot.ItemId == itemId) continue;
+                if (registry.TryGetValue(slot.ItemId, out var other) && other.Slot == gearItem.Slot)
+                    slot.IsEquipped = false;
+            }
         }
     }
 

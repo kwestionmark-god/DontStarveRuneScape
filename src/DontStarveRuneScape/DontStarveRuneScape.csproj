@@ -17,6 +17,11 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <!-- Test assembly can drive internal panel helpers (GearPanel.ToggleEquip). -->
+    <InternalsVisibleTo Include="DontStarveRuneScape.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
     <!-- SDL2 and OpenGL bindings via Silk.NET -->
     <PackageReference Include="Silk.NET.SDL" Version="2.22.0" />
     <PackageReference Include="Silk.NET.OpenGL" Version="2.22.0" />

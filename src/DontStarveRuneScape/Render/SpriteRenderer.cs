@@ -146,9 +146,24 @@ public sealed class SpriteRenderer : IDisposable
 
     private float _playerAnimTime;
 
+    // Swing arc for the carried weapon-slot item (attack/chop/mine). Purely
+    // visual state: TriggerPlayerSwing starts the arc, RenderPlayer animates
+    // it over the duration.
+    private float _swingRemaining;
+    private float _swingTotal = 1f;
+
+    public void TriggerPlayerSwing(float duration = 0.3f)
+    {
+        _swingRemaining = duration;
+        _swingTotal = duration;
+    }
+
     public void RenderPlayer(Player player, PrimitiveBatch batch, Camera camera, float elevation, float dt, float waterDepth = 0f)
     {
         _playerAnimTime += dt;
+        _swingRemaining = MathF.Max(0f, _swingRemaining - dt);
+        // Arc progress 0→1 across the swing; 0 when resting.
+        float swing = _swingRemaining > 0f ? 1f - _swingRemaining / _swingTotal : 0f;
         bool moving = player.Moving;
         // Walk cycles run a bit faster than the idle bob.
         float frameDuration = moving ? 0.12f : 0.3f;
@@ -164,6 +179,11 @@ public sealed class SpriteRenderer : IDisposable
         float cx = screen.X;
         float cy = screen.Y - half;
 
+        // Carried cape renders behind the body.
+        var cape = player.Gear?.GetEquipped("cape");
+        if (cape != null)
+            RenderCarried(batch, cape, cx, cy, half, player.Facing, behind: true, swing: 0f);
+
         DrawShadow(batch, screen.X, screen.Y, half, 220);
 
         if (tex != 0)
@@ -175,6 +195,21 @@ public sealed class SpriteRenderer : IDisposable
             batch.DrawScreenQuad(cx, cy, half, half, 60, 120, 220);
         }
 
+        // Carried equipment in front of the body: the weapon-slot item at the
+        // leading hand (swinging during actions), armor overlays by slot.
+        var gear = player.Gear;
+        if (gear != null)
+        {
+            if (gear.Weapon != null)
+                RenderCarried(batch, gear.Weapon, cx, cy, half, player.Facing, behind: false, swing);
+            foreach (var slotName in CarriedSlots)
+            {
+                var item = gear.GetEquipped(slotName);
+                if (item != null)
+                    RenderCarried(batch, item, cx, cy, half, player.Facing, behind: false, swing: 0f);
+            }
+        }
+
         // Waterline overlay: the submerged lower body sits under a translucent
         // band of sea-colored water, taller the deeper the water.
         if (waterDepth > 0.2f)
@@ -184,6 +219,96 @@ public sealed class SpriteRenderer : IDisposable
             byte a = (byte)Math.Clamp(45 + waterDepth * 22f, 0f, 100f);
             batch.DrawScreenQuad(cx, cy + half - stripHalf, half * 0.6f, stripHalf, 70, 130, 195, a);
         }
+    }
+
+    private static readonly string[] CarriedSlots =
+        { "head", "chest", "legs", "boots", "gloves", "shield", "ammo" };
+
+    // Mount offsets per slot, relative to the sprite center (cx, cy) at half
+    // size: (dx, dy, size, baseTiltDeg). dx faces right; mirrored for facing
+    // left. Hand items ride the leading hand tilted up-forward, armor overlays
+    // the body, the cape hangs off the trailing side, ammo rides the back.
+    private static (float Dx, float Dy, float Size, float Tilt) MountOf(string slot) => slot switch
+    {
+        "weapon" => (0.50f, 0.10f, 0.60f, 30f),
+        "head"   => (0f,    -0.55f, 0.55f, 0f),
+        "chest"  => (0f,     0.08f, 0.85f, 0f),
+        "legs"   => (0f,     0.42f, 0.60f, 0f),
+        "boots"  => (0f,     0.72f, 0.55f, 0f),
+        "gloves" => (0.45f,  0.18f, 0.40f, 0f),
+        "shield" => (-0.55f, 0.10f, 0.50f, 0f),
+        "ammo"   => (-0.30f, -0.15f, 0.40f, 0f),
+        _        => (0f,     0f,    0.50f, 0f),
+    };
+
+    private void RenderCarried(PrimitiveBatch batch, Data.GearItem item, float cx, float cy, float half,
+        float facing, bool behind, float swing)
+    {
+        // Sprite: catalog display key first, then the gear.json key, then the
+        // item id — GetSpriteTexture caches misses, so fallbacks are free.
+        var display = Data.ItemCatalog.Get(item.Id);
+        uint tex = GetSpriteTexture(display?.SpriteKey ?? item.SpriteKey);
+        if (tex == 0 && item.SpriteKey != item.Id)
+            tex = GetSpriteTexture(item.Id);
+        if (tex == 0) return;
+
+        var (dx, dy, size, tilt) = MountOf(item.Slot.ToLowerInvariant());
+        float itemHalf = size * half;
+
+        if (behind)
+        {
+            // Cape: hangs off the trailing side, mirrored with the facing.
+            float bx = cx - facing * dx * half;
+            DrawRotatedTexturedQuad(batch, bx, cy + dy * half, itemHalf, itemHalf, 0f, tex,
+                mirror: facing < 0);
+            return;
+        }
+
+        if (item.Slot.ToLowerInvariant() == "weapon")
+        {
+            // Hand items pivot at the grip: the sprite center sits a lever
+            // arm above the hand along the item's tilted axis. The swing arc
+            // sweeps the item down-forward through the target and back.
+            const float SwingArcDeg = 75f;
+            float angleDeg = tilt + SwingArcDeg * MathF.Sin(MathF.PI * swing);
+            float angle = angleDeg * (MathF.PI / 180f) * facing;
+            float pivotX = cx + facing * dx * half;
+            float pivotY = cy + dy * half;
+            float lever = itemHalf * 0.45f;
+            float itemX = pivotX + lever * MathF.Sin(angle);
+            float itemY = pivotY - lever * MathF.Cos(angle);
+            DrawRotatedTexturedQuad(batch, itemX, itemY, itemHalf, itemHalf, angle, tex,
+                mirror: facing < 0);
+            return;
+        }
+
+        // Armor overlays: fixed slot position, mirrored with the facing.
+        DrawRotatedTexturedQuad(batch, cx + facing * dx * half, cy + dy * half, itemHalf, itemHalf, 0f, tex,
+            mirror: facing < 0);
+    }
+
+    /// <summary>Draw a texture as a rotated (and optionally horizontally
+    /// mirrored) quad. Angle is radians in screen space (y down, positive
+    /// rotates clockwise visually). Mirroring swaps the corner order so the
+    /// image flips without a new shader path.</summary>
+    private static void DrawRotatedTexturedQuad(PrimitiveBatch batch, float cx, float cy,
+        float halfW, float halfH, float angle, uint tex, bool mirror = false, byte alpha = 255)
+    {
+        float cos = MathF.Cos(angle), sin = MathF.Sin(angle);
+        (float X, float Y) Rot(float lx, float ly) =>
+            (cx + lx * cos - ly * sin, cy + lx * sin + ly * cos);
+
+        var bl = Rot(-halfW, halfH);
+        var br = Rot(halfW, halfH);
+        var tr = Rot(halfW, -halfH);
+        var tl = Rot(-halfW, -halfH);
+
+        if (mirror)
+            batch.DrawScreenQuadCornersTextured(br.X, br.Y, bl.X, bl.Y, tl.X, tl.Y, tr.X, tr.Y,
+                tex, 255, 255, 255, alpha);
+        else
+            batch.DrawScreenQuadCornersTextured(bl.X, bl.Y, br.X, br.Y, tr.X, tr.Y, tl.X, tl.Y,
+                tex, 255, 255, 255, alpha);
     }
 
     public void RenderMonster(Monster monster, PrimitiveBatch batch, Camera camera, float elevation = 0f)

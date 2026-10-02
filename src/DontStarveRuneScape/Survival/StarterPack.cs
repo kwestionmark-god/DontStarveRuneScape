@@ -1,6 +1,7 @@
 namespace DontStarveRuneScape.Survival;
 
 using System.Collections.Generic;
+using DontStarveRuneScape.Data;
 using DontStarveRuneScape.Inventory;
 
 /// <summary>
@@ -51,8 +52,10 @@ public static class StarterPack
     /// </summary>
     /// <param name="inventory">The player's inventory to populate.</param>
     /// <param name="packId">Which starter pack to apply.</param>
+    /// <param name="gear">Optional gear slots to sync the starter tool/torch
+    /// into, so the equipped starter item renders on the character.</param>
     /// <returns>True if all items were added successfully.</returns>
-    public static bool ApplyStarterPack(Inventory inventory, string packId = "default")
+    public static bool ApplyStarterPack(Inventory inventory, string packId = "default", Data.PlayerGear? gear = null)
     {
         var (toolItem, torchItem, foodItem) = GetStarterPack(packId);
 
@@ -61,10 +64,22 @@ public static class StarterPack
         success = success && inventory.AddItem(torchItem, 1);
         success = success && inventory.AddItem(foodItem, 1);
 
-        // Auto-equip the tool
+        // Auto-equip the tool (and the torch when it differs) — both the
+        // inventory flag and the PlayerGear slot. The tool syncs last so it
+        // wins the shared weapon slot (e.g. the forester's axe over the torch).
         if (!string.IsNullOrEmpty(toolItem))
             inventory.EquipItem(toolItem);
+        if (!string.IsNullOrEmpty(torchItem) && torchItem != toolItem)
+            EquipIntoGear(gear, torchItem);
+        EquipIntoGear(gear, toolItem);
 
         return success;
+    }
+
+    private static void EquipIntoGear(Data.PlayerGear? gear, string itemId)
+    {
+        if (gear == null || string.IsNullOrEmpty(itemId)) return;
+        if (GearItem.LoadAll().TryGetValue(itemId, out var item))
+            gear.Equip(item);
     }
 }

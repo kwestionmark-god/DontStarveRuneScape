@@ -198,6 +198,9 @@ public sealed class CombatSystem
         if (target == null)
             return new CombatHitResult { Success = false, Message = "No monster in reach." };
 
+        // Face the target so the carried weapon swings toward it.
+        player.Facing = target.WorldX >= player.WorldX ? 1f : -1f;
+
         float weapon = player.Gear?.GetWeaponDamage() ?? 1f;
         float bonus = player.Gear?.GetTotalAttackBonus() ?? 0f;
         int damage = Math.Max(1, (int)MathF.Round(weapon + bonus - target.Defence));
