@@ -55,6 +55,7 @@ public sealed class Game
 
     // World & Player
     public TileMap? World { get; set; }
+    public CaveWorldSystem? CaveWorlds { get; set; }
     public Player? Player { get; set; }
 
     // Subsystems
@@ -1155,6 +1156,26 @@ public sealed class Game
             // outside the frame, especially at shallow pitch).
             float cull = 96f * Camera.Zoom + 96f;
 
+            // A readable stone arch marks the surface entrance and the return
+            // point. It is painted in world space so it follows terrain height.
+            for (int x = xMin; x < xMax; x++)
+            for (int y = yMin; y < yMax; y++)
+            {
+                var caveTile = World.Tiles[x, y];
+                if (!caveTile.IsCaveEntrance && !caveTile.IsCaveExit) continue;
+                float cx = (caveTile.X + .5f) * Constants.TileSize;
+                float cy = (caveTile.Y + .5f) * Constants.TileSize;
+                float elevation = caveTile.GetElevationAt(.5f, .5f);
+                var screen = Camera.WorldToScreen(cx, cy, elevation);
+                float scale = Math.Clamp(Camera.Zoom, .55f, 1.4f);
+                drawables.Add((GetDepthSort(cx, cy, elevation) + .01f, seq++, () =>
+                {
+                    batch.DrawScreenQuad(screen.X, screen.Y - 12f * scale, 22f * scale, 16f * scale, 112, 91, 65);
+                    batch.DrawScreenQuad(screen.X, screen.Y - 10f * scale, 14f * scale, 12f * scale, 24, 19, 18);
+                    batch.DrawScreenQuad(screen.X, screen.Y + 2f * scale, 24f * scale, 4f * scale, 145, 118, 78);
+                }));
+            }
+
             for (int x = xMin; x < xMax; x++)
             {
                 for (int y = yMin; y < yMax; y++)
@@ -1211,7 +1232,7 @@ public sealed class Game
                     Player, batch, Camera, elev, Dt, imm)));
             }
 
-            if (CombatSystem != null)
+            if (!World.IsCave && CombatSystem != null)
             {
                 foreach (var monster in CombatSystem.Monsters)
                 {
@@ -1229,7 +1250,7 @@ public sealed class Game
                 }
             }
 
-            if (NPCSystem != null && Player != null)
+            if (!World.IsCave && NPCSystem != null && Player != null)
             {
                 var nearbyNpc = NPCSystem.CheckProximity(Player);
                 foreach (var npc in NPCSystem.NPCs)
@@ -1252,7 +1273,7 @@ public sealed class Game
                 }
             }
 
-            if (BuildingSystem != null)
+            if (!World.IsCave && BuildingSystem != null)
             {
                 foreach (var structure in BuildingSystem.Structures)
                 {
@@ -1272,7 +1293,7 @@ public sealed class Game
             if (BuildMode && Camera != null && World != null && BuildCursor.HasValue)
                 drawables.Add((float.MaxValue, seq++, () => RenderBuildGhost(batch)));
 
-            if (Firemaking != null)
+            if (!World.IsCave && Firemaking != null)
             {
                 foreach (var fire in Firemaking.GetActiveFires())
                 {
@@ -1292,7 +1313,11 @@ public sealed class Game
             drawFn();
 
         ParticleSystem?.Draw(gl);
-        SeasonalRenderer?.DrawAmbientOverlay(gl, 20);
+        if (World?.IsCave == true)
+            batch.DrawScreenQuad(screenWidth * .5f, screenHeight * .5f,
+                screenWidth * .5f, screenHeight * .5f, 13, 12, 21, 78);
+        else
+            SeasonalRenderer?.DrawAmbientOverlay(gl, 20);
 
         if (CombatSystem != null && Camera != null)
         {

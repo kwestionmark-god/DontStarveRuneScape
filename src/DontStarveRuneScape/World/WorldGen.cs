@@ -54,8 +54,40 @@ public static class WorldGen
         map.SpawnX = spawnX;
         map.SpawnY = spawnY;
 
+        PlaceCaveEntrance(map, seed, spawnX, spawnY);
+
         progressCallback?.Invoke(1.0f);
         return map;
+    }
+
+    private static void PlaceCaveEntrance(TileMap map, int seed, int spawnX, int spawnY)
+    {
+        var random = new Random(unchecked(seed ^ 0x4c3a71));
+        int bestX = spawnX, bestY = spawnY;
+        float bestScore = float.NegativeInfinity;
+        for (int i = 0; i < 700; i++)
+        {
+            int x = random.Next(8, map.Width - 8);
+            int y = random.Next(8, map.Height - 8);
+            var tile = map.Tiles[x, y];
+            if (tile.HasWater || tile.Elevation < Constants.SeaLevel + 2f || tile.Structure != null) continue;
+            float min = tile.Elevation, max = tile.Elevation;
+            for (int dx = -2; dx <= 2; dx++)
+            for (int dy = -2; dy <= 2; dy++)
+            {
+                var n = map.GetTile(x + dx, y + dy);
+                if (n == null || n.HasWater) { max = float.PositiveInfinity; break; }
+                min = Math.Min(min, n.Elevation);
+                max = Math.Max(max, n.Elevation);
+            }
+            if (!float.IsFinite(max) || max - min > 1.5f) continue;
+            float distanceFromSpawn = MathF.Sqrt((x - spawnX) * (x - spawnX) + (y - spawnY) * (y - spawnY));
+            float score = distanceFromSpawn + random.NextSingle() * 8f;
+            if (score > bestScore) { bestScore = score; bestX = x; bestY = y; }
+        }
+        var entrance = map.Tiles[bestX, bestY];
+        entrance.IsCaveEntrance = true;
+        entrance.ResourceNode = null;
     }
 
     /// <summary>

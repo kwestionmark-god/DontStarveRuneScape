@@ -35,6 +35,17 @@ public sealed class InteractSystem
         if (actionSys.Active.State == ActionState.Running)
             return; // Already busy
 
+        // Cave transitions take precedence over NPCs and resources.
+        var (playerTileX, playerTileY) = game.Player.GetTilePosition();
+        for (int dx = -1; dx <= 1; dx++)
+        for (int dy = -1; dy <= 1; dy++)
+        {
+            var caveTile = game.World.GetTile(playerTileX + dx, playerTileY + dy);
+            if (caveTile == null || (!caveTile.IsCaveEntrance && !caveTile.IsCaveExit)) continue;
+            game.CaveWorlds?.InteractWith(caveTile);
+            return;
+        }
+
         // NPC interaction: the nearest NPC opens its type-appropriate panel.
         if (game.NPCSystem != null && _npcFlows != null)
         {

@@ -14,6 +14,7 @@ public sealed class TileMap
     public int Height { get; }
     public int SpawnX { get; set; }
     public int SpawnY { get; set; }
+    public bool IsCave { get; set; }
     public Tile[,] Tiles { get; }
 
     /// <summary>

@@ -323,6 +323,7 @@ public sealed class Bootstrap
         // Player subsystems
         player.ActionSystem = new Actions.ActionSystem();
         player.ActionSystem.SetTileMap(tileMap);
+        _game.CaveWorlds = new CaveWorldSystem(_game);
         player.ActionSystem.WoodcuttingSkill = _game.Woodcutting;
         player.ActionSystem.MiningSkill = _game.Mining;
         player.ActionSystem.ForagingSkill = _game.Foraging;

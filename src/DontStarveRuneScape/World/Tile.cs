@@ -166,6 +166,8 @@ public sealed class Tile
     public BiomeDef? Biome { get; set; }
     public ResourceNode? ResourceNode { get; set; }
     public StructureDef? Structure { get; set; }      // Structure placed on this tile
+    public bool IsCaveEntrance { get; set; }
+    public bool IsCaveExit { get; set; }
     public bool HasStructure => Structure != null;
     public float Temperature { get; set; } = 20f;     // Celsius
     public float Fertility { get; set; } = 1.0f;      // 0-1, affects regrowth
