@@ -70,9 +70,6 @@ public sealed class SettingsPanel
         new("HUD", "Vitals window", 2,
             s => s.ShowVitalsWindow ? 1 : 0, (s, i) => s.ShowVitalsWindow = i == 1,
             (s, i) => i == 1 ? "ON" : "OFF"),
-        new("HUD", "Action window", 2,
-            s => s.ShowActionWindow ? 1 : 0, (s, i) => s.ShowActionWindow = i == 1,
-            (s, i) => i == 1 ? "ON" : "OFF"),
         new("HUD", "Notifications", 2,
             s => s.ShowNotifications ? 1 : 0, (s, i) => s.ShowNotifications = i == 1,
             (s, i) => i == 1 ? "ON" : "OFF"),
@@ -100,7 +97,7 @@ public sealed class SettingsPanel
     }
 
     private const float ContentW = 520f;
-    private const float ContentH = 424f;   // headers + rows + note + buttons
+    private const float ContentH = 394f;   // headers + rows + note + buttons
     private const float SectionHeaderH = 30f;
     private const float RowH = 30f;
     private const float BtnW = 160f, BtnH = 30f;

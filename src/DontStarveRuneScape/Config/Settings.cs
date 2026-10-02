@@ -38,7 +38,6 @@ public sealed class Settings
 
     // ─── HUD ───────────────────────────────────────────────────────────────
     public bool ShowVitalsWindow { get; set; } = true;
-    public bool ShowActionWindow { get; set; } = true;
     public bool ShowNotifications { get; set; } = true;
     public bool ShowDamageFlash { get; set; } = true;
 
@@ -97,7 +96,6 @@ public sealed class Settings
         WindowHeight = d.WindowHeight;
         VSync = d.VSync;
         ShowVitalsWindow = d.ShowVitalsWindow;
-        ShowActionWindow = d.ShowActionWindow;
         ShowNotifications = d.ShowNotifications;
         ShowDamageFlash = d.ShowDamageFlash;
         HudScale = d.HudScale;

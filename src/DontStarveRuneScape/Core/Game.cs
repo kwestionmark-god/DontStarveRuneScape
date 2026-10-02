@@ -754,21 +754,6 @@ public sealed class Game
             if (actionSys != null)
             {
                 HUD.SetNotifications(actionSys.Notifications);
-                if (actionSys.Active != null && actionSys.Active.State == ActionState.Running)
-                {
-                    string skillName = actionSys.Active.ActionType switch
-                    {
-                        ActionType.Woodcutting => "Woodcutting",
-                        ActionType.Mining => "Mining",
-                        ActionType.Foraging => "Foraging",
-                        _ => "Action",
-                    };
-                    HUD.SetActionProgress(actionSys.Active.Progress, skillName, _lastScreenW, _lastScreenH);
-                }
-                else
-                {
-                    HUD.SetActionProgress(0f, "", _lastScreenW, _lastScreenH);
-                }
                 HUD.Tick(dt);
             }
             HUD.UpdateInput(InputManager?.InputState, _lastScreenW, _lastScreenH);
@@ -1078,8 +1063,8 @@ public sealed class Game
         }
 
         // Start a foraging action on the first harvestable tool-free node (the
-        // foraging path has no tool gate) so the action-progress window is
-        // exercised headlessly.
+        // foraging path has no tool gate) so the instant-gather path — yield,
+        // notifications, and stamina consumption — is exercised headlessly.
         var actionEnv = Environment.GetEnvironmentVariable("DSR_TEST_ACTION");
         if (!string.IsNullOrWhiteSpace(actionEnv) && Player?.ActionSystem != null
             && SkillManager != null && Inventory != null && World != null)

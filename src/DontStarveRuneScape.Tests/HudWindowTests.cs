@@ -84,7 +84,7 @@ public class HudWindowTests
     {
         var manager = new HudWindowManager();
         var a = new VitalsHudWindow(18f, 18f);
-        var b = new ActionHudWindow(300f, 300f);
+        var b = new VitalsHudWindow(300f, 300f);
         manager.Add(a);
         manager.Add(b);
         Assert.Equal(new HudWindow[] { a, b }, manager.Windows);
@@ -99,36 +99,6 @@ public class HudWindowTests
         var (ui2, held2) = Frame(state, 100f, 30f, true, click: true);
         manager.Update(ui2, held2, 1280, 720);
         Assert.Equal(new HudWindow[] { b, a }, manager.Windows);
-    }
-
-    [Fact]
-    public void ActionWindow_ShowsWhileRunningHidesWhenIdle()
-    {
-        var hud = new HUD();
-        var action = hud.Find<ActionHudWindow>();
-        Assert.NotNull(action);
-        Assert.False(action.Visible);
-
-        hud.SetActionProgress(0.5f, "Woodcutting", 1280, 720);
-        Assert.True(action.Visible);
-        Assert.Equal("WOODCUTTING", action.Title);
-
-        hud.SetActionProgress(0f, "", 1280, 720);
-        Assert.False(action.Visible);
-    }
-
-    [Fact]
-    public void ActionWindow_SettingGatesVisibility()
-    {
-        var hud = new HUD { Settings = new Settings { ShowActionWindow = false } };
-        hud.SetActionProgress(0.5f, "Woodcutting", 1280, 720);
-        var action = hud.Find<ActionHudWindow>();
-        Assert.NotNull(action);
-        Assert.False(action.Visible);
-
-        hud.Settings.ShowActionWindow = true;
-        hud.SetActionProgress(0.5f, "Woodcutting", 1280, 720);
-        Assert.True(action.Visible);
     }
 
     [Fact]

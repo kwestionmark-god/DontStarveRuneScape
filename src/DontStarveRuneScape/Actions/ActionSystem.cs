@@ -67,13 +67,9 @@ public sealed class ActionSystem
         string? recipeId = null,
         (int X, int Y)? tileXy = null)
     {
-        // Already busy guard
+        // Already-busy guard (a second start in the same frame)
         if (Active.State == ActionState.Running)
             return "Already performing an action.";
-
-        // Cooldown guard
-        if (Active.Cooldown > 0)
-            return "You must wait a moment before acting again.";
 
         // Required-tool check (for gathering)
         if (resource != null && resource.ResourceDef != null && !string.IsNullOrEmpty(resource.ResourceDef.ToolRequirement))
@@ -103,7 +99,6 @@ public sealed class ActionSystem
 
         if (actionType == ActionType.Woodcutting && resource != null)
         {
-            action.Duration = 1.5f;
             action.Resource = resource;
             action.XpReward = resource.XpReward;
             action.YieldItem = resource.YieldItem;
@@ -125,7 +120,6 @@ public sealed class ActionSystem
         }
         else if (actionType == ActionType.Mining && resource != null)
         {
-            action.Duration = 2.0f;
             action.Resource = resource;
             action.XpReward = resource.XpReward;
             action.YieldItem = resource.YieldItem;
@@ -147,7 +141,6 @@ public sealed class ActionSystem
         }
         else if (actionType == ActionType.Foraging && resource != null)
         {
-            action.Duration = 1.0f; // Faster than woodcutting/mining
             action.Resource = resource;
             action.XpReward = resource.XpReward;
             action.YieldItem = resource.YieldItem;
@@ -169,7 +162,6 @@ public sealed class ActionSystem
         }
         else if (actionType == ActionType.Cooking && recipeId != null)
         {
-            action.Duration = 3.0f;
             action.RecipeId = recipeId;
             action.XpReward = 0.0f;
             action.YieldItem = string.Empty;
@@ -182,7 +174,6 @@ public sealed class ActionSystem
 
         Active = action;
         Active.State = ActionState.Running;
-        Active.Elapsed = 0.0f;
         return null;
     }
 
@@ -262,35 +253,15 @@ public sealed class ActionSystem
     /// <returns>Structured result, or None if no action completed this frame.</returns>
     public ActionResult? Update(float dt)
     {
-        if (Active.State != ActionState.Running)
-        {
-            // Process cooldown after failure
-            if (Active.Cooldown > 0)
-            {
-                Active.Cooldown -= dt;
-                if (Active.Cooldown <= 0)
-                {
-                    Active.State = ActionState.Idle;
-                    Active.Elapsed = 0.0f;
-                }
-            }
-            Stamina.Tick(dt);
-            return null;
-        }
-
-        // Progress the action
-        Active.Elapsed += dt;
-
-        // Check for completion
-        if (Active.Elapsed >= Active.Duration)
-        {
-            var result = CompleteAction();
-            Stamina.Tick(dt);
-            return result;
-        }
-
         Stamina.Tick(dt);
-        return null;
+
+        if (Active.State != ActionState.Running)
+            return null;
+
+        // Actions resolve instantly — no harvest timeout: the first tick
+        // after start completes the action, and the stamina pool gates the
+        // next one (acting is possible while it covers the cost).
+        return CompleteAction();
     }
 
     /// <summary>Process the result of a completed action.</summary>
@@ -298,19 +269,17 @@ public sealed class ActionSystem
     {
         var action = Active;
 
-        if (action.ActionType is ActionType.Woodcutting or ActionType.Mining or ActionType.Foraging)
-        {
-            var result = CompleteGathering(action);
+        var result = action.ActionType is ActionType.Woodcutting or ActionType.Mining or ActionType.Foraging
+            ? CompleteGathering(action)
+            : null;
 
-            // Reset to idle
-            action.State = ActionState.Idle;
-            action.Elapsed = 0.0f;
-            action.Resource = null;
-            action.RecipeId = null;
-            return result;
-        }
-
-        return null;
+        // Actions resolve instantly; return to idle whatever the type (a
+        // cooking action previously never reset and would have permanently
+        // blocked new actions).
+        action.State = ActionState.Idle;
+        action.Resource = null;
+        action.RecipeId = null;
+        return result;
     }
 
     /// <summary>Process completion of a woodcutting, mining, or foraging action.</summary>
@@ -330,14 +299,13 @@ public sealed class ActionSystem
         // Check depletion
         if (resource.IsDepleted)
         {
-            action.Cooldown = 1.0f;
             return ActionResult.Failure("The resource is depleted.");
         }
 
-        // Check stamina
+        // Check stamina — the pool gates the action: acting is possible while
+        // it covers the cost; draining it triggers the forced rest.
         if (!Stamina.Consume(action.StaminaCost))
         {
-            action.Cooldown = 1.0f;
             return ActionResult.Failure("You are too exhausted. Rest for a moment.");
         }
 
@@ -397,8 +365,7 @@ public sealed class ActionSystem
         }
         else
         {
-            // Failure — no yield, cooldown penalty
-            action.Cooldown = 2.0f;
+            // Failure — no yield; the stamina already spent gates the next try
             return ActionResult.Failure("You fail to harvest the resource.");
         }
     }

@@ -10,14 +10,10 @@ public sealed class ActiveAction
     /// <summary>What kind of action (woodcutting/mining/cooking).</summary>
     public ActionType ActionType { get; set; }
 
-    /// <summary>IDLE, RUNNING.</summary>
+    /// <summary>IDLE, RUNNING. Running is a one-frame transient: actions
+    /// resolve instantly on the next tick, so the state only marks a pending
+    /// completion.</summary>
     public ActionState State { get; set; } = ActionState.Idle;
-
-    /// <summary>Total time the action takes (seconds).</summary>
-    public float Duration { get; set; } = 0.0f;
-
-    /// <summary>Time spent so far.</summary>
-    public float Elapsed { get; set; } = 0.0f;
 
     /// <summary>The resource node being interacted with (None for cooking).</summary>
     public ResourceNode? Resource { get; set; }
@@ -25,7 +21,8 @@ public sealed class ActiveAction
     /// <summary>The recipe being cooked (None for woodcutting/mining).</summary>
     public string? RecipeId { get; set; }
 
-    /// <summary>Stamina consumed per action tick.</summary>
+    /// <summary>Stamina consumed per action, charged at completion. The pool
+    /// gates the next action: acting is possible while it covers the cost.</summary>
     public float StaminaCost { get; set; } = 3.0f;
 
     /// <summary>XP granted on success.</summary>
@@ -46,9 +43,6 @@ public sealed class ActiveAction
     /// <summary>Tool type needed ("axe", "pickaxe", or None).</summary>
     public string? RequiredTool { get; set; }
 
-    /// <summary>Cooldown after failure (seconds).</summary>
-    public float Cooldown { get; set; } = 0.0f;
-
     /// <summary>Tile coords for regrow tracking.</summary>
     public (int X, int Y)? TileXy { get; set; }
 
@@ -59,9 +53,6 @@ public sealed class ActiveAction
     {
         ActionType = actionType;
     }
-
-    /// <summary>Action progress as 0.0–1.0 ratio.</summary>
-    public float Progress => Duration <= 0 ? 0.0f : Math.Min(1.0f, Elapsed / Duration);
 
     /// <summary>True while the player cannot perform other actions.</summary>
     public bool IsBusy => State == ActionState.Running;

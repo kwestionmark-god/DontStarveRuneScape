@@ -131,7 +131,7 @@ public static class Constants
     public const float HungerDrainRate = 1.0f;        // Hunger points per interval
     public const float StarvationHpDrainRate = 0.5f;  // HP drain per interval when hunger = 0
     public const float HpBaseMax = 20.0f;             // Starting max HP
-    public const float MaxStaminaBase = 30.0f;        // Max stamina for Woodcutting/Mining actions
+    public const float MaxStaminaBase = 30.0f;        // Max stamina for gathering actions
 
     // ─── Player ───────────────────────────────────────────────────────────
 

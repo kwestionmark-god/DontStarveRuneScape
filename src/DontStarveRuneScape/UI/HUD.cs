@@ -7,17 +7,15 @@ using DontStarveRuneScape.Render;
 using DontStarveRuneScape.Survival;
 
 /// <summary>
-/// HUD — Heads-up display: OpenTTD-style draggable/collapsible windows (vitals,
-/// action progress), floating notifications, and the damage flash. The user
-/// settings gate each element and scale the windows.
+/// HUD — Heads-up display: OpenTTD-style draggable/collapsible windows (vitals
+/// with the stamina bar that gates gathering), floating notifications, and the
+/// damage flash. The user settings gate each element and scale the windows.
 /// </summary>
 public sealed class HUD
 {
     private List<ActionNotification> _notifications = [];
     private readonly HudWindowManager _windows = new();
     private readonly VitalsHudWindow _vitals;
-    private readonly ActionHudWindow _action;
-    private bool _actionPlaced;
     private float _damageFlash;
 
     /// <summary>User settings; null leaves every element visible at scale 1.</summary>
@@ -26,10 +24,7 @@ public sealed class HUD
     public HUD()
     {
         _vitals = new VitalsHudWindow(18f, 18f);
-        _action = new ActionHudWindow(18f, 18f);
         _windows.Add(_vitals);
-        _windows.Add(_action);
-        _action.Visible = false;
     }
 
     public T? Find<T>() where T : HudWindow => _windows.Find<T>();
@@ -42,21 +37,6 @@ public sealed class HUD
     public void SetVitals(SurvivalSystem? survival, StaminaPool? stamina)
     {
         _vitals.SetData(survival, stamina);
-    }
-
-    public void SetActionProgress(float progress, string skillName, int screenW, int screenH)
-    {
-        bool running = progress > 0f && (Settings?.ShowActionWindow ?? true);
-        if (running && !_actionPlaced)
-        {
-            // First show: center-bottom, above the notifications area.
-            _action.X = MathF.Max(18f, screenW * 0.5f - _action.PlateW * 0.5f);
-            _action.Y = MathF.Max(18f, screenH - 150f);
-            _actionPlaced = true;
-        }
-        if (running)
-            _action.SetProgress(progress, skillName);
-        _action.Visible = running;
     }
 
     /// <summary>Retained-mode input for the windows (drag, collapse, raise).</summary>
@@ -85,7 +65,6 @@ public sealed class HUD
         // Settings gate each element and scale the windows.
         float scale = Settings?.HudScale ?? 1f;
         _vitals.Scale = scale;
-        _action.Scale = scale;
         _vitals.Visible = Settings?.ShowVitalsWindow ?? true;
 
         _windows.Render(batch, text);

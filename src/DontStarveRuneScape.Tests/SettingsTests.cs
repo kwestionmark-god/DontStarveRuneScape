@@ -38,7 +38,6 @@ public class SettingsTests : IDisposable
         Assert.Equal(720, s.WindowHeight);
         Assert.True(s.VSync);
         Assert.True(s.ShowVitalsWindow);
-        Assert.True(s.ShowActionWindow);
         Assert.True(s.ShowNotifications);
         Assert.True(s.ShowDamageFlash);
         Assert.Equal(1f, s.HudScale);
@@ -55,7 +54,6 @@ public class SettingsTests : IDisposable
             WindowHeight = 1080,
             VSync = false,
             ShowVitalsWindow = false,
-            ShowActionWindow = false,
             ShowNotifications = false,
             ShowDamageFlash = false,
             HudScale = 1.25f,
@@ -69,7 +67,6 @@ public class SettingsTests : IDisposable
         Assert.Equal(s.WindowHeight, loaded.WindowHeight);
         Assert.False(loaded.VSync);
         Assert.False(loaded.ShowVitalsWindow);
-        Assert.False(loaded.ShowActionWindow);
         Assert.False(loaded.ShowNotifications);
         Assert.False(loaded.ShowDamageFlash);
         Assert.Equal(1.25f, loaded.HudScale);
@@ -193,8 +190,8 @@ public class SettingsTests : IDisposable
         game.SettingsPanel!.Update(new InputState(), game, 1280, 720);
 
         // BACK button (bottom right; center computed from the Layout math:
-        // contentY 165, note 539, buttons 553..583, x 732..892).
-        var state = new InputState { MouseX = 812f, MouseY = 568f, MouseLeftClick = true };
+        // contentY 180, note 524, buttons 538..568, x 732..892).
+        var state = new InputState { MouseX = 812f, MouseY = 553f, MouseLeftClick = true };
         game.SettingsPanel.Update(state, game, 1280, 720);
 
         Assert.Equal(GameState.Paused, game.State);
