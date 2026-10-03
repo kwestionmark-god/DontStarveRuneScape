@@ -32,7 +32,20 @@ public sealed class CombatSystem
         foreach (var monster in Monsters)
         {
             monster.UpdateTimers(dt);
+            float prevX = monster.WorldX, prevY = monster.WorldY;
             UpdateMonster(monster, player, dt);
+            // Net velocity from the position delta across this tick (patrol,
+            // chase, flee — all paths) drives the stepping gait.
+            if (dt > 1e-5f)
+            {
+                monster.VelocityX = (monster.WorldX - prevX) / dt;
+                monster.VelocityY = (monster.WorldY - prevY) / dt;
+            }
+            else
+            {
+                monster.VelocityX = 0f;
+                monster.VelocityY = 0f;
+            }
         }
 
         // Clearing the world after the player's death (all monsters, per
@@ -426,6 +439,12 @@ public sealed class Monster
     public float PatrolTargetX { get; set; }
     public float PatrolTargetY { get; set; }
     public float AggroCooldown { get; set; }
+
+    /// <summary>Net velocity last frame (world px per second), derived from
+    /// position deltas each tick — the same approach the player's stepping
+    /// gait uses, so feet track real body motion.</summary>
+    public float VelocityX { get; set; }
+    public float VelocityY { get; set; }
 
     public bool IsAlive() => Health > 0;
 

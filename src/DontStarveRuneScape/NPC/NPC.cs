@@ -13,6 +13,11 @@ public abstract class Npc
     public string NpcType { get; set; } = string.Empty;
     public float WorldX { get; set; }
     public float WorldY { get; set; }
+    /// <summary>Net velocity last frame (world px per second), derived from
+    /// position deltas — the same approach the player's gait uses. Zero while
+    /// NPCs are stationary.</summary>
+    public float VelocityX { get; set; }
+    public float VelocityY { get; set; }
     public bool IsActive { get; set; } = true;
     public bool IsRecruited { get; set; } = false;
     public string? RecruitBehavior { get; set; }

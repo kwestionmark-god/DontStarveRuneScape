@@ -1284,7 +1284,7 @@ public sealed class Game
                         float sortY = GetDepthSort(monster.WorldX, monster.WorldY,
                             SortElevation(mTile, elev), StandingBoost());
                         var m = monster;
-                        drawables.Add((sortY, seq++, () => SpriteRenderer.RenderMonster(m, batch, Camera, elev)));
+                        drawables.Add((sortY, seq++, () => SpriteRenderer.RenderMonster(m, batch, Camera, elev, Dt)));
                     }
                 }
             }
@@ -1305,7 +1305,7 @@ public sealed class Game
                         : 0f;
                     float sortY = GetDepthSort(npc.WorldX, npc.WorldY, elev);
                     var n = npc;
-                    drawables.Add((sortY, seq++, () => SpriteRenderer.RenderNPC(n, batch, Camera, elev)));
+                    drawables.Add((sortY, seq++, () => SpriteRenderer.RenderNPC(n, batch, Camera, elev, Dt)));
 
                     if (npc == nearbyNpc)
                         drawables.Add((sortY, seq++, () => SpriteRenderer.RenderProximityPrompt(n, batch, Camera, elev, TextRenderer)));
