@@ -13,6 +13,7 @@ public sealed class UiInput
 {
     public float MouseX { get; }
     public float MouseY { get; }
+    public float ScrollDelta { get; }
     private readonly bool _click;
     private bool _consumed;
 
@@ -20,6 +21,7 @@ public sealed class UiInput
     {
         MouseX = state.MouseX;
         MouseY = state.MouseY;
+        ScrollDelta = state.ZoomDelta;
         _click = state.MouseLeftClick;
     }
 
@@ -33,4 +35,7 @@ public sealed class UiInput
         _consumed = true;
         return true;
     }
+
+    /// <summary>Scroll delta for this frame (positive = up, negative = down).</summary>
+    public float GetScroll() => ScrollDelta;
 }

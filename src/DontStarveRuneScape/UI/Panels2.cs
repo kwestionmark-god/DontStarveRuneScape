@@ -45,44 +45,138 @@ public sealed class InventoryPanel
     private float _eatX, _eatY;
     private float _equipX, _equipY;
 
+    // Detail button selection: 0 = grid, 1 = EAT, 2 = EQUIP
+    private int _detailSelection = 0;
+
     // Last eat result line, cleared when the selection changes.
     private string? _status;
     private bool _statusOk;
 
     public void HandleKey(Key key, Inventory inventory, PlayerGear? gear)
     {
-        if (key == Key.Up)
-            SelectedIndex = (SelectedIndex + SlotCount - Cols) % SlotCount;
-        else if (key == Key.Down)
-            SelectedIndex = (SelectedIndex + Cols) % SlotCount;
-        else if (key == Key.Left)
-            SelectedIndex = (SelectedIndex + SlotCount - 1) % SlotCount;
-        else if (key == Key.Right)
-            SelectedIndex = (SelectedIndex + 1) % SlotCount;
-        else if (key == Key.Enter)
+        if (_detailSelection == 0)
         {
-            // Enter toggles the selected item's equipped state (gear items only),
-            // through the same path the EQUIP button and the gear panel use.
-            if (inventory.Slots[SelectedIndex] is { ItemId: not null, Quantity: > 0 } slot
-                && Data.GearItem.LoadAll().ContainsKey(slot.ItemId))
+            // Navigating the grid
+            if (key == Key.Up)
+                SelectedIndex = (SelectedIndex + SlotCount - Cols) % SlotCount;
+            else if (key == Key.Down)
+                SelectedIndex = (SelectedIndex + Cols) % SlotCount;
+            else if (key == Key.Left)
+                SelectedIndex = (SelectedIndex + SlotCount - 1) % SlotCount;
+            else if (key == Key.Right)
+                SelectedIndex = (SelectedIndex + 1) % SlotCount;
+            else if (key == Key.Tab)
             {
-                bool wasEquipped = slot.IsEquipped;
-                GearPanel.ToggleEquip(inventory, gear, slot.ItemId);
-                _status = wasEquipped ? $"Unequipped {NameOf(slot.ItemId)}."
-                                      : $"Equipped {NameOf(slot.ItemId)}.";
-                _statusOk = true;
+                // Move to first available detail button
+                var slot = inventory.Slots[SelectedIndex];
+                if (slot.ItemId != null && slot.Quantity > 0)
+                {
+                    var display = Data.ItemCatalog.Get(slot.ItemId);
+                    if (display?.IsFood == true)
+                        _detailSelection = 1; // EAT
+                    else if (Data.GearItem.LoadAll().ContainsKey(slot.ItemId))
+                        _detailSelection = 2; // EQUIP
+                }
             }
+            else if (key == Key.Enter)
+            {
+                // Enter toggles the selected item's equipped state (gear items only),
+                // through the same path the EQUIP button and the gear panel use.
+                if (inventory.Slots[SelectedIndex] is { ItemId: not null, Quantity: > 0 } slot
+                    && Data.GearItem.LoadAll().ContainsKey(slot.ItemId))
+                {
+                    bool wasEquipped = slot.IsEquipped;
+                    GearPanel.ToggleEquip(inventory, gear, slot.ItemId);
+                    _status = wasEquipped ? $"Unequipped {NameOf(slot.ItemId)}."
+                                          : $"Equipped {NameOf(slot.ItemId)}.";
+                    _statusOk = true;
+                }
+            }
+            else
+                return;
         }
-        else
-            return;
-        if (key != Key.Enter)
+        else if (_detailSelection == 1)
+        {
+            // On EAT button
+            if (key == Key.Tab || key == Key.Left)
+                _detailSelection = 0; // Back to grid
+            else if (key == Key.Right)
+            {
+                // Move to EQUIP if available
+                var slot = inventory.Slots[SelectedIndex];
+                if (slot.ItemId != null && slot.Quantity > 0 && Data.GearItem.LoadAll().ContainsKey(slot.ItemId))
+                    _detailSelection = 2;
+            }
+            else if (key == Key.Enter || key == Key.Space)
+            {
+                // Trigger EAT
+                var slot = inventory.Slots[SelectedIndex];
+                if (slot.ItemId != null && slot.Quantity > 0)
+                {
+                    var food = _foods?.Get(slot.ItemId);
+                    if (food != null && _survival != null)
+                    {
+                        inventory.RemoveItem(slot.ItemId, 1);
+                        _status = _survival.Eat(food);
+                        _statusOk = true;
+                    }
+                    else
+                    {
+                        _status = "Nothing to eat here.";
+                        _statusOk = false;
+                    }
+                }
+            }
+            else
+                return;
+        }
+        else if (_detailSelection == 2)
+        {
+            // On EQUIP button
+            if (key == Key.Tab || key == Key.Left)
+            {
+                var slot = inventory.Slots[SelectedIndex];
+                if (slot.ItemId != null && slot.Quantity > 0)
+                {
+                    var display = Data.ItemCatalog.Get(slot.ItemId);
+                    if (display?.IsFood == true)
+                        _detailSelection = 1; // Back to EAT
+                    else
+                        _detailSelection = 0; // Back to grid
+                }
+                else
+                    _detailSelection = 0;
+            }
+            else if (key == Key.Enter || key == Key.Space)
+            {
+                // Trigger EQUIP
+                var slot = inventory.Slots[SelectedIndex];
+                if (slot.ItemId != null && slot.Quantity > 0 && Data.GearItem.LoadAll().ContainsKey(slot.ItemId))
+                {
+                    bool wasEquipped = slot.IsEquipped;
+                    GearPanel.ToggleEquip(inventory, gear, slot.ItemId);
+                    _status = wasEquipped ? $"Unequipped {NameOf(slot.ItemId)}."
+                                          : $"Equipped {NameOf(slot.ItemId)}.";
+                    _statusOk = true;
+                }
+            }
+            else
+                return;
+        }
+        if (key != Key.Enter && key != Key.Space)
             _status = null;
     }
+
+    // Need to store foods and survival for HandleKey EAT action
+    private Survival.FoodRegistry? _foods;
+    private Survival.SurvivalSystem? _survival;
 
     /// <summary>Mouse handling; call once per frame from Game.Update while open.</summary>
     public void Update(InputState input, Inventory inventory, Survival.SurvivalSystem? survival,
         Survival.FoodRegistry? foods, int screenW, int screenH, PlayerGear? gear = null)
     {
+        _foods = foods;
+        _survival = survival;
         Layout(screenW, screenH);
         var ui = new UiInput(input);
 
@@ -93,10 +187,15 @@ public sealed class InventoryPanel
                 if (SelectedIndex != i)
                     _status = null;
                 SelectedIndex = i;
+                _detailSelection = 0;
             }
         }
 
         // EAT: consume one of the selected food item and apply its values.
+        bool eatHover = false;
+        if (ui.Hovered(_eatX, _eatY, EatW, EatH))
+            eatHover = true;
+
         if (ui.TryClick(_eatX, _eatY, EatW, EatH)
             && inventory.Slots[SelectedIndex] is { ItemId: not null, Quantity: > 0 } slot)
         {
@@ -116,6 +215,10 @@ public sealed class InventoryPanel
 
         // EQUIP/UNEQUIP: toggle the selected item's equipped state (gear items
         // only), keeping the inventory flag and the PlayerGear slot in sync.
+        bool equipHover = false;
+        if (ui.Hovered(_equipX, _equipY, EquipW, EquipH))
+            equipHover = true;
+
         if (ui.TryClick(_equipX, _equipY, EquipW, EquipH)
             && inventory.Slots[SelectedIndex] is { ItemId: not null, Quantity: > 0 } equipSlot
             && Data.GearItem.LoadAll().ContainsKey(equipSlot.ItemId))
@@ -125,6 +228,15 @@ public sealed class InventoryPanel
             _status = wasEquipped ? $"Unequipped {NameOf(equipSlot.ItemId)}."
                                   : $"Equipped {NameOf(equipSlot.ItemId)}.";
             _statusOk = true;
+        }
+
+        // Update detail selection from hover
+        if (eatHover) _detailSelection = 1;
+        else if (equipHover) _detailSelection = 2;
+        else if (_detailSelection != 0 && !eatHover && !equipHover)
+        {
+            // If mouse left the buttons, go back to grid
+            // But only if not actively using keyboard navigation
         }
     }
 
@@ -237,11 +349,13 @@ public sealed class InventoryPanel
             DrawLeft(batch, text, foodLine, _detailX, _detailY + 176f, 14, 150, 200, 120);
 
             // EAT button: gold for food, only drawn for food items.
-            batch.DrawScreenQuad(_eatX + EatW * 0.5f, _eatY + EatH * 0.5f, EatW * 0.5f + 2f, EatH * 0.5f + 2f,
-                PanelChrome.BorderR, PanelChrome.BorderG, PanelChrome.BorderB);
+            bool eatSelected = _detailSelection == 1;
+            byte eatR = eatSelected ? (byte)250 : PanelChrome.BorderR;
+            byte eatG = eatSelected ? (byte)225 : PanelChrome.BorderG;
+            byte eatB = eatSelected ? (byte)180 : PanelChrome.BorderB;
+            batch.DrawScreenQuad(_eatX + EatW * 0.5f, _eatY + EatH * 0.5f, EatW * 0.5f + 2f, EatH * 0.5f + 2f, eatR, eatG, eatB);
             batch.DrawScreenQuad(_eatX + EatW * 0.5f, _eatY + EatH * 0.5f, EatW * 0.5f, EatH * 0.5f, 30, 20, 10);
-            text.DrawText(batch, "EAT", _eatX + EatW * 0.5f, _eatY + EatH * 0.5f, 15,
-                PanelChrome.BorderR, PanelChrome.BorderG, PanelChrome.BorderB, bold: true);
+            text.DrawText(batch, "EAT", _eatX + EatW * 0.5f, _eatY + EatH * 0.5f, 15, eatR, eatG, eatB, bold: true);
         }
 
         // EQUIP/UNEQUIP button for equippable items (present in gear.json);
@@ -249,11 +363,13 @@ public sealed class InventoryPanel
         if (gearItem != null)
         {
             string equipLabel = slot.IsEquipped ? "UNEQUIP" : "EQUIP";
-            batch.DrawScreenQuad(_equipX + EquipW * 0.5f, _equipY + EquipH * 0.5f, EquipW * 0.5f + 2f, EquipH * 0.5f + 2f,
-                PanelChrome.BorderR, PanelChrome.BorderG, PanelChrome.BorderB);
+            bool equipSelected = _detailSelection == 2;
+            byte equipR = equipSelected ? (byte)250 : PanelChrome.BorderR;
+            byte equipG = equipSelected ? (byte)225 : PanelChrome.BorderG;
+            byte equipB = equipSelected ? (byte)180 : PanelChrome.BorderB;
+            batch.DrawScreenQuad(_equipX + EquipW * 0.5f, _equipY + EquipH * 0.5f, EquipW * 0.5f + 2f, EquipH * 0.5f + 2f, equipR, equipG, equipB);
             batch.DrawScreenQuad(_equipX + EquipW * 0.5f, _equipY + EquipH * 0.5f, EquipW * 0.5f, EquipH * 0.5f, 30, 20, 10);
-            text.DrawText(batch, equipLabel, _equipX + EquipW * 0.5f, _equipY + EquipH * 0.5f, 14,
-                PanelChrome.BorderR, PanelChrome.BorderG, PanelChrome.BorderB, bold: true);
+            text.DrawText(batch, equipLabel, _equipX + EquipW * 0.5f, _equipY + EquipH * 0.5f, 14, equipR, equipG, equipB, bold: true);
         }
 
         // Status line: last eat result.
@@ -395,24 +511,62 @@ public sealed class SkillPanel
     private readonly float[] _statY = new float[SubStats.Length + IntelExtraStats.Length];
     private float _plusX, _plusY0;             // [+] button column
 
+    // Selection mode: 0 = skill list (left), 1 = [+] buttons (right)
+    private int _selectionMode = 0;
+    private int _plusSelected = 0; // which [+] button is selected
+
     public void HandleKey(Key key)
     {
-        if (key == Key.Up)
-            SelectedIndex = (SelectedIndex + Skills.Length - 1) % Skills.Length;
-        else if (key == Key.Down)
-            SelectedIndex = (SelectedIndex + 1) % Skills.Length;
+        if (_selectionMode == 0)
+        {
+            // Navigating skill list
+            if (key == Key.Up)
+                SelectedIndex = (SelectedIndex + Skills.Length - 1) % Skills.Length;
+            else if (key == Key.Down)
+                SelectedIndex = (SelectedIndex + 1) % Skills.Length;
+            else if (key == Key.Right || key == Key.Tab)
+            {
+                var skill = skills.GetSkill(Skills[SelectedIndex].Id);
+                if (skill.UnallocatedPoints > 0)
+                {
+                    _selectionMode = 1;
+                    _plusSelected = 0;
+                }
+            }
+        }
+        else
+        {
+            // Navigating [+] buttons
+            var skill = skills.GetSkill(Skills[SelectedIndex].Id);
+            var statList = StatsFor(skill.Id);
+            if (key == Key.Up && _plusSelected > 0)
+                _plusSelected--;
+            else if (key == Key.Down && _plusSelected < statList.Length - 1)
+                _plusSelected++;
+            else if (key == Key.Left || key == Key.Tab)
+                _selectionMode = 0;
+            else if (key == Key.Enter || key == Key.Space)
+            {
+                if (skill.UnallocatedPoints > 0 && _plusSelected < statList.Length)
+                    skills.SpendPoint(Skills[SelectedIndex].Id, statList[_plusSelected].Key);
+            }
+        }
     }
 
     /// <summary>Mouse handling; call once per frame from Game.Update while open.</summary>
     public void Update(InputState input, SkillManager skills, int screenW, int screenH)
     {
+        this.skills = skills;
         Layout(screenW, screenH);
         var ui = new UiInput(input);
 
         for (int i = 0; i < Skills.Length; i++)
         {
             if (ui.TryClick(_rowX, _rowY[i], _rowW, RowH))
+            {
                 SelectedIndex = i;
+                _selectionMode = 0;
+            }
         }
 
         var skill = skills.GetSkill(Skills[SelectedIndex].Id);
@@ -422,11 +576,17 @@ public sealed class SkillPanel
         for (int s = 0; s < statList.Length; s++)
         {
             if (ui.Hovered(_plusX, _statY[s] - 11f, 22f, 22f))
+            {
                 _lastMouseHoverPlus = s;
+                _selectionMode = 1;
+                _plusSelected = s;
+            }
             if (ui.TryClick(_plusX, _statY[s] - 11f, 22f, 22f))
                 skills.SpendPoint(Skills[SelectedIndex].Id, statList[s].Key);
         }
     }
+
+    private SkillManager? skills;
 
     public void Render(PrimitiveBatch batch, TextRenderer? text, SkillManager skills,
         int screenW, int screenHeight)
@@ -525,16 +685,17 @@ public sealed class SkillPanel
         {
             float y = _statY[s];
             float value = data.SubStats[statList[s].Key];
-            DrawLeft(batch, text, SubStats[s].Name, _detailX + 8f, y, 14,
+            DrawLeft(batch, text, statList[s].Name, _detailX + 8f, y, 14,
                 PanelChrome.TextR, PanelChrome.TextG, PanelChrome.TextB);
             DrawRight(batch, text, $"+{(int)value}", _plusX - 34f, y, 14, 200, 190, 160);
 
             if (data.UnallocatedPoints > 0)
             {
+                bool selected = (_selectionMode == 1) && (_plusSelected == s);
                 bool hover = _lastMouseHoverPlus == s;
-                byte br = hover ? (byte)250 : (byte)222;
-                byte bg = hover ? (byte)225 : (byte)192;
-                byte bb = hover ? (byte)180 : (byte)132;
+                byte br = (selected || hover) ? (byte)250 : (byte)222;
+                byte bg = (selected || hover) ? (byte)225 : (byte)192;
+                byte bb = (selected || hover) ? (byte)180 : (byte)132;
                 batch.DrawScreenQuad(_plusX + 11f, y, 11f, 11f, br, bg, bb);
                 text.DrawText(batch, "+", _plusX + 11f, y, 16, PanelChrome.PlateR,
                     PanelChrome.PlateG, PanelChrome.PlateB, bold: true);
@@ -614,20 +775,46 @@ public sealed class CraftingPanel
     private bool _statusOk;
     private readonly List<string> _statusExtra = []; // level-up lines
 
+    // Selection mode: 0 = recipe list, 1 = CRAFT button
+    private int _selectionMode = 0;
+
     public void HandleKey(Key key)
     {
-        if (key == Key.Up && SelectedIndex > 0)
-            SelectedIndex--;
-        else if (key == Key.Down && SelectedIndex < _sorted.Count - 1)
-            SelectedIndex++;
+        if (_selectionMode == 0)
+        {
+            // In recipe list
+            if (key == Key.Up && SelectedIndex > 0)
+                SelectedIndex--;
+            else if (key == Key.Down && SelectedIndex < _sorted.Count - 1)
+                SelectedIndex++;
+            else if (key == Key.Right || key == Key.Tab)
+            {
+                if (_sorted.Count > 0) _selectionMode = 1; // Move to CRAFT button
+            }
+            else
+                return;
+        }
         else
-            return;
+        {
+            // On CRAFT button
+            if (key == Key.Left || key == Key.Tab)
+                _selectionMode = 0; // Back to list
+            else if (key == Key.Enter || key == Key.Space)
+            {
+                if (SelectedIndex < _sorted.Count)
+                    _pendingCraft = true;
+            }
+            else
+                return;
+        }
         _status = null;
         _statusExtra.Clear();
         // Keep the selection inside the visible window.
         if (SelectedIndex < _scroll) _scroll = SelectedIndex;
         if (SelectedIndex >= _scroll + VisibleRows) _scroll = SelectedIndex - VisibleRows + 1;
     }
+
+    private bool _pendingCraft = false;
 
     /// <summary>Mouse handling + craft action; call once per frame from Game.Update while open.</summary>
     public void Update(InputState input, CraftingSystem crafting, Inventory inventory,
@@ -637,23 +824,35 @@ public sealed class CraftingPanel
         Layout(screenW, screenH);
         var ui = new UiInput(input);
 
+        // Mouse wheel scrolls the recipe list
+        float scroll = ui.GetScroll();
+        if (scroll != 0f)
+        {
+            _scroll = Math.Clamp(_scroll - (int)scroll, 0, Math.Max(0, _sorted.Count - VisibleRows));
+        }
+
         for (int i = 0; i < VisibleRows && _scroll + i < _sorted.Count; i++)
         {
             if (ui.TryClick(_rowX, _rowY[i], _rowW, RowH))
             {
                 SelectedIndex = _scroll + i;
+                _selectionMode = 0;
                 _status = null;
                 _statusExtra.Clear();
             }
         }
 
-        if (SelectedIndex < _sorted.Count && ui.TryClick(_craftX, _craftY, CraftW, CraftH))
+        bool craftHover = ui.Hovered(_craftX, _craftY, CraftW, CraftH);
+        if (craftHover) _selectionMode = 1;
+
+        if (SelectedIndex < _sorted.Count && (ui.TryClick(_craftX, _craftY, CraftW, CraftH) || _pendingCraft))
         {
             var result = crafting.Craft(_sorted[SelectedIndex].RecipeId, inventory, skills);
             _status = result.Message;
             _statusOk = result.Success;
             _statusExtra.Clear();
             _statusExtra.AddRange(result.LevelUpMessages);
+            _pendingCraft = false;
         }
     }
 
@@ -787,7 +986,10 @@ public sealed class CraftingPanel
 
         // CRAFT button: gold when craftable, dim when gated.
         bool craftable = CanCraft(recipe, inventory, skills);
-        byte br = craftable ? PanelChrome.BorderR : (byte)110, bg = craftable ? PanelChrome.BorderG : (byte)95, bb = craftable ? PanelChrome.BorderB : (byte)70;
+        bool craftSelected = _selectionMode == 1;
+        byte br = craftable ? (craftSelected ? (byte)250 : PanelChrome.BorderR) : (byte)110;
+        byte bg = craftable ? (craftSelected ? (byte)225 : PanelChrome.BorderG) : (byte)95;
+        byte bb = craftable ? (craftSelected ? (byte)180 : PanelChrome.BorderB) : (byte)70;
         batch.DrawScreenQuad(_craftX + CraftW * 0.5f, _craftY + CraftH * 0.5f, CraftW * 0.5f + 2f, CraftH * 0.5f + 2f, br, bg, bb);
         batch.DrawScreenQuad(_craftX + CraftW * 0.5f, _craftY + CraftH * 0.5f, CraftW * 0.5f, CraftH * 0.5f, 30, 20, 10);
         text.DrawText(batch, "CRAFT", _craftX + CraftW * 0.5f, _craftY + CraftH * 0.5f, 15, br, bg, bb, bold: true);
@@ -885,6 +1087,8 @@ public sealed class BuildingPanel
 
     private readonly List<Data.StructureDef> _sorted = [];
     private int _scroll;
+    private int _selectionMode = 0; // 0 = structure list, 1 = BUILD button
+    private bool _pendingBuild = false;
 
     /// <summary>Called with the selected structure id when BUILD is clicked;
     /// the game enters placement mode.</summary>
@@ -892,12 +1096,33 @@ public sealed class BuildingPanel
 
     public void HandleKey(Key key)
     {
-        if (key == Key.Up && SelectedIndex > 0)
-            SelectedIndex--;
-        else if (key == Key.Down && SelectedIndex < _sorted.Count - 1)
-            SelectedIndex++;
+        if (_selectionMode == 0)
+        {
+            // In structure list
+            if (key == Key.Up && SelectedIndex > 0)
+                SelectedIndex--;
+            else if (key == Key.Down && SelectedIndex < _sorted.Count - 1)
+                SelectedIndex++;
+            else if (key == Key.Right || key == Key.Tab)
+            {
+                if (_sorted.Count > 0) _selectionMode = 1; // Move to BUILD button
+            }
+            else
+                return;
+        }
         else
-            return;
+        {
+            // On BUILD button
+            if (key == Key.Left || key == Key.Tab)
+                _selectionMode = 0; // Back to list
+            else if (key == Key.Enter || key == Key.Space)
+            {
+                if (SelectedIndex < _sorted.Count)
+                    _pendingBuild = true;
+            }
+            else
+                return;
+        }
         // Keep the selection inside the visible window.
         if (SelectedIndex < _scroll) _scroll = SelectedIndex;
         if (SelectedIndex >= _scroll + VisibleRows) _scroll = SelectedIndex - VisibleRows + 1;
@@ -911,14 +1136,30 @@ public sealed class BuildingPanel
         Layout(screenW, screenH);
         var ui = new UiInput(input);
 
+        // Mouse wheel scrolls the structure list
+        float scroll = ui.GetScroll();
+        if (scroll != 0f)
+        {
+            _scroll = Math.Clamp(_scroll - (int)scroll, 0, Math.Max(0, _sorted.Count - VisibleRows));
+        }
+
         for (int i = 0; i < VisibleRows && _scroll + i < _sorted.Count; i++)
         {
             if (ui.TryClick(_rowX, _rowY[i], _rowW, RowH))
+            {
                 SelectedIndex = _scroll + i;
+                _selectionMode = 0;
+            }
         }
 
-        if (SelectedIndex < _sorted.Count && ui.TryClick(_buildX, _buildY, BuildW, BuildH))
+        bool buildHover = ui.Hovered(_buildX, _buildY, BuildW, BuildH);
+        if (buildHover) _selectionMode = 1;
+
+        if (SelectedIndex < _sorted.Count && (ui.TryClick(_buildX, _buildY, BuildW, BuildH) || _pendingBuild))
+        {
             BuildCallback?.Invoke(_sorted[SelectedIndex].Id);
+            _pendingBuild = false;
+        }
     }
 
     public void Render(PrimitiveBatch batch, TextRenderer? text, SpriteRenderer? sprites,
@@ -1046,7 +1287,10 @@ public sealed class BuildingPanel
 
         // BUILD button: gold when buildable, dim when gated.
         bool buildable = CanBuild(def, inventory, skills);
-        byte br = buildable ? PanelChrome.BorderR : (byte)110, bg = buildable ? PanelChrome.BorderG : (byte)95, bb = buildable ? PanelChrome.BorderB : (byte)70;
+        bool buildSelected = _selectionMode == 1;
+        byte br = buildable ? (buildSelected ? (byte)250 : PanelChrome.BorderR) : (byte)110;
+        byte bg = buildable ? (buildSelected ? (byte)225 : PanelChrome.BorderG) : (byte)95;
+        byte bb = buildable ? (buildSelected ? (byte)180 : PanelChrome.BorderB) : (byte)70;
         batch.DrawScreenQuad(_buildX + BuildW * 0.5f, _buildY + BuildH * 0.5f, BuildW * 0.5f + 2f, BuildH * 0.5f + 2f, br, bg, bb);
         batch.DrawScreenQuad(_buildX + BuildW * 0.5f, _buildY + BuildH * 0.5f, BuildW * 0.5f, BuildH * 0.5f, 30, 20, 10);
         text.DrawText(batch, "BUILD", _buildX + BuildW * 0.5f, _buildY + BuildH * 0.5f, 15, br, bg, bb, bold: true);
@@ -1143,30 +1387,84 @@ public sealed class GearPanel
 
     private int _selected;
     private int _equippableCount;            // set by Update; bounds HandleKey
+    private int _equippableScroll = 0;       // scroll offset for equippable list
+    private int _selectionMode = 0; // 0 = equipped slots (left), 1 = equippable list (right)
+    private int _equippedSelected = 0; // which equipped slot is selected
+    private PlayerGear? _gear;               // stored for HandleKey
+    private Inventory? _inventory;           // stored for HandleKey
 
     public void HandleKey(Key key)
     {
-        if (key == Key.Up && _selected > 0)
-            _selected--;
-        else if (key == Key.Down && _selected < _equippableCount - 1)
-            _selected++;
+        if (_selectionMode == 0)
+        {
+            // Navigating equipped slots (left side)
+            if (key == Key.Up && _equippedSelected > 0)
+                _equippedSelected--;
+            else if (key == Key.Down && _equippedSelected < SlotNames.Length - 1)
+                _equippedSelected++;
+            else if (key == Key.Right || key == Key.Tab)
+            {
+                if (_equippableCount > 0) _selectionMode = 1; // Move to equippable list
+            }
+            else if (key == Key.Enter || key == Key.Space)
+            {
+                // Unequip the selected equipped slot
+                var equipped = _gear?.GetEquipped(SlotNames[_equippedSelected]);
+                if (equipped != null && _gear != null && _inventory != null)
+                {
+                    _inventory.UnequipItem(equipped.Id);
+                    _gear.Unequip(SlotNames[_equippedSelected]);
+                }
+            }
+            else
+                return;
+        }
+        else
+        {
+            // Navigating equippable list (right side)
+            if (key == Key.Up && _selected > 0)
+                _selected--;
+            else if (key == Key.Down && _selected < _equippableCount - 1)
+                _selected++;
+            else if (key == Key.Left || key == Key.Tab)
+                _selectionMode = 0; // Back to equipped slots
+            else if (key == Key.Enter || key == Key.Space)
+            {
+                // Equip/unequip the selected equippable item
+                var equippable = EquippableSlots(_inventory!);
+                if (_selected < equippable.Count && _gear != null && _inventory != null)
+                    ToggleEquip(_inventory, _gear, equippable[_selected].ItemId!);
+            }
+            else
+                return;
+        }
     }
 
     /// <summary>Mouse handling; call once per frame from Game.Update while open.</summary>
     public void Update(InputState input, PlayerGear? gear, Inventory inventory, int screenW, int screenH)
     {
+        _gear = gear;
+        _inventory = inventory;
         Layout(screenW, screenH);
         var ui = new UiInput(input);
 
         var equippable = EquippableSlots(inventory);
         _equippableCount = equippable.Count;
 
-        for (int i = 0; i < equippable.Count && i < EquippableRows; i++)
+        // Mouse wheel scrolls the equippable list
+        float scroll = ui.GetScroll();
+        if (scroll != 0f)
+        {
+            _equippableScroll = Math.Clamp(_equippableScroll - (int)scroll, 0, Math.Max(0, _equippableCount - EquippableRows));
+        }
+
+        for (int i = 0; i < EquippableRows && _equippableScroll + i < equippable.Count; i++)
         {
             if (ui.TryClick(_detailX, _listY + i * EquippableRowH, _detailW, EquippableRowH))
             {
-                _selected = i;
-                ToggleEquip(inventory, gear, equippable[i].ItemId!);
+                _selected = _equippableScroll + i;
+                _selectionMode = 1;
+                ToggleEquip(inventory, gear, equippable[_selected].ItemId!);
             }
         }
 
@@ -1177,9 +1475,25 @@ public sealed class GearPanel
             if (equipped == null) continue;
             if (ui.TryClick(_rowX, _rowY[i], _rowW, RowH))
             {
+                _equippedSelected = i;
+                _selectionMode = 0;
                 inventory.UnequipItem(equipped.Id);
                 gear!.Unequip(SlotNames[i]);
             }
+        }
+
+        // Hover updates selection mode
+        for (int i = 0; i < EquippableRows && _equippableScroll + i < equippable.Count; i++)
+        {
+            if (ui.Hovered(_detailX, _listY + i * EquippableRowH, _detailW, EquippableRowH))
+                _selectionMode = 1;
+        }
+        for (int i = 0; i < SlotNames.Length; i++)
+        {
+            var equipped = gear?.GetEquipped(SlotNames[i]);
+            if (equipped == null) continue;
+            if (ui.Hovered(_rowX, _rowY[i], _rowW, RowH))
+                _selectionMode = 0;
         }
     }
 
@@ -1206,7 +1520,11 @@ public sealed class GearPanel
         var equipped = gear?.GetEquipped(slotName);
 
         // Row well.
-        batch.DrawScreenQuad(_rowX + _rowW * 0.5f, cy, _rowW * 0.5f, RowH * 0.5f, 26, 18, 12);
+        bool equippedSelected = (_selectionMode == 0) && (_equippedSelected == i);
+        byte wellR = equippedSelected ? (byte)70 : (byte)26;
+        byte wellG = equippedSelected ? (byte)52 : (byte)18;
+        byte wellB = equippedSelected ? (byte)30 : (byte)12;
+        batch.DrawScreenQuad(_rowX + _rowW * 0.5f, cy, _rowW * 0.5f, RowH * 0.5f, wellR, wellG, wellB);
         DrawLeft(batch, text, label, _rowX + 10f, cy, 13, 150, 140, 130);
 
         if (equipped == null)
@@ -1255,20 +1573,20 @@ public sealed class GearPanel
         // Equippable inventory items (present in gear.json).
         DrawLeft(batch, text, "Equippable", _detailX, _detailY + 104f, 13, 150, 140, 130);
         var equippable = EquippableSlots(inventory);
-        for (int i = 0; i < equippable.Count && i < EquippableRows; i++)
+        for (int i = 0; i < EquippableRows && _equippableScroll + i < equippable.Count; i++)
         {
-            var slot = equippable[i];
+            var slot = equippable[_equippableScroll + i];
             float y = _listY + i * EquippableRowH + EquippableRowH * 0.5f;
-            bool selected = i == _selected;
+            bool selected = (_selectionMode == 1) && (_equippableScroll + i == _selected);
             bool isEquipped = slot.IsEquipped;
             if (selected)
                 batch.DrawScreenQuad(_detailX + _detailW * 0.5f, y, _detailW * 0.5f, EquippableRowH * 0.5f, 34, 26, 20);
 
             var display = Data.ItemCatalog.Get(slot.ItemId!);
             DrawLeft(batch, text, display?.Name ?? slot.ItemId!, _detailX + 8f, y, 13,
-                isEquipped ? (byte)200 : (byte)170,
-                isEquipped ? (byte)170 : (byte)160,
-                isEquipped ? (byte)60 : (byte)140);
+                isEquipped ? (byte)200 : (selected ? (byte)200 : (byte)170),
+                isEquipped ? (byte)170 : (selected ? (byte)220 : (byte)160),
+                isEquipped ? (byte)60 : (selected ? (byte)140 : (byte)140));
             if (isEquipped)
                 DrawRight(batch, text, "Wielded", _detailX + _detailW - 8f, y, 12, 200, 170, 60, bold: true);
         }
@@ -1365,7 +1683,7 @@ public sealed class GearPanel
         var (tw, _) = text.Measure(s, size, bold);
         text.DrawText(batch, s, right - tw * 0.5f, centerY, size, r, g, b, bold: bold);
     }
-}
+} // GearPanel
 
 /// <summary>
 /// DashboardPanel — Unified dashboard with 5 tabs (placeholder until it gets content).
@@ -1515,4 +1833,4 @@ public sealed class DashboardPanel
         var (width, _) = text.Measure(value, size, bold);
         text.DrawText(batch, value, left + width * 0.5f, y, size, r, g, b, bold: bold);
     }
-}
+} // DashboardPanel

@@ -77,8 +77,17 @@ public sealed class TradePanel
         var ui=new UiInput(input); float x=screenW/2f-325,y=screenH/2f-193;
         for(int i=0;i<2;i++) if(ui.TryClick(x+i*110,y+23,100,32)) SetTab(i==0?"buy":"sell");
         var rows=CurrentCount;
-        for(int i=0;i<rows;i++) if(ui.TryClick(x,y+60+i*NpcPanelLayout.RowH,650,NpcPanelLayout.RowH)) { SelectedIndex=i; HandleConfirm(); }
+
+        // Mouse wheel scroll
+        float scroll = ui.GetScroll();
+        if (scroll != 0f)
+        {
+            _scroll = Math.Clamp(_scroll - (int)scroll, 0, Math.Max(0, rows - 7));
+        }
+
+        for(int i=0;i<Math.Min(7, rows - _scroll);i++) if(ui.TryClick(x,y+60+i*NpcPanelLayout.RowH,650,NpcPanelLayout.RowH)) { SelectedIndex=_scroll+i; HandleConfirm(); }
     }
+    private int _scroll = 0;
     public List<(string itemId,int quantity,int sellPrice)> CollectSellableItems() => SellRows.Select(r=>(r.ItemId,r.Quantity,r.SellPrice)).ToList();
     public void Render(PrimitiveBatch b, TextRenderer? t,int w,int h)
     {
@@ -86,8 +95,9 @@ public sealed class TradePanel
         NpcPanelLayout.Label(b,t,TradeSession?.Name??"Merchant",x,y+15,16,bold:true);
         NpcPanelLayout.Label(b,t,$"Gold: {Player?.Inventory?.GetItemQuantity(TradeSystem.GoldItemId)??0}    Merchant gold: {(TradeSession==null?0:TradeSystem.MerchantGoldOf(TradeSession))}",x+345,y+15);
         for(int i=0;i<2;i++){ string name=i==0?"BUY":"SELL"; float bx=x+i*110; b.DrawScreenQuad(bx+50,y+39,48,16,Tab==(i==0?"buy":"sell")?(byte)80:(byte)30,50,25); NpcPanelLayout.Label(b,t,name,bx+50,y+39,12); }
-        if(Tab=="buy") for(int i=0;i<BuyRows.Count && i<7;i++){var r=BuyRows[i]; NpcPanelLayout.Row(b,t,x,y+60+i*NpcPanelLayout.RowH,650,$"{r.ItemId}   stock {r.Stock}/{r.MaxStock}",r.CommerceRequirement>0?$"{r.BuyPrice}g · commerce {r.CommerceRequirement}":$"{r.BuyPrice}g",i==SelectedIndex);}
-        else for(int i=0;i<SellRows.Count && i<7;i++){var r=SellRows[i]; NpcPanelLayout.Row(b,t,x,y+60+i*NpcPanelLayout.RowH,650,$"{r.ItemId}   x{r.Quantity}",$"{r.SellPrice}g each",i==SelectedIndex);}
+        var rows = CurrentCount;
+        if(Tab=="buy") for(int i=0;i<Math.Min(7, BuyRows.Count - _scroll);i++){var r=BuyRows[_scroll+i]; NpcPanelLayout.Row(b,t,x,y+60+i*NpcPanelLayout.RowH,650,$"{r.ItemId}   stock {r.Stock}/{r.MaxStock}",r.CommerceRequirement>0?$"{r.BuyPrice}g · commerce {r.CommerceRequirement}":$"{r.BuyPrice}g",_scroll+i==SelectedIndex);}
+        else for(int i=0;i<Math.Min(7, SellRows.Count - _scroll);i++){var r=SellRows[_scroll+i]; NpcPanelLayout.Row(b,t,x,y+60+i*NpcPanelLayout.RowH,650,$"{r.ItemId}   x{r.Quantity}",$"{r.SellPrice}g each",_scroll+i==SelectedIndex);}
         NpcPanelLayout.Label(b,t,string.IsNullOrEmpty(Status)?"←/→ tab   ↑/↓ select   Enter trade   Esc close":Status,x+325,y+390,13,200,180,130);
     }
 }
@@ -142,13 +152,22 @@ public sealed class QuestPanel
         else Rows=Session==null?[]:Session.AvailableQuests.Select(system.Registry.GetQuest).Where(q=>q!=null).Cast<QuestDef>().ToList();
         SelectedIndex=Math.Clamp(SelectedIndex,0,Math.Max(0,Rows.Count-1));
         var ui=new UiInput(input);float x=w/2f-325,y=h/2f-193;
-        for(int i=0;i<Rows.Count;i++)if(ui.TryClick(x,y+38+i*NpcPanelLayout.RowH,650,NpcPanelLayout.RowH)){SelectedIndex=i;HandleConfirm();}
+
+        // Mouse wheel scroll
+        float scroll = ui.GetScroll();
+        if (scroll != 0f)
+        {
+            _scroll = Math.Clamp(_scroll - (int)scroll, 0, Math.Max(0, Rows.Count - 7));
+        }
+
+        for(int i=0;i<Math.Min(7, Rows.Count - _scroll);i++)if(ui.TryClick(x,y+38+i*NpcPanelLayout.RowH,650,NpcPanelLayout.RowH)){SelectedIndex=_scroll+i;HandleConfirm();}
     }
+    private int _scroll = 0;
     public void Render(PrimitiveBatch b,TextRenderer? t,int w,int h)
     {
         NpcPanelLayout.Frame(b,t,w,h,_journalMode?"QUEST JOURNAL":"QUESTS",out var x,out var y);if(t==null)return;
         NpcPanelLayout.Label(b,t,_journalMode?"Your active and completed quests":Session?.Name??"Quest giver",x,y+14,16,bold:true);
-        for(int i=0;i<Rows.Count&&i<7;i++){var q=Rows[i];var active=_system?.IsAccepted(q.QuestId)==true;var done=_system?.IsCompleted(q.QuestId)==true;var ready=active&&_system!.ConditionsMet(q,Player?.Inventory??new Inventory());var right=done?"COMPLETE":ready?"READY TO CLAIM":active?"TRACKING · in progress":"AVAILABLE";NpcPanelLayout.Row(b,t,x,y+38+i*NpcPanelLayout.RowH,650,q.Name,right,i==SelectedIndex);}
+        for(int i=0;i<Math.Min(7, Rows.Count - _scroll);i++){var q=Rows[_scroll+i];var active=_system?.IsAccepted(q.QuestId)==true;var done=_system?.IsCompleted(q.QuestId)==true;var ready=active&&_system!.ConditionsMet(q,Player?.Inventory??new Inventory());var right=done?"COMPLETE":ready?"READY TO CLAIM":active?"TRACKING · in progress":"AVAILABLE";NpcPanelLayout.Row(b,t,x,y+38+i*NpcPanelLayout.RowH,650,q.Name,right,_scroll+i==SelectedIndex);}
         if(SelectedIndex<Rows.Count){var q=Rows[SelectedIndex];NpcPanelLayout.Label(b,t,q.Description,x,y+370,13);}
         NpcPanelLayout.Label(b,t,string.IsNullOrEmpty(Status)?(_journalMode?"↑/↓ select   Enter claim when ready   Esc close":"↑/↓ select   Enter accept / claim   Esc close"):Status,x+325,y+400,12,200,180,130);
     }
@@ -165,8 +184,19 @@ public sealed class RecruitPanel
     public void Close(){Visible=false;Session=null;}
     public void HandleKey(Key key){if(key==Key.Up)SelectedIndex=Math.Max(0,SelectedIndex-1);else if(key==Key.Down)SelectedIndex=Math.Min(Math.Max(0,(Session?.AvailableBehaviors.Count??0)-1),SelectedIndex+1);}
     public void HandleConfirm(){var skills=_skills??Player?.SkillManager;if(Session==null||skills==null||SelectedIndex>=Session.AvailableBehaviors.Count)return;var c=skills.GetEffectiveStat("intelligence","commerce");var p=skills.GetEffectiveStat("intelligence","persuasion");if(c<Session.RecruitCommerce||p<Session.RecruitPersuasion||c+p<Session.RecruitComposite){Status=$"Requires commerce {Session.RecruitCommerce}, persuasion {Session.RecruitPersuasion}, combined {Session.RecruitComposite}.";return;}OnAction?.Invoke(("recruit",[Session.NpcId,Session.AvailableBehaviors[SelectedIndex]]));Close();}
-    public void Update(InputState input,SkillManager? skills,int w,int h){_skills=skills;var ui=new UiInput(input);float x=w/2f-325,y=h/2f-193;for(int i=0;i<(Session?.AvailableBehaviors.Count??0);i++)if(ui.TryClick(x,y+42+i*NpcPanelLayout.RowH,650,NpcPanelLayout.RowH)){SelectedIndex=i;HandleConfirm();}}
-    public void Render(PrimitiveBatch b,TextRenderer? t,int w,int h){NpcPanelLayout.Frame(b,t,w,h,"RECRUIT",out var x,out var y);if(t==null)return;NpcPanelLayout.Label(b,t,$"{Session?.Name??"Recruit"} · commerce {Session?.RecruitCommerce} · persuasion {Session?.RecruitPersuasion}",x,y+15,15);if(Session!=null)for(int i=0;i<Session.AvailableBehaviors.Count&&i<7;i++)NpcPanelLayout.Row(b,t,x,y+42+i*NpcPanelLayout.RowH,650,$"Serve as {Session.AvailableBehaviors[i]}","RECRUIT",i==SelectedIndex);NpcPanelLayout.Label(b,t,string.IsNullOrEmpty(Status)?"↑/↓ choose   Enter recruit   Esc close":Status,x+325,y+390,13,200,180,130);}
+    public void Update(InputState input,SkillManager? skills,int w,int h){_skills=skills;var ui=new UiInput(input);float x=w/2f-325,y=h/2f-193;var count = Session?.AvailableBehaviors.Count ?? 0;
+
+        // Mouse wheel scroll
+        float scroll = ui.GetScroll();
+        if (scroll != 0f)
+        {
+            _scroll = Math.Clamp(_scroll - (int)scroll, 0, Math.Max(0, count - 7));
+        }
+
+        for(int i=0;i<Math.Min(7, count - _scroll);i++)if(ui.TryClick(x,y+42+i*NpcPanelLayout.RowH,650,NpcPanelLayout.RowH)){SelectedIndex=_scroll+i;HandleConfirm();}}
+    private int _scroll = 0;
+
+    public void Render(PrimitiveBatch b,TextRenderer? t,int w,int h){NpcPanelLayout.Frame(b,t,w,h,"RECRUIT",out var x,out var y);if(t==null)return;NpcPanelLayout.Label(b,t,$"{Session?.Name??"Recruit"} · commerce {Session?.RecruitCommerce} · persuasion {Session?.RecruitPersuasion}",x,y+15,15);var count = Session?.AvailableBehaviors.Count ?? 0;if(Session!=null)for(int i=0;i<Math.Min(7, count - _scroll);i++)NpcPanelLayout.Row(b,t,x,y+42+i*NpcPanelLayout.RowH,650,$"Serve as {Session.AvailableBehaviors[_scroll+i]}","RECRUIT",_scroll+i==SelectedIndex);NpcPanelLayout.Label(b,t,string.IsNullOrEmpty(Status)?"↑/↓ choose   Enter recruit   Esc close":Status,x+325,y+390,13,200,180,130);}
 }
 
 /// <summary>Faction standing and negotiation panel.</summary>
@@ -197,10 +227,19 @@ public sealed class DiplomacyPanel
         if(factions.Count==0){FactionInfo=null;return;}
         _selectedFaction=Math.Clamp(_selectedFaction,0,factions.Count-1);SelectOverviewFaction();
         var ui=new UiInput(input);float x=w/2f-325f,y=h/2f-193f;
-        for(int i=0;i<factions.Count&&i<7;i++)
-            if(ui.TryClick(x,y+38+i*NpcPanelLayout.RowH,235,NpcPanelLayout.RowH)){_selectedFaction=i;SelectOverviewFaction();return;}
+
+        // Mouse wheel scroll for faction list
+        float scroll = ui.GetScroll();
+        if (scroll != 0f)
+        {
+            _overviewScroll = Math.Clamp(_overviewScroll - (int)scroll, 0, Math.Max(0, factions.Count - 7));
+        }
+
+        for(int i=0;i<Math.Min(7, factions.Count - _overviewScroll);i++)
+            if(ui.TryClick(x,y+38+i*NpcPanelLayout.RowH,235,NpcPanelLayout.RowH)){_selectedFaction=_overviewScroll+i;SelectOverviewFaction();return;}
         if(ui.TryClick(x+275,y+225,335,48))HandleConfirm();
     }
+    private int _overviewScroll = 0;
     public void Render(PrimitiveBatch b,TextRenderer? t,int w,int h)
     {
         NpcPanelLayout.Frame(b,t,w,h,"DIPLOMACY",out var x,out var y);if(t==null)return;
@@ -208,10 +247,10 @@ public sealed class DiplomacyPanel
         {
             var factions=Registry?.Factions.Values.OrderBy(f=>f.Name).ToList()??[];
             NpcPanelLayout.Label(b,t,"FACTIONS",x+115,y+14,14,bold:true);
-            for(int i=0;i<factions.Count&&i<7;i++)
+            for(int i=0;i<Math.Min(7, factions.Count - _overviewScroll);i++)
             {
-                var f=factions[i];var rowStanding=System?.StandingOf(f.FactionId)??QuestSystem.DefaultStanding;
-                NpcPanelLayout.Row(b,t,x,y+38+i*NpcPanelLayout.RowH,235,f.Name,$"{rowStanding:P0}",i==_selectedFaction);
+                var f=factions[_overviewScroll+i];var rowStanding=System?.StandingOf(f.FactionId)??QuestSystem.DefaultStanding;
+                NpcPanelLayout.Row(b,t,x,y+38+i*NpcPanelLayout.RowH,235,f.Name,$"{rowStanding:P0}",_overviewScroll+i==_selectedFaction);
             }
             var selected=Registry?.GetFaction(FactionInfo?.FactionId??"");
             var id=FactionInfo?.FactionId??"";var value=System?.StandingOf(id)??QuestSystem.DefaultStanding;
