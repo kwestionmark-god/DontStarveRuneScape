@@ -94,32 +94,36 @@ public sealed class InputRouter
                     HandleGenericPanelInput(key);
                 break;
             case GameState.SkillPanel:
-                if (key == Key.Up || key == Key.Down)
+                if (key == Key.Up || key == Key.Down || key == Key.Left || key == Key.Right
+                    || key == Key.Tab || key == Key.Enter || key == Key.Space)
                     _game.SkillPanel?.HandleKey(key);
                 else
                     HandleGenericPanelInput(key);
                 break;
             case GameState.InventoryOpen:
                 if (key == Key.Up || key == Key.Down || key == Key.Left || key == Key.Right
-                    || key == Key.Enter)
+                    || key == Key.Tab || key == Key.Enter || key == Key.Space)
                     _game.InventoryPanel?.HandleKey(key, _game.Inventory!, _game.Player?.Gear);
                 else
                     HandleGenericPanelInput(key);
                 break;
             case GameState.CraftingPanel:
-                if (key == Key.Up || key == Key.Down)
+                if (key == Key.Up || key == Key.Down || key == Key.Left || key == Key.Right
+                    || key == Key.Tab || key == Key.Enter || key == Key.Space)
                     _game.CraftingPanel?.HandleKey(key);
                 else
                     HandleGenericPanelInput(key);
                 break;
             case GameState.BuildingPanel:
-                if (key == Key.Up || key == Key.Down)
+                if (key == Key.Up || key == Key.Down || key == Key.Left || key == Key.Right
+                    || key == Key.Tab || key == Key.Enter || key == Key.Space)
                     _game.BuildingPanel?.HandleKey(key);
                 else
                     HandleGenericPanelInput(key);
                 break;
             case GameState.GearPanel:
-                if (key == Key.Up || key == Key.Down)
+                if (key == Key.Up || key == Key.Down || key == Key.Left || key == Key.Right
+                    || key == Key.Tab || key == Key.Enter || key == Key.Space)
                     _game.GearPanel?.HandleKey(key);
                 else
                     HandleGenericPanelInput(key);
