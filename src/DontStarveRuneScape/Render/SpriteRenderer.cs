@@ -146,6 +146,28 @@ public sealed class SpriteRenderer : IDisposable
 
     private float _playerAnimTime;
 
+    /// <summary>Optional terrain-height sampler (world px → elevation) used to
+    /// anchor each boot at its own ground height. Set by Game each frame.</summary>
+    public Func<float, float, float>? BootElevation { get; set; }
+
+    // ── Procedural stepping: planted/swing state machine per foot ────────
+    // Each foot holds a world position while on the ground. When the moving
+    // body leaves it too far behind, the foot swings to a landing point
+    // ahead along the travel direction, arcs up, and plants there.
+    private struct Foot
+    {
+        public bool Placed;
+        public bool Swinging;
+        public float X, Y;                 // current world position
+        public float FromX, FromY, ToX, ToY; // swing endpoints
+        public float T;                    // swing progress 0..1
+    }
+    private Foot _footL, _footR;
+    private const float StanceWidth = 3f;   // lateral foot offset, world px
+    private const float TriggerDist = 3f;   // idle replant threshold, world px
+    private const float SwingDur = 0.1f;    // seconds per step
+    private const float LiftPx = 4f;        // peak swing lift, screen px
+
     // Swing arc for the carried weapon-slot item (attack/chop/mine). Purely
     // visual state: TriggerPlayerSwing starts the arc, RenderPlayer animates
     // it over the duration.
@@ -158,19 +180,107 @@ public sealed class SpriteRenderer : IDisposable
         _swingTotal = duration;
     }
 
+    /// <summary>
+    /// Advance one foot of the stepping state machine. A planted foot starts a
+    /// swing once it trails halfStride behind the stance along the travel
+    /// direction (symmetric gait); a swinging foot lerps to its landing spot
+    /// over SwingDur seconds. While idle, a drifted foot replants on the stance.
+    /// </summary>
+    private void StepFoot(ref Foot f, float side, float px, float py,
+        float velX, float velY, float speed, bool moving, Player player, float dt)
+    {
+        float stanceX = player.WorldX + px * StanceWidth * side;
+        float stanceY = player.WorldY + py * StanceWidth * side;
+        if (!f.Placed)
+        {
+            f.X = stanceX; f.Y = stanceY;
+            f.Placed = true;
+            return;
+        }
+        if (f.Swinging)
+        {
+            UpdateSwing(ref f, dt);
+            return;
+        }
+        // Symmetric gait: lift once the foot has trailed halfStride behind the
+        // stance along the travel direction — the same distance it will land
+        // ahead of the stance — so feet swing through the stance without a
+        // permanent behind-phase.
+        float ndx, ndy;
+        if (moving) { ndx = velX / speed; ndy = velY / speed; }
+        else { (ndx, ndy) = player.LastMoveDir; }
+        // halfStride = speed × SwingDur × 0.5 makes the alternation gate
+        // lag-free at constant velocity; the 3px floor keeps low speeds stepping.
+        float halfStride = MathF.Max(3f, speed * SwingDur * 0.5f);
+        float behind = (stanceX - f.X) * ndx + (stanceY - f.Y) * ndy;
+        if (moving && behind > halfStride)
+        {
+            // Land halfStride ahead of the stance plus the distance the body
+            // covers during the swing, so the foot plants halfStride ahead of
+            // the then-current stance at any constant velocity.
+            f.FromX = f.X; f.FromY = f.Y;
+            f.ToX = stanceX + ndx * (halfStride + speed * SwingDur);
+            f.ToY = stanceY + ndy * (halfStride + speed * SwingDur);
+            f.T = 0f;
+            f.Swinging = true;
+        }
+        else if (!moving)
+        {
+            // Idle replant: pull the foot back onto the stance when it has
+            // drifted off it, contouring the terrain via BootElevation.
+            float sdx = f.X - stanceX, sdy = f.Y - stanceY;
+            if (sdx * sdx + sdy * sdy > TriggerDist * TriggerDist)
+            {
+                f.FromX = f.X; f.FromY = f.Y;
+                f.ToX = stanceX; f.ToY = stanceY;
+                f.T = 0f;
+                f.Swinging = true;
+            }
+        }
+    }
+
+    /// <summary>Advance a foot that is mid-swing until it plants. No-op when
+    /// the foot is planted — otherwise a fresh foot would "land" at (0,0).</summary>
+    private static void UpdateSwing(ref Foot f, float dt)
+    {
+        if (!f.Swinging) return;
+        f.T += dt / SwingDur;
+        if (f.T >= 1f)
+        {
+            f.T = 1f;
+            f.Swinging = false;
+            f.X = f.ToX; f.Y = f.ToY;
+        }
+        else
+        {
+            f.X = f.FromX + (f.ToX - f.FromX) * f.T;
+            f.Y = f.FromY + (f.ToY - f.FromY) * f.T;
+        }
+    }
+
     public void RenderPlayer(Player player, PrimitiveBatch batch, Camera camera, float elevation, float dt, float waterDepth = 0f)
     {
         _playerAnimTime += dt;
         _swingRemaining = MathF.Max(0f, _swingRemaining - dt);
         // Arc progress 0→1 across the swing; 0 when resting.
         float swing = _swingRemaining > 0f ? 1f - _swingRemaining / _swingTotal : 0f;
-        bool moving = player.Moving;
+        // The gait reacts to actual net velocity (WASD + click-to-move combined),
+        // so feet track real body motion and plant when the body is still.
+        float velX = player.VelocityX, velY = player.VelocityY;
+        float speed = MathF.Sqrt(velX * velX + velY * velY);
+        bool moving = speed > 1f;
         // Walk cycles run a bit faster than the idle bob.
         float frameDuration = moving ? 0.12f : 0.3f;
         int frame = (int)(_playerAnimTime / frameDuration) % 4;
-        string key = (moving ? "player/walk_" : "player/idle_") + frame;
 
-        uint tex = GetSpriteTexture(key);
+        // 8-directional sprite selection based on movement angle.
+        // Directions (clockwise from South): 0=S, 1=SE, 2=E, 3=NE, 4=N, 5=NW, 6=W, 7=SW
+        var (mdx, mdy) = player.LastMoveDir;
+
+        uint bodyTex = GetSpriteTexture("player/body");
+        uint bootTex = GetSpriteTexture("player/boot");
+        // Legacy single-sprite fallback: idle_/walk_ frames.
+        uint tex = bodyTex != 0 ? 0 : GetSpriteTexture((moving ? "player/walk_" : "player/idle_") + frame);
         // Ground point: the world position is the player's feet.
         var screen = camera.WorldToScreen(player.WorldX, player.WorldY, elevation);
         const float HalfWidth = 22f;
@@ -186,7 +296,38 @@ public sealed class SpriteRenderer : IDisposable
 
         DrawShadow(batch, screen.X, screen.Y, half, 220);
 
-        if (tex != 0)
+        if (bodyTex != 0)
+        {
+            // Procedural stepping: each boot plants at a fixed world spot while
+            // the body moves; once left behind it swings forward, arcs up, and
+            // lands at its own sampled terrain elevation. At rest both feet
+            // plant on the heightmap, contouring slopes.
+            batch.DrawTexturedScreenQuad(cx, cy, half, half, bodyTex, 255, 255, 255);
+            if (bootTex != 0)
+            {
+                float pa = mdx == 0f && mdy == 0f ? MathF.PI / 2f : MathF.Atan2(mdy, mdx);
+                float px = -MathF.Sin(pa), py = MathF.Cos(pa);  // left-perpendicular
+                float bootHalf = half * (4f / 32f);
+                // Alternate steps: a foot only swings once the other is planted.
+                if (!_footR.Swinging)
+                    StepFoot(ref _footL, -1f, px, py, velX, velY, speed, moving, player, dt);
+                else
+                    UpdateSwing(ref _footL, dt);
+                if (!_footL.Swinging)
+                    StepFoot(ref _footR, 1f, px, py, velX, velY, speed, moving, player, dt);
+                else
+                    UpdateSwing(ref _footR, dt);
+                foreach (var (foot, _) in new[] { (_footL, 0), (_footR, 1) })
+                {
+                    float fe = BootElevation?.Invoke(foot.X, foot.Y) ?? elevation;
+                    var fs = camera.WorldToScreen(foot.X, foot.Y, fe);
+                    float lift = foot.Swinging ? MathF.Sin(foot.T * MathF.PI) * LiftPx * camera.Zoom : 0f;
+                    batch.DrawTexturedScreenQuad(fs.X, fs.Y - bootHalf - lift,
+                        bootHalf, bootHalf, bootTex, 255, 255, 255);
+                }
+            }
+        }
+        else if (tex != 0)
         {
             batch.DrawTexturedScreenQuad(cx, cy, half, half, tex, 255, 255, 255);
         }

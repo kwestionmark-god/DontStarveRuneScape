@@ -7,8 +7,13 @@ This directory contains all sprite assets for Don't Starve RuneScape.
 ```
 assets/sprites/
 ├── player/        # Player character sprites (16x16)
-│   ├── idle_0.png - idle_3.png  # 4 idle frames
-│   └── walk_0.png - walk_3.png  # 4 walk frames
+│   ├── idle_0.png - idle_3.png        # Legacy fallback: 4 idle frames
+│   ├── walk_0.png - walk_3.png        # Legacy fallback: 4 walk frames
+│   ├── body.png                       # Original sprite minus legs (static)
+│   └── boot.png                       # 4x4 boot block. Renderer places each
+│        # boot procedurally: stride arc while walking, terrain-elevation
+│        # planting otherwise — legs contour the heightmap. Regenerate with
+│        # tools/generate_player_sprites.py
 ├── trees/         # Tree and bush sprites (32x32 unless noted)
 │   ├── oak.png, pine.png, maple.png, spruce.png, willow.png, birch.png
 │   ├── elder_wood.png             # Tier 4 tree (32x32)

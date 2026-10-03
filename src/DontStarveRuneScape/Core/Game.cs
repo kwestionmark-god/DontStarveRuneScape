@@ -726,8 +726,21 @@ public sealed class Game
         if (State == GameState.Playing && Player != null && InputManager != null)
         {
             float cameraYaw = Camera?.Yaw ?? 0f;
+            float prevX = Player.WorldX, prevY = Player.WorldY;
             Player.ApplyKeyInput(InputManager.InputState, dt, cameraYaw);
             Player.Update(dt);
+            // Net velocity across all movement paths (WASD + click-to-move) —
+            // drives the stepping gait, so feet track real body motion.
+            if (dt > 1e-5f)
+            {
+                Player.VelocityX = (Player.WorldX - prevX) / dt;
+                Player.VelocityY = (Player.WorldY - prevY) / dt;
+            }
+            else
+            {
+                Player.VelocityX = 0f;
+                Player.VelocityY = 0f;
+            }
         }
 
         // Survival tile effects
@@ -1223,6 +1236,18 @@ public sealed class Game
                 float fx = Player.WorldX / Constants.TileSize - ptx;
                 float fy = Player.WorldY / Constants.TileSize - pty;
                 float elev = tile?.GetElevationAt(fx, fy) ?? 0f;
+                // Per-foot elevation sampler so the directional boot sprites
+                // track slopes: each boot anchors to the ground under it.
+                SpriteRenderer.BootElevation = (wx, wy) =>
+                {
+                    int tx = Math.Clamp((int)(wx / Constants.TileSize), 0, Constants.MapWidth - 1);
+                    int ty = Math.Clamp((int)(wy / Constants.TileSize), 0, Constants.MapHeight - 1);
+                    var t = World.GetTile(tx, ty);
+                    if (t == null) return 0f;
+                    float lfx = Math.Clamp(wx / Constants.TileSize - tx, 0f, 1f);
+                    float lfy = Math.Clamp(wy / Constants.TileSize - ty, 0f, 1f);
+                    return t.GetElevationAt(lfx, lfy);
+                };
                 // Submergible: below the sea plane the player sinks with depth
                 // (ankle-deep at the shore, swimming in open water).
                 float immersion = 0f;

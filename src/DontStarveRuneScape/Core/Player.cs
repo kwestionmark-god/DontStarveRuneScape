@@ -39,6 +39,15 @@ public sealed class Player
     /// attack target.</summary>
     public float Facing { get; set; } = 1f;
 
+    /// <summary>Last movement direction (normalized dx, dy). Used by the renderer
+    /// to select the correct directional sprite (side-view vs back-view).</summary>
+    public (float Dx, float Dy) LastMoveDir { get; set; } = (0f, -1f);
+
+    /// <summary>Actual net velocity this frame (world px per second), computed
+    /// by Game after all movement paths run. Drives the stepping gait.</summary>
+    public float VelocityX { get; set; }
+    public float VelocityY { get; set; }
+
     // Subsystem references (wired by Bootstrap)
     public ActionSystem? ActionSystem { get; set; }
     public PlayerGear? Gear { get; set; }
@@ -125,6 +134,9 @@ public sealed class Player
         // Facing follows the last horizontal move direction.
         if (dx > 0.001f) Facing = 1f;
         else if (dx < -0.001f) Facing = -1f;
+        // Track movement direction for directional sprites
+        if (length > 0)
+            LastMoveDir = (dx, dy);
 
         // Clamp to map bounds
         float maxX = Constants.MapWidth * Constants.TileSize;
@@ -161,6 +173,9 @@ public sealed class Player
         dy /= distance;
         WorldX += dx * EffectiveSpeed * dt;
         WorldY += dy * EffectiveSpeed * dt;
+
+        // Track movement direction for directional sprites
+        LastMoveDir = (dx, dy);
 
         // Clamp to map bounds
         float maxX = Constants.MapWidth * Constants.TileSize;
