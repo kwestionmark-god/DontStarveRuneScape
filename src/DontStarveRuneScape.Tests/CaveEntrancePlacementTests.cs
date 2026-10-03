@@ -41,6 +41,16 @@ public class CaveEntrancePlacementTests
         Assert.True(entrance.Elevation >= Constants.SeaLevel + 2f);
         Assert.Null(entrance.ResourceNode);
 
+        // The 3x3 rock collar (the terrain-backed entrance signature) stays
+        // clear of rooted resources so nothing grows out of the stone.
+        for (int cdx = -1; cdx <= 1; cdx++)
+        for (int cdy = -1; cdy <= 1; cdy++)
+        {
+            var collarTile = map.GetTile(entrance.X + cdx, entrance.Y + cdy);
+            Assert.NotNull(collarTile);
+            Assert.Null(collarTile.ResourceNode);
+        }
+
         int count = 0;
         foreach (var tile in map.Tiles)
             if (tile.IsCaveEntrance)
@@ -49,8 +59,9 @@ public class CaveEntrancePlacementTests
     }
 
     /// <summary>Same generation path as Bootstrap: real biomes, resources
-    /// irrelevant to entrance placement (the placer only clears the chosen
-    /// tile's node), no season system needed for the terrain pipeline.</summary>
+    /// irrelevant to entrance placement (the placer clears the 3x3 node
+    /// patch around the entrance), no season system needed for the terrain
+    /// pipeline.</summary>
     private static TileMap GenerateSurface(int seed)
     {
         var dataLoader = new DataLoader();

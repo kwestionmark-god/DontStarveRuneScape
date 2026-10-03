@@ -1187,12 +1187,14 @@ public sealed class Game
             // outside the frame, especially at shallow pitch).
             float cull = 96f * Camera.Zoom + 96f;
 
-            // A readable stone arch marks the surface entrance and the return
-            // point, painted in world space so it follows terrain height. A
-            // softly pulsing light pillar makes the lone landmark findable
-            // from a distance; the [E] prompt appears once the player is
-            // close enough to use the transition (InteractSystem scans a
-            // 3x3 tile neighborhood around the player).
+            // The entrance and the return point are a terrain-backed rock
+            // signature, Pokemon style: a 3x3 collar of stone tiles around a
+            // sunken, darkened hollow that reads as the doorway. Every stone
+            // quad projects its own tile corners exactly like TileRenderer,
+            // so the structure hugs the terrain grid at any zoom or yaw
+            // instead of floating like the old billboard arch. The Stage-1
+            // light pillar and the [E] prompt (InteractSystem scans a 3x3
+            // tile neighborhood around the player) stay on top of it.
             float pulse = .5f + .5f * MathF.Sin(PlayTime * 2.4f);
             var promptText = TextRenderer;
             for (int x = xMin; x < xMax; x++)
@@ -1209,17 +1211,52 @@ public sealed class Game
                 bool prompt = Player != null &&
                     (Player.WorldX - cx) * (Player.WorldX - cx) +
                     (Player.WorldY - cy) * (Player.WorldY - cy) < 80f * 80f;
+
+                // Stone collar: one terrain-pinned quad per ring tile, keyed
+                // at that tile's own depth so it ties with the ground quad
+                // and paints over it, while anything standing on the tile
+                // still sorts in front. A coordinate hash varies the shade
+                // so the ring reads as stacked stone, not one flat slab.
+                for (int dx = -1; dx <= 1; dx++)
+                for (int dy = -1; dy <= 1; dy++)
+                {
+                    if (dx == 0 && dy == 0) continue;
+                    var ring = World.GetTile(caveTile.X + dx, caveTile.Y + dy);
+                    if (ring == null) continue;
+                    int rx = ring.X, ry = ring.Y;
+                    uint hash = (uint)((rx * 73856093) ^ (ry * 19349663));
+                    float vary = .84f + .22f * ((hash >> 4) & 255) / 255f;
+                    byte stoneR = (byte)Math.Clamp((int)(112 * vary), 0, 255);
+                    byte stoneG = (byte)Math.Clamp((int)(91 * vary), 0, 255);
+                    byte stoneB = (byte)Math.Clamp((int)(65 * vary), 0, 255);
+                    float ringDepth = GetDepthSort(
+                        (rx + .5f) * Constants.TileSize, (ry + .5f) * Constants.TileSize,
+                        ring.GetElevationAt(.5f, .5f));
+                    drawables.Add((ringDepth, seq++, () =>
+                    {
+                        var c = ring.CornerElevations;
+                        var p00 = Camera.WorldToScreen(rx * Constants.TileSize, ry * Constants.TileSize, c?[0] ?? ring.Elevation);
+                        var p10 = Camera.WorldToScreen((rx + 1) * Constants.TileSize, ry * Constants.TileSize, c?[1] ?? ring.Elevation);
+                        var p11 = Camera.WorldToScreen((rx + 1) * Constants.TileSize, (ry + 1) * Constants.TileSize, c?[2] ?? ring.Elevation);
+                        var p01 = Camera.WorldToScreen(rx * Constants.TileSize, (ry + 1) * Constants.TileSize, c?[3] ?? ring.Elevation);
+                        batch.DrawScreenQuadCorners(p00.X, p00.Y, p10.X, p10.Y, p11.X, p11.Y, p01.X, p01.Y, stoneR, stoneG, stoneB);
+                    }));
+                }
+
+                // Doorway hollow: a dark mouth filling the entrance tile with
+                // a deeper, darker throat sunk below it. The pillar and prompt
+                // ride the same drawable, one hair above terrain depth so the
+                // title text is never covered by the ground pass.
                 drawables.Add((GetDepthSort(cx, cy, elevation) + .01f, seq++, () =>
                 {
+                    DrawCaveMouthQuad(batch, cx, cy, elevation, .05f, 0f, 33, 26, 23);
+                    DrawCaveMouthQuad(batch, cx, cy, elevation, .24f, 1.8f, 12, 9, 11);
                     // Warm light pillar: bright at the base, fading with height.
                     // Opaque enough to read from across a screen; it pulses.
                     byte glow = (byte)(120f + 70f * pulse);
                     batch.DrawScreenQuad(screen.X, screen.Y - 6f * scale, 26f * scale, 12f * scale, 255, 220, 140, glow);
                     batch.DrawScreenQuad(screen.X, screen.Y - 70f * scale, 9f * scale, 62f * scale, 255, 220, 140, (byte)(glow * .8f));
                     batch.DrawScreenQuad(screen.X, screen.Y - 126f * scale, 4f * scale, 12f * scale, 255, 235, 170, (byte)(glow * .55f));
-                    batch.DrawScreenQuad(screen.X, screen.Y - 12f * scale, 22f * scale, 16f * scale, 112, 91, 65);
-                    batch.DrawScreenQuad(screen.X, screen.Y - 10f * scale, 14f * scale, 12f * scale, 24, 19, 18);
-                    batch.DrawScreenQuad(screen.X, screen.Y + 2f * scale, 24f * scale, 4f * scale, 145, 118, 78);
                     if (prompt && promptText != null)
                     {
                         float py = screen.Y - 144f * scale;
@@ -1468,6 +1505,21 @@ public sealed class Game
     private TileMap? _compassWorld;
     private bool _compassFound;
     private int _compassX, _compassY;
+
+    /// <summary>One quad of the cave doorway hollow: a world-space rectangle
+    /// inset into the entrance tile, projected at its four corners, sunk a
+    /// few levels below the ground so the mouth reads as a pit instead of a
+    /// dark rug painted flat on the terrain.</summary>
+    private void DrawCaveMouthQuad(PrimitiveBatch batch, float cx, float cy,
+        float elevation, float inset, float sink, byte r, byte g, byte b)
+    {
+        float half = (.5f - inset) * Constants.TileSize;
+        var p00 = Camera.WorldToScreen(cx - half, cy - half, elevation - sink);
+        var p10 = Camera.WorldToScreen(cx + half, cy - half, elevation - sink);
+        var p11 = Camera.WorldToScreen(cx + half, cy + half, elevation - sink);
+        var p01 = Camera.WorldToScreen(cx - half, cy + half, elevation - sink);
+        batch.DrawScreenQuadCorners(p00.X, p00.Y, p10.X, p10.Y, p11.X, p11.Y, p01.X, p01.Y, r, g, b);
+    }
 
     /// <summary>Faint off-screen edge marker pointing toward the cave
     /// entrance while it is within exploration range but out of view.</summary>

@@ -113,7 +113,12 @@ public static class WorldGen
         if (bestX < 0) return; // no walkable ground anywhere — world is unplayable anyway
         var entrance = map.Tiles[bestX, bestY];
         entrance.IsCaveEntrance = true;
-        entrance.ResourceNode = null;
+        // The entrance renders as a 3x3 terrain-backed rock collar with the
+        // doorway hollow in the middle; rooted resources would grow out of
+        // the stone, so clear the whole patch, not just the center tile.
+        for (int dx = -1; dx <= 1; dx++)
+        for (int dy = -1; dy <= 1; dy++)
+            map.GetTile(bestX + dx, bestY + dy).ResourceNode = null;
     }
 
     /// <summary>
