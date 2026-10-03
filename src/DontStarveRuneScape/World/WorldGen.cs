@@ -63,7 +63,13 @@ public static class WorldGen
     private static void PlaceCaveEntrance(TileMap map, int seed, int spawnX, int spawnY)
     {
         var random = new Random(unchecked(seed ^ 0x4c3a71));
-        int bestX = spawnX, bestY = spawnY;
+        // The entrance is the map's single landmark and the only route into
+        // the cave layer, so it must sit where players actually explore: a
+        // walkable flat patch in a target distance band from spawn, not at
+        // the map edge. Higher ground is mildly preferred so the arch reads
+        // against the terrain.
+        const float minDistance = 40f, targetDistance = 56f, maxDistance = 80f;
+        int bestX = -1, bestY = -1;
         float bestScore = float.NegativeInfinity;
         for (int i = 0; i < 700; i++)
         {
@@ -82,9 +88,29 @@ public static class WorldGen
             }
             if (!float.IsFinite(max) || max - min > 1.5f) continue;
             float distanceFromSpawn = MathF.Sqrt((x - spawnX) * (x - spawnX) + (y - spawnY) * (y - spawnY));
-            float score = distanceFromSpawn + random.NextSingle() * 8f;
+            if (distanceFromSpawn < minDistance || distanceFromSpawn > maxDistance) continue;
+            float score = -MathF.Abs(distanceFromSpawn - targetDistance)
+                + (tile.Elevation - Constants.SeaLevel) * 0.05f
+                + random.NextSingle() * 4f;
             if (score > bestScore) { bestScore = score; bestX = x; bestY = y; }
         }
+        if (bestX < 0)
+        {
+            // Deterministic full-map fallback in case the sampled pass finds
+            // no valid tile in the band: take the closest-to-target valid tile
+            // at least minDistance out.
+            for (int x = 8; x < map.Width - 8; x++)
+            for (int y = 8; y < map.Height - 8; y++)
+            {
+                var tile = map.Tiles[x, y];
+                if (tile.HasWater || tile.Elevation < Constants.SeaLevel + 2f || tile.Structure != null) continue;
+                float d = MathF.Sqrt((x - spawnX) * (x - spawnX) + (y - spawnY) * (y - spawnY));
+                if (d < minDistance) continue;
+                float score = -MathF.Abs(d - targetDistance);
+                if (score > bestScore) { bestScore = score; bestX = x; bestY = y; }
+            }
+        }
+        if (bestX < 0) return; // no walkable ground anywhere — world is unplayable anyway
         var entrance = map.Tiles[bestX, bestY];
         entrance.IsCaveEntrance = true;
         entrance.ResourceNode = null;

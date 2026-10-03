@@ -554,7 +554,17 @@ public sealed class Game
         if (SmokeTestPath != null)
         {
             if (State == GameState.Title) SetState(GameState.CharacterSelect);
-            else if (State == GameState.CharacterSelect) SetState(GameState.Loading);
+            else if (State == GameState.CharacterSelect)
+            {
+                // Menu auto-advance bypasses StartNewGame, where DSR_SEED is
+                // normally pinned — apply it here too or headless captures
+                // silently render the ctor default seed (42) instead of the
+                // documented one.
+                var seedEnv = Environment.GetEnvironmentVariable("DSR_SEED");
+                if (!string.IsNullOrWhiteSpace(seedEnv) && int.TryParse(seedEnv, out var seedOverride) && seedOverride > 0)
+                    Seed = seedOverride;
+                SetState(GameState.Loading);
+            }
         }
         Dt = dt;
         PlayTime += dt;
@@ -1178,7 +1188,13 @@ public sealed class Game
             float cull = 96f * Camera.Zoom + 96f;
 
             // A readable stone arch marks the surface entrance and the return
-            // point. It is painted in world space so it follows terrain height.
+            // point, painted in world space so it follows terrain height. A
+            // softly pulsing light pillar makes the lone landmark findable
+            // from a distance; the [E] prompt appears once the player is
+            // close enough to use the transition (InteractSystem scans a
+            // 3x3 tile neighborhood around the player).
+            float pulse = .5f + .5f * MathF.Sin(PlayTime * 2.4f);
+            var promptText = TextRenderer;
             for (int x = xMin; x < xMax; x++)
             for (int y = yMin; y < yMax; y++)
             {
@@ -1189,11 +1205,29 @@ public sealed class Game
                 float elevation = caveTile.GetElevationAt(.5f, .5f);
                 var screen = Camera.WorldToScreen(cx, cy, elevation);
                 float scale = Math.Clamp(Camera.Zoom, .55f, 1.4f);
+                bool exit = caveTile.IsCaveExit;
+                bool prompt = Player != null &&
+                    (Player.WorldX - cx) * (Player.WorldX - cx) +
+                    (Player.WorldY - cy) * (Player.WorldY - cy) < 80f * 80f;
                 drawables.Add((GetDepthSort(cx, cy, elevation) + .01f, seq++, () =>
                 {
+                    // Warm light pillar: bright at the base, fading with height.
+                    // Opaque enough to read from across a screen; it pulses.
+                    byte glow = (byte)(120f + 70f * pulse);
+                    batch.DrawScreenQuad(screen.X, screen.Y - 6f * scale, 26f * scale, 12f * scale, 255, 220, 140, glow);
+                    batch.DrawScreenQuad(screen.X, screen.Y - 70f * scale, 9f * scale, 62f * scale, 255, 220, 140, (byte)(glow * .8f));
+                    batch.DrawScreenQuad(screen.X, screen.Y - 126f * scale, 4f * scale, 12f * scale, 255, 235, 170, (byte)(glow * .55f));
                     batch.DrawScreenQuad(screen.X, screen.Y - 12f * scale, 22f * scale, 16f * scale, 112, 91, 65);
                     batch.DrawScreenQuad(screen.X, screen.Y - 10f * scale, 14f * scale, 12f * scale, 24, 19, 18);
                     batch.DrawScreenQuad(screen.X, screen.Y + 2f * scale, 24f * scale, 4f * scale, 145, 118, 78);
+                    if (prompt && promptText != null)
+                    {
+                        float py = screen.Y - 144f * scale;
+                        promptText.DrawText(batch, exit ? "Cave Exit" : "Cave Entrance",
+                            screen.X, py, 13, 240, 230, 200, bold: true);
+                        promptText.DrawText(batch, exit ? "[E] Exit" : "[E] Enter",
+                            screen.X, py - 15f * scale, 13, 255, 215, 0, bold: true);
+                    }
                 }));
             }
 
@@ -1356,7 +1390,10 @@ public sealed class Game
             batch.DrawScreenQuad(screenWidth * .5f, screenHeight * .5f,
                 screenWidth * .5f, screenHeight * .5f, 13, 12, 21, 78);
         else
+        {
             SeasonalRenderer?.DrawAmbientOverlay(gl, 20);
+            DrawCaveCompass(batch, screenWidth, screenHeight);
+        }
 
         if (CombatSystem != null && Camera != null)
         {
@@ -1421,6 +1458,62 @@ public sealed class Game
         foreach (var c in tile.CornerElevations)
             if (c > max) max = c;
         return max;
+    }
+
+    // ─── Cave entrance compass ────────────────────────────────────────────
+    // The surface map is 512² tiles with no minimap and the cave entrance
+    // is the single landmark leading to the cave layer. The lookup caches
+    // per world instance — a full-map flag scan every frame would touch
+    // 262k tiles, and the entrance never moves within a world.
+    private TileMap? _compassWorld;
+    private bool _compassFound;
+    private int _compassX, _compassY;
+
+    /// <summary>Faint off-screen edge marker pointing toward the cave
+    /// entrance while it is within exploration range but out of view.</summary>
+    private void DrawCaveCompass(PrimitiveBatch batch, float screenWidth, float screenHeight)
+    {
+        if (World == null || Camera == null || Player == null || TextRenderer == null) return;
+        if (!ReferenceEquals(_compassWorld, World))
+        {
+            _compassWorld = World;
+            _compassFound = false;
+            for (int x = 0; x < World.Width && !_compassFound; x++)
+            for (int y = 0; y < World.Height; y++)
+            {
+                if (!World.Tiles[x, y].IsCaveEntrance) continue;
+                _compassX = x; _compassY = y; _compassFound = true;
+                break;
+            }
+        }
+        if (!_compassFound) return;
+
+        float wx = (_compassX + .5f) * Constants.TileSize;
+        float wy = (_compassY + .5f) * Constants.TileSize;
+        float dx = wx - Player.WorldX, dy = wy - Player.WorldY;
+        float distanceTiles = MathF.Sqrt(dx * dx + dy * dy) / Constants.TileSize;
+        // Nearby the beacon and prompt take over; far away the entrance
+        // stays a discovery instead of a permanent waypoint.
+        if (distanceTiles < 24f || distanceTiles > 180f) return;
+
+        var tile = World.Tiles[_compassX, _compassY];
+        var s = Camera.WorldToScreen(wx, wy, tile.GetElevationAt(.5f, .5f));
+        const float margin = 80f;
+        if (s.X > -margin && s.X < screenWidth + margin && s.Y > -margin && s.Y < screenHeight + margin)
+            return; // already on screen: the arch and beacon mark it
+
+        // Direction from screen center, scaled to the frame-edge rectangle.
+        float cx = screenWidth * .5f, cy = screenHeight * .5f;
+        float dirX = s.X - cx, dirY = s.Y - cy;
+        float len = MathF.Max(1f, MathF.Sqrt(dirX * dirX + dirY * dirY));
+        dirX /= len; dirY /= len;
+        float halfW = screenWidth * .5f - 70f, halfH = screenHeight * .5f - 70f;
+        float tx = dirX != 0 ? halfW / MathF.Abs(dirX) : float.PositiveInfinity;
+        float ty = dirY != 0 ? halfH / MathF.Abs(dirY) : float.PositiveInfinity;
+        float t = MathF.Min(tx, ty);
+        float px = cx + dirX * t, py = cy + dirY * t;
+        batch.DrawScreenQuad(px, py, 6f, 6f, 255, 214, 120, 200);
+        TextRenderer.DrawText(batch, "Cave", px - dirX * 24f, py - dirY * 24f, 14, 255, 214, 120, 160, bold: true);
     }
 
     private void RenderBuildGhost(PrimitiveBatch batch)
