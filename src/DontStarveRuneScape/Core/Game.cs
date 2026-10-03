@@ -419,6 +419,11 @@ public sealed class Game
     {
         PendingCharacterDef = new SurvCharDef { Name = name };
         Seed = Random.Shared.Next(1, int.MaxValue);
+        // Smoketest hook: DSR_SEED=<n> pins the world seed so multiple
+        // headless runs (height dumps, position captures) see one world.
+        var seedEnv = System.Environment.GetEnvironmentVariable("DSR_SEED");
+        if (!string.IsNullOrWhiteSpace(seedEnv) && int.TryParse(seedEnv, out var seedOverride) && seedOverride > 0)
+            Seed = seedOverride;
         PlayTime = 0;
         DeathCount = 0;
         LoadingProgress = 0;
@@ -1226,7 +1231,11 @@ public sealed class Game
                     immersion = Constants.SeaLevel - elev; // water depth at feet
                     elev = Constants.SeaLevel - Math.Clamp(immersion, 0.8f, 2.2f);
                 }
-                float sortY = GetDepthSort(Player.WorldX, Player.WorldY, elev);
+                // Moving sprite: boost past the standing tile's key so the
+                // ground quad never paints over the player (tiles only
+                // occlude when genuinely between camera and character).
+                float sortY = GetDepthSort(Player.WorldX, Player.WorldY,
+                    SortElevation(tile, elev), StandingBoost());
                 float imm = immersion;
                 drawables.Add((sortY, seq++, () => SpriteRenderer.RenderPlayer(
                     Player, batch, Camera, elev, Dt, imm)));
@@ -1238,12 +1247,14 @@ public sealed class Game
                 {
                     if (monster.IsAlive())
                     {
-                        // Same ground-height source the NPC sprites use.
                         var mTile = World.GetTile((int)(monster.WorldX / Constants.TileSize), (int)(monster.WorldY / Constants.TileSize));
                         float elev = mTile != null
                             ? (mTile.HasWater ? mTile.GetSurfaceElevation() : mTile.GetElevationAt(0.5f, 0.5f))
                             : 0f;
-                        float sortY = GetDepthSort(monster.WorldX, monster.WorldY, elev);
+                        // Moving sprite: same standing boost as the player so
+                        // its own tile never paints over it.
+                        float sortY = GetDepthSort(monster.WorldX, monster.WorldY,
+                            SortElevation(mTile, elev), StandingBoost());
                         var m = monster;
                         drawables.Add((sortY, seq++, () => SpriteRenderer.RenderMonster(m, batch, Camera, elev)));
                     }
@@ -1346,12 +1357,42 @@ public sealed class Game
     /// Depth key for painter's-order sorting of world sprites. All callers
     /// must pass world PIXEL positions and elevation in LEVELS — a sprite's
     /// depth is only meaningful relative to other sprites if the units match.
-    private float GetDepthSort(float worldX, float worldY, float elevation)
+    /// Moving sprites (player, monsters) pass standingBoost: terrain quads
+    /// key on their tile centers while a moving sprite keys on its
+    /// fractional position, so without the boost the standing tile's quad
+    /// can paint over the sprite on the tile half nearer the camera.
+    private float GetDepthSort(float worldX, float worldY, float elevation, float standingBoost = 0f)
     {
         if (Camera == null) return worldY;
         float cy = MathF.Cos(Camera.Yaw);
         float sy = MathF.Sin(Camera.Yaw);
-        return worldY * cy + worldX * sy + elevation * Constants.ZScale * 0.5f;
+        return worldY * cy + worldX * sy + elevation * Constants.ZScale * 0.5f + standingBoost;
+    }
+
+    /// Largest depth-key deficit a moving sprite can have against its own
+    /// tile: the tile keys at its center, the sprite at any point inside
+    /// it, and the in-tile offset is at most half a tile along each view
+    /// axis. Sprites enter the shared painter's list after all tiles, so a
+    /// tie at the exact boundary breaks in the sprite's favor.
+    private float StandingBoost()
+    {
+        if (Camera == null) return 0f;
+        return 0.5f * Constants.TileSize
+            * (MathF.Abs(MathF.Cos(Camera.Yaw)) + MathF.Abs(MathF.Sin(Camera.Yaw)));
+    }
+
+    /// Depth-key elevation for a moving sprite: the standing tile's highest
+    /// corner. A tile's own key uses its corner average, which sits below
+    /// the highest corner on slopes — the max keeps the sprite's key at or
+    /// above its own tile's on any slope. Water keys off the sea plane, so
+    /// fall back there (and for tiles without corner data).
+    private static float SortElevation(Tile? tile, float fallback)
+    {
+        if (tile == null || tile.HasWater || tile.CornerElevations == null) return fallback;
+        float max = float.MinValue;
+        foreach (var c in tile.CornerElevations)
+            if (c > max) max = c;
+        return max;
     }
 
     private void RenderBuildGhost(PrimitiveBatch batch)

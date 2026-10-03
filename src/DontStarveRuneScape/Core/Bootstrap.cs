@@ -252,14 +252,52 @@ public sealed class Bootstrap
 
         // Smoketest hooks: DSR_POS_X/DSR_POS_Y teleport the player (tile
         // coords) before the first frame so captures can target any spot —
-        // e.g. a large lake — without keyboard input.
+        // e.g. a large lake — without keyboard input. DSR_POS_FRACTION="fx,fy"
+        // optionally places the player at a fractional offset INSIDE the tile
+        // (default 0.5,0.5 = center) to reproduce depth-sort cases that need
+        // the player off-center.
         if (float.TryParse(System.Environment.GetEnvironmentVariable("DSR_POS_X"), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var tx)
             && float.TryParse(System.Environment.GetEnvironmentVariable("DSR_POS_Y"), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var ty))
         {
-            player.WorldX = tx * Constants.TileSize + Constants.TileSize / 2f;
-            player.WorldY = ty * Constants.TileSize + Constants.TileSize / 2f;
+            float fx = 0.5f, fy = 0.5f;
+            var fracEnv = System.Environment.GetEnvironmentVariable("DSR_POS_FRACTION");
+            if (!string.IsNullOrWhiteSpace(fracEnv))
+            {
+                var parts = fracEnv.Split(',');
+                if (parts.Length == 2)
+                {
+                    float.TryParse(parts[0], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out fx);
+                    float.TryParse(parts[1], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out fy);
+                }
+            }
+            player.WorldX = (tx + fx) * Constants.TileSize;
+            player.WorldY = (ty + fy) * Constants.TileSize;
             player.TargetX = player.WorldX;
             player.TargetY = player.WorldY;
+        }
+
+        // Smoketest hook: DSR_DUMP_HEIGHTS="cx,cy,r" prints the corner
+        // elevations (order NW,NE,SE,SW) of every tile around cx,cy to
+        // stdout, so headless captures can pick exact hill/occlusion spots
+        // instead of eyeballing slope edges in a screenshot.
+        var dumpEnv = System.Environment.GetEnvironmentVariable("DSR_DUMP_HEIGHTS");
+        if (!string.IsNullOrWhiteSpace(dumpEnv))
+        {
+            var dp = dumpEnv.Split(',');
+            if (dp.Length == 3
+                && int.TryParse(dp[0], out var dcx) && int.TryParse(dp[1], out var dcy) && int.TryParse(dp[2], out var dr))
+            {
+                for (int dx = dcx - dr; dx <= dcx + dr; dx++)
+                for (int dy = dcy - dr; dy <= dcy + dr; dy++)
+                {
+                    var t = tileMap.GetTile(dx, dy);
+                    if (t == null) continue;
+                    var c = t.CornerElevations;
+                    System.Console.WriteLine(c != null && c.Length == 4
+                        ? $"TILE {dx} {dy} {c[0]:F1} {c[1]:F1} {c[2]:F1} {c[3]:F1} water={t.HasWater}"
+                        : $"TILE {dx} {dy} flat={t.Elevation:F1} water={t.HasWater}");
+                }
+            }
         }
 
         // Smoketest hook: DSR_TEST_MONSTER=<monster_id> spawns one monster of

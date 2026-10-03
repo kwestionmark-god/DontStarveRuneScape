@@ -277,6 +277,23 @@ public sealed class SpriteRenderer : IDisposable
             float lever = itemHalf * 0.45f;
             float itemX = pivotX + lever * MathF.Sin(angle);
             float itemY = pivotY - lever * MathF.Cos(angle);
+            if (item.Id == "torch")
+            {
+                // Warm, flickering halo under the flame end of the torch,
+                // drawn before the item so the sprite sits on top of it.
+                uint glowTex = GetSpriteTexture("fx/torch_glow");
+                if (glowTex != 0)
+                {
+                    float flameX = itemX + itemHalf * 0.55f * MathF.Sin(angle);
+                    float flameY = itemY - itemHalf * 0.55f * MathF.Cos(angle);
+                    byte glowAlpha = (byte)Math.Clamp(
+                        105f + 25f * MathF.Sin(_playerAnimTime * 9.3f)
+                             + 8f * MathF.Sin(_playerAnimTime * 23.7f),
+                        40f, 160f);
+                    DrawRotatedTexturedQuad(batch, flameX, flameY,
+                        itemHalf * 1.6f, itemHalf * 1.6f, 0f, glowTex, alpha: glowAlpha);
+                }
+            }
             DrawRotatedTexturedQuad(batch, itemX, itemY, itemHalf, itemHalf, angle, tex,
                 mirror: facing < 0);
             return;
