@@ -645,6 +645,9 @@ public sealed class Game
         // consumed by the BUILD button) is already cleared.
         UpdatePlacement();
 
+        // Update key repeat acceleration for UI navigation
+        InputManager?.UpdateKeyRepeats(dt);
+
         if (State == GameState.SkillPanel && SkillPanel != null && SkillManager != null
             && InputManager != null)
         {

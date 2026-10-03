@@ -171,10 +171,28 @@ public sealed class InventoryPanel
     private Survival.FoodRegistry? _foods;
     private Survival.SurvivalSystem? _survival;
 
+    /// <summary>Handle accelerated key repeats for UI navigation.</summary>
+    private void HandleKeyRepeats(InputState input)
+    {
+        if (_detailSelection == 0)
+        {
+            // Navigating the grid
+            if (input.KeyRepeatUp)
+                SelectedIndex = (SelectedIndex + SlotCount - Cols) % SlotCount;
+            else if (input.KeyRepeatDown)
+                SelectedIndex = (SelectedIndex + Cols) % SlotCount;
+            else if (input.KeyRepeatLeft)
+                SelectedIndex = (SelectedIndex + SlotCount - 1) % SlotCount;
+            else if (input.KeyRepeatRight)
+                SelectedIndex = (SelectedIndex + 1) % SlotCount;
+        }
+    }
+
     /// <summary>Mouse handling; call once per frame from Game.Update while open.</summary>
     public void Update(InputState input, Inventory inventory, Survival.SurvivalSystem? survival,
         Survival.FoodRegistry? foods, int screenW, int screenH, PlayerGear? gear = null)
     {
+        HandleKeyRepeats(input);
         _foods = foods;
         _survival = survival;
         Layout(screenW, screenH);
@@ -553,9 +571,44 @@ public sealed class SkillPanel
         }
     }
 
+    /// <summary>Handle accelerated key repeats for UI navigation.</summary>
+    private void HandleKeyRepeats(InputState input)
+    {
+        if (_selectionMode == 0)
+        {
+            // Navigating skill list
+            if (input.KeyRepeatUp)
+                SelectedIndex = (SelectedIndex + Skills.Length - 1) % Skills.Length;
+            else if (input.KeyRepeatDown)
+                SelectedIndex = (SelectedIndex + 1) % Skills.Length;
+            else if (input.KeyRepeatRight)
+            {
+                var skill = skills.GetSkill(Skills[SelectedIndex].Id);
+                if (skill.UnallocatedPoints > 0)
+                {
+                    _selectionMode = 1;
+                    _plusSelected = 0;
+                }
+            }
+        }
+        else
+        {
+            // Navigating [+] buttons
+            var skill = skills.GetSkill(Skills[SelectedIndex].Id);
+            var statList = StatsFor(skill.Id);
+            if (input.KeyRepeatUp && _plusSelected > 0)
+                _plusSelected--;
+            else if (input.KeyRepeatDown && _plusSelected < statList.Length - 1)
+                _plusSelected++;
+            else if (input.KeyRepeatLeft)
+                _selectionMode = 0;
+        }
+    }
+
     /// <summary>Mouse handling; call once per frame from Game.Update while open.</summary>
     public void Update(InputState input, SkillManager skills, int screenW, int screenH)
     {
+        HandleKeyRepeats(input);
         this.skills = skills;
         Layout(screenW, screenH);
         var ui = new UiInput(input);
@@ -816,10 +869,28 @@ public sealed class CraftingPanel
 
     private bool _pendingCraft = false;
 
+    /// <summary>Handle accelerated key repeats for UI navigation.</summary>
+    private void HandleKeyRepeats(InputState input)
+    {
+        if (input.KeyRepeatUp && _selectionMode == 0 && SelectedIndex > 0)
+            SelectedIndex--;
+        else if (input.KeyRepeatDown && _selectionMode == 0 && SelectedIndex < _sorted.Count - 1)
+            SelectedIndex++;
+        else if (input.KeyRepeatRight && _selectionMode == 0 && _sorted.Count > 0)
+            _selectionMode = 1;
+        else if (input.KeyRepeatLeft && _selectionMode == 1)
+            _selectionMode = 0;
+
+        // Keep selection in view
+        if (SelectedIndex < _scroll) _scroll = SelectedIndex;
+        if (SelectedIndex >= _scroll + VisibleRows) _scroll = SelectedIndex - VisibleRows + 1;
+    }
+
     /// <summary>Mouse handling + craft action; call once per frame from Game.Update while open.</summary>
     public void Update(InputState input, CraftingSystem crafting, Inventory inventory,
         SkillManager skills, int screenW, int screenH)
     {
+        HandleKeyRepeats(input);
         Refresh(crafting);
         Layout(screenW, screenH);
         var ui = new UiInput(input);
@@ -1128,10 +1199,28 @@ public sealed class BuildingPanel
         if (SelectedIndex >= _scroll + VisibleRows) _scroll = SelectedIndex - VisibleRows + 1;
     }
 
+    /// <summary>Handle accelerated key repeats for UI navigation.</summary>
+    private void HandleKeyRepeats(InputState input)
+    {
+        if (input.KeyRepeatUp && _selectionMode == 0 && SelectedIndex > 0)
+            SelectedIndex--;
+        else if (input.KeyRepeatDown && _selectionMode == 0 && SelectedIndex < _sorted.Count - 1)
+            SelectedIndex++;
+        else if (input.KeyRepeatRight && _selectionMode == 0 && _sorted.Count > 0)
+            _selectionMode = 1;
+        else if (input.KeyRepeatLeft && _selectionMode == 1)
+            _selectionMode = 0;
+
+        // Keep selection in view
+        if (SelectedIndex < _scroll) _scroll = SelectedIndex;
+        if (SelectedIndex >= _scroll + VisibleRows) _scroll = SelectedIndex - VisibleRows + 1;
+    }
+
     /// <summary>Mouse handling; call once per frame from Game.Update while open.</summary>
     public void Update(InputState input, BuildingSystem building, Inventory inventory,
         SkillManager skills, int screenW, int screenH)
     {
+        HandleKeyRepeats(input);
         Refresh(building);
         Layout(screenW, screenH);
         var ui = new UiInput(input);
@@ -1440,9 +1529,35 @@ public sealed class GearPanel
         }
     }
 
+    /// <summary>Handle accelerated key repeats for UI navigation.</summary>
+    private void HandleKeyRepeats(InputState input)
+    {
+        if (_selectionMode == 0)
+        {
+            // Navigating equipped slots (left side)
+            if (input.KeyRepeatUp && _equippedSelected > 0)
+                _equippedSelected--;
+            else if (input.KeyRepeatDown && _equippedSelected < SlotNames.Length - 1)
+                _equippedSelected++;
+            else if (input.KeyRepeatRight && _equippableCount > 0)
+                _selectionMode = 1; // Move to equippable list
+        }
+        else
+        {
+            // Navigating equippable list (right side)
+            if (input.KeyRepeatUp && _selected > 0)
+                _selected--;
+            else if (input.KeyRepeatDown && _selected < _equippableCount - 1)
+                _selected++;
+            else if (input.KeyRepeatLeft)
+                _selectionMode = 0; // Back to equipped slots
+        }
+    }
+
     /// <summary>Mouse handling; call once per frame from Game.Update while open.</summary>
     public void Update(InputState input, PlayerGear? gear, Inventory inventory, int screenW, int screenH)
     {
+        HandleKeyRepeats(input);
         _gear = gear;
         _inventory = inventory;
         Layout(screenW, screenH);

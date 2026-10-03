@@ -54,6 +54,13 @@ public sealed class InputState
     public float ClickTargetX { get; set; }
     public float ClickTargetY { get; set; }
 
+    // Key repeat acceleration (for UI navigation)
+    // Updated by InputManager.UpdateKeyRepeats(dt)
+    public bool KeyRepeatUp { get; set; }
+    public bool KeyRepeatDown { get; set; }
+    public bool KeyRepeatLeft { get; set; }
+    public bool KeyRepeatRight { get; set; }
+
     /// <summary>
     /// Clear one-shot flags at end of frame.
     /// </summary>
@@ -82,5 +89,11 @@ public sealed class InputState
         ZoomDelta = 0f;
         ToggleDebugHud = false;
         HasClickTarget = false;
+
+        // Key repeats are cleared each frame by UpdateKeyRepeats
+        KeyRepeatUp = false;
+        KeyRepeatDown = false;
+        KeyRepeatLeft = false;
+        KeyRepeatRight = false;
     }
 }
