@@ -965,7 +965,13 @@ public sealed class Game
                 InputManager.InputState.MouseY = py;
                 InputManager.InputState.MouseLeftClick = true;
             }
-            if (++_smokeFrames >= 6)
+            // Frame-count override: DSR_SMOKE_FRAMES=<n> captures after n
+            // frames (default 6) — gait/patrol motion needs more frames than
+            // a panel capture.
+            if (!int.TryParse(Environment.GetEnvironmentVariable("DSR_SMOKE_FRAMES"),
+                    out var smokeMax) || smokeMax < 1)
+                smokeMax = 6;
+            if (++_smokeFrames >= smokeMax)
             {
                 CaptureFramebuffer(gl, framebufferWidth, framebufferHeight, SmokeTestPath);
                 Environment.Exit(0);

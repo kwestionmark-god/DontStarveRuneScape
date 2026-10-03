@@ -302,14 +302,32 @@ public sealed class Bootstrap
 
         // Smoketest hook: DSR_TEST_MONSTER=<monster_id> spawns one monster of
         // that type right next to the player (deterministic combat captures).
+        // "wolf:110" takes an optional spawn distance in world px (default 32,
+        // inside attack range), and "wolf:110:270" a spawn bearing in degrees
+        // (0 = east), so gait/direction captures can spawn a monster chasing
+        // the player from any side.
         var monsterEnv = System.Environment.GetEnvironmentVariable("DSR_TEST_MONSTER");
         if (!string.IsNullOrWhiteSpace(monsterEnv) && _game.MonsterRegistry is { } monsterRegistry
             && _game.CombatSystem != null)
         {
-            var def = monsterRegistry.GetMonster(monsterEnv.Trim());
+            var monsterParts = monsterEnv.Trim().Split(':');
+            var def = monsterRegistry.GetMonster(monsterParts[0]);
+            float spawnDist = monsterParts.Length >= 2
+                && float.TryParse(monsterParts[1], System.Globalization.NumberStyles.Float,
+                    System.Globalization.CultureInfo.InvariantCulture, out var d)
+                ? d : 32f;
+            float bearingDeg = monsterParts.Length >= 3
+                && float.TryParse(monsterParts[2], System.Globalization.NumberStyles.Float,
+                    System.Globalization.CultureInfo.InvariantCulture, out var b)
+                ? b : 0f;
             if (def != null)
-                _game.CombatSystem.SpawnMonster(def, player.WorldX + 32f, player.WorldY,
+            {
+                float rad = bearingDeg * MathF.PI / 180f;
+                _game.CombatSystem.SpawnMonster(def,
+                    player.WorldX + MathF.Cos(rad) * spawnDist,
+                    player.WorldY + MathF.Sin(rad) * spawnDist,
                     monsterRegistry.BiomeOf(def.MonsterId));
+            }
         }
 
         // Smoketest hooks: DSR_CAM_PITCH/DSR_CAM_YAW/DSR_CAM_ZOOM override the

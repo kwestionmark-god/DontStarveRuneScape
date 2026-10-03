@@ -100,7 +100,7 @@ public sealed class PrimitiveBatch : IDisposable
     /// the glyph alpha is multiplied by the supplied tint color.
     /// </summary>
     public void DrawTexturedScreenQuad(float centerX, float centerY, float halfWidth, float halfHeight,
-        uint texture, byte r, byte g, byte b, byte a = 255)
+        uint texture, byte r, byte g, byte b, byte a = 255, bool mirrorX = false)
     {
         // End the previous batch when switching modes or when the texture changes
         // mid-batch — otherwise buffered quads would be drawn with the last bound
@@ -120,13 +120,16 @@ public sealed class PrimitiveBatch : IDisposable
         float cb = b / 255f;
         float ca = a / 255f;
 
-        // v is flipped so the uploaded bitmap (row 0 = glyph top) reads upright.
-        AddVertex(x0, y0, 0f, 1f, cr, cg, cb, ca);
-        AddVertex(x1, y0, 1f, 1f, cr, cg, cb, ca);
-        AddVertex(x1, y1, 1f, 0f, cr, cg, cb, ca);
-        AddVertex(x0, y0, 0f, 1f, cr, cg, cb, ca);
-        AddVertex(x1, y1, 1f, 0f, cr, cg, cb, ca);
-        AddVertex(x0, y1, 0f, 0f, cr, cg, cb, ca);
+        // v is flipped so the uploaded bitmap (row 0 = glyph top) reads upright;
+        // mirrorX swaps u so side-on sprites face left without a second texture.
+        float u0 = mirrorX ? 1f : 0f;
+        float u1 = mirrorX ? 0f : 1f;
+        AddVertex(x0, y0, u0, 1f, cr, cg, cb, ca);
+        AddVertex(x1, y0, u1, 1f, cr, cg, cb, ca);
+        AddVertex(x1, y1, u1, 0f, cr, cg, cb, ca);
+        AddVertex(x0, y0, u0, 1f, cr, cg, cb, ca);
+        AddVertex(x1, y1, u1, 0f, cr, cg, cb, ca);
+        AddVertex(x0, y1, u0, 0f, cr, cg, cb, ca);
 
         _textureMode = true;
         _boundTexture = texture;

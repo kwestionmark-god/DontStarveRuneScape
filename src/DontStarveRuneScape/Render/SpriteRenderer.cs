@@ -168,15 +168,22 @@ public sealed class SpriteRenderer : IDisposable
 
     /// <summary>Draw an entity's foot quads at their gait positions: each foot
     /// samples its own terrain elevation and lifts on the sine of its swing
-    /// arc. Call after the body quad, like the player's boots.</summary>
+    /// arc. <paramref name="inFront"/> selects which side of the body to draw
+    /// for: feet projecting at or below the body ground point are in front
+    /// (drawn after the body), feet above it are behind (drawn before) — so a
+    /// foot on the far side never paints over the torso.</summary>
     private void DrawGaitFeet(GaitAnimator gait, GaitConfig cfg, float footHalf, uint footTex,
-        PrimitiveBatch batch, Camera camera, float elevation)
+        PrimitiveBatch batch, Camera camera, float elevation, float groundScreenY, bool inFront)
     {
         for (int i = 0; i < gait.FootCount; i++)
         {
             ref var foot = ref gait.GetFoot(i);
             float fe = BootElevation?.Invoke(foot.X, foot.Y) ?? elevation;
             var fs = camera.WorldToScreen(foot.X, foot.Y, fe);
+            // Screen Y grows downward (toward the camera): in front = at or
+            // below the ground point. Compare before applying the lift arc.
+            if ((fs.Y >= groundScreenY) != inFront)
+                continue;
             float lift = foot.Swinging ? MathF.Sin(foot.T * MathF.PI) * cfg.LiftPx * camera.Zoom : 0f;
             batch.DrawTexturedScreenQuad(fs.X, fs.Y - footHalf - lift,
                 footHalf, footHalf, footTex, 255, 255, 255);
@@ -238,19 +245,31 @@ public sealed class SpriteRenderer : IDisposable
             // Procedural stepping: each boot plants at a fixed world spot while
             // the body moves; once left behind it swings forward, arcs up, and
             // lands at its own sampled terrain elevation. At rest both feet
-            // plant on the heightmap, contouring slopes.
+            // plant on the heightmap, contouring slopes. Far-side feet draw
+            // before the body quad, near-side feet after, so a boot on the far
+            // side never paints over the torso.
+            bool swimming = waterDepth >= SwimDepth && bootTex != 0;
+            float bootHalf = half * (4f / 32f);
+            if (!swimming)
+            {
+                _playerGait.Update(player.WorldX, player.WorldY, velX, velY, dt);
+                if (bootTex != 0)
+                    DrawGaitFeet(_playerGait, GaitConfigs.Player, bootHalf, bootTex,
+                        batch, camera, elevation, screen.Y, inFront: false);
+            }
+
             batch.DrawTexturedScreenQuad(cx, cy, half, half, bodyTex, 255, 255, 255);
+
             if (bootTex != 0)
             {
-                float pa = mdx == 0f && mdy == 0f ? MathF.PI / 2f : MathF.Atan2(mdy, mdx);
-                float px = -MathF.Sin(pa), py = MathF.Cos(pa);  // left-perpendicular
-                float bootHalf = half * (4f / 32f);
-                if (waterDepth >= SwimDepth)
+                if (swimming)
                 {
                     // Swimming: the feet can't reach the bottom, so the gait
                     // stops. Boots dangle under the body at the body's own
                     // elevation and flutter-kick while moving; pinning them to
                     // the stance keeps the gait sane when back on land.
+                    float pa = mdx == 0f && mdy == 0f ? MathF.PI / 2f : MathF.Atan2(mdy, mdx);
+                    float px = -MathF.Sin(pa), py = MathF.Cos(pa);  // left-perpendicular
                     float kick = moving
                         ? MathF.Sin(_playerAnimTime * 10f) * KickPx * camera.Zoom
                         : 0f;
@@ -258,18 +277,17 @@ public sealed class SpriteRenderer : IDisposable
                     for (int i = 0; i < _playerGait.FootCount; i++)
                     {
                         ref var foot = ref _playerGait.GetFoot(i);
-                        var fs = camera.WorldToScreen(foot.X, foot.Y, elevation);
+                        var fos = camera.WorldToScreen(foot.X, foot.Y, elevation);
                         // Left/right boots kick opposite (index 0 = left).
                         float side = i == 0 ? -1f : 1f;
-                        batch.DrawTexturedScreenQuad(fs.X, fs.Y - bootHalf - kick * side,
+                        batch.DrawTexturedScreenQuad(fos.X, fos.Y - bootHalf - kick * side,
                             bootHalf, bootHalf, bootTex, 255, 255, 255);
                     }
                 }
                 else
                 {
-                    _playerGait.Update(player.WorldX, player.WorldY, velX, velY, dt);
                     DrawGaitFeet(_playerGait, GaitConfigs.Player, bootHalf, bootTex,
-                        batch, camera, elevation);
+                        batch, camera, elevation, screen.Y, inFront: true);
                 }
             }
         }
@@ -418,39 +436,74 @@ public sealed class SpriteRenderer : IDisposable
     public void RenderMonster(Monster monster, PrimitiveBatch batch, Camera camera,
         float elevation = 0f, float dt = 0f)
     {
-        // Real monster sprite by id (monster/*.png), red quad fallback.
-        uint tex = GetSpriteTexture(monster.SpriteKey);
         // Ground point: the world position is the monster's feet.
         var screen = camera.WorldToScreen(monster.WorldX, monster.WorldY, elevation);
         float half = 16f * camera.Zoom;
-        // Gait config: quadruped bodies render side-on and wider (24×16 canvas);
-        // legless bodies (snake, djinn, ...) draw without feet.
+        // Gait config: quadruped side-on bodies render wider (24×16 canvas =
+        // 1.5× the half); legless bodies (snake, djinn, ...) draw without feet.
         var cfg = GaitConfigs.ForMonster(monster.SpriteKey);
-        float bodyHalfW = cfg != null && cfg.Pattern == GaitPattern.QuadrupedWalk
-            ? 1.5f * half : half;
+
+        // Update the gait first: its travel direction selects the sprite
+        // variant and the mirror, and feet draw after the update.
+        GaitAnimator? gait = null;
+        uint footTex = 0;
+        if (cfg != null)
+        {
+            gait = GetGaitRig(monster, cfg);
+            gait.Update(monster.WorldX, monster.WorldY,
+                monster.VelocityX, monster.VelocityY, dt);
+            footTex = GetSpriteTexture(cfg.FootTextureKey);
+        }
+
+        // Directional sprite selection for quadrupeds: walking away (north)
+        // shows the rear view, walking toward (south) the front view, and the
+        // side-on view mirrors when facing left. Missing variants fall back to
+        // the base side-on sprite.
+        bool quadruped = cfg is { Pattern: GaitPattern.QuadrupedWalk };
+        bool mirror = false;
+        float bodyHalfW = quadruped ? 1.5f * half : half;
+        uint tex = GetSpriteTexture(monster.SpriteKey);
+        if (quadruped && gait != null)
+        {
+            var (ddx, ddy) = gait.Dir;
+            // World -y is up-screen: ddy > 0 walks toward the camera (front),
+            // ddy < 0 walks away (rear).
+            if (ddy < -0.45f)
+            {
+                uint t = GetSpriteTexture(monster.SpriteKey + "_back");
+                if (t != 0) { tex = t; bodyHalfW = half; }
+            }
+            else if (ddy > 0.45f)
+            {
+                uint t = GetSpriteTexture(monster.SpriteKey + "_front");
+                if (t != 0) { tex = t; bodyHalfW = half; }
+            }
+            else if (ddx < 0f)
+            {
+                mirror = true;
+            }
+        }
+
         // Anchor bottom-center: feet at the ground point at any zoom/pitch.
         float cx = screen.X;
         float cy = screen.Y - half;
 
         DrawShadow(batch, screen.X, screen.Y, bodyHalfW, 180);
 
+        // Far-side feet draw under the body; near-side feet after it.
+        if (gait != null && footTex != 0)
+            DrawGaitFeet(gait, cfg!, half * cfg!.FootSizeFrac, footTex,
+                batch, camera, elevation, screen.Y, inFront: false);
+
         if (tex != 0)
-            batch.DrawTexturedScreenQuad(cx, cy, bodyHalfW, half, tex, 255, 255, 255);
+            batch.DrawTexturedScreenQuad(cx, cy, bodyHalfW, half, tex, 255, 255, 255, 255,
+                mirrorX: mirror);
         else
             batch.DrawScreenQuad(cx, cy, bodyHalfW, half, 200, 60, 60);
 
-        // Gait feet: same planted/swing stepping as the player, driven by the
-        // monster's velocity (from position deltas). Drawn after the body.
-        if (cfg != null && tex != 0)
-        {
-            var gait = GetGaitRig(monster, cfg);
-            gait.Update(monster.WorldX, monster.WorldY,
-                monster.VelocityX, monster.VelocityY, dt);
-            uint footTex = GetSpriteTexture(cfg.FootTextureKey);
-            float footHalf = half * cfg.FootSizeFrac;
-            if (footTex != 0)
-                DrawGaitFeet(gait, cfg, footHalf, footTex, batch, camera, elevation);
-        }
+        if (gait != null && footTex != 0)
+            DrawGaitFeet(gait, cfg!, half * cfg!.FootSizeFrac, footTex,
+                batch, camera, elevation, screen.Y, inFront: true);
     }
 
     public void RenderNPC(Npc npc, PrimitiveBatch batch, Camera camera,
@@ -473,25 +526,30 @@ public sealed class SpriteRenderer : IDisposable
         float cx = screen.X;
         float cy = screen.Y - half;
 
+        // Gait feet: same planted/swing stepping as the player, split into a
+        // far-side pass under the body and a near-side pass over it. NPCs are
+        // stationary today, so feet stay planted on the heightmap (terrain
+        // contouring); velocity plumbing is in place for future wanderers.
+        uint bootTex = GetSpriteTexture("player/boot");
+        GaitAnimator? npcGait = null;
+        if (tex != 0 && bootTex != 0)
+        {
+            npcGait = GetGaitRig(npc, GaitConfigs.Npc);
+            npcGait.Update(npc.WorldX, npc.WorldY, npc.VelocityX, npc.VelocityY, dt);
+        }
+
         if (!npc.IsRecruited)
             DrawShadow(batch, screen.X, screen.Y, half, 200);
+        if (npcGait != null)
+            DrawGaitFeet(npcGait, GaitConfigs.Npc, half * GaitConfigs.Npc.FootSizeFrac,
+                bootTex, batch, camera, elevation, screen.Y, inFront: false);
         if (tex != 0)
             batch.DrawTexturedScreenQuad(cx, cy, half, half, tex, 255, 255, 255, 255);
         else
             batch.DrawScreenQuad(cx, cy, half, half, 70, 180, 100);
-
-        // Gait feet: same planted/swing stepping as the player, drawn after
-        // the body. NPCs are stationary today, so feet stay planted on the
-        // heightmap (terrain contouring); the velocity plumbing is in place
-        // for future wanderers.
-        uint bootTex = GetSpriteTexture("player/boot");
-        if (tex != 0 && bootTex != 0)
-        {
-            var gait = GetGaitRig(npc, GaitConfigs.Npc);
-            gait.Update(npc.WorldX, npc.WorldY, npc.VelocityX, npc.VelocityY, dt);
-            float footHalf = half * GaitConfigs.Npc.FootSizeFrac;
-            DrawGaitFeet(gait, GaitConfigs.Npc, footHalf, bootTex, batch, camera, elevation);
-        }
+        if (npcGait != null)
+            DrawGaitFeet(npcGait, GaitConfigs.Npc, half * GaitConfigs.Npc.FootSizeFrac,
+                bootTex, batch, camera, elevation, screen.Y, inFront: true);
     }
 
     public void RenderProximityPrompt(Npc npc, PrimitiveBatch batch, Camera camera,

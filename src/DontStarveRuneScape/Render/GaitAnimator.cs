@@ -76,6 +76,13 @@ public sealed class GaitAnimator
     // default facing.
     private (float Dx, float Dy) _lastDir = (0f, -1f);
 
+    /// <summary>Current stance/facing direction (unit): the travel direction
+    /// while moving, the last travel direction while idle.</summary>
+    public (float Dx, float Dy) Dir => _lastDir;
+
+    /// <summary>Whether the stride cycle is currently stepping (body in motion).</summary>
+    public bool Moving { get; private set; }
+
     public GaitAnimator(GaitConfig cfg)
     {
         _cfg = cfg;
@@ -102,6 +109,7 @@ public sealed class GaitAnimator
     {
         float speed = MathF.Sqrt(velX * velX + velY * velY);
         bool moving = speed > 1f;
+        Moving = moving;
         (float dx, float dy) dir;
         if (moving)
         {
