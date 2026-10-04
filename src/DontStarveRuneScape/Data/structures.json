@@ -776,6 +776,36 @@
     "sprite_key": "structure/stone_bench",
     "occupies_tile": true,
     "burnable": false
+   },
+   "woven_shelter": {
+    "structure_id": "woven_shelter",
+    "name": "Woven Shelter",
+    "structure_type": "fixed",
+    "construction_sub_stat": "decorative",
+    "hp": 24,
+    "materials": [
+     [
+      "planks",
+      4
+     ],
+     [
+      "stick",
+      8
+     ]
+    ],
+    "requires_structure_level": 2,
+    "requires_skill_level": 2,
+    "biome_compatible": [
+     "forest",
+     "plains",
+     "coastal",
+     "swamp",
+     "mountains",
+     "desert"
+    ],
+    "sprite_key": "structure/woven_shelter",
+    "occupies_tile": true,
+    "burnable": true
    }
   }
  }

@@ -6,8 +6,8 @@ using DontStarveRuneScape.Inventory;
 using DontStarveRuneScape.Skills;
 
 /// <summary>
-/// CraftingSystem — Crafts recipes from the recipe registry: checks the skill
-/// gate and ingredients, consumes inputs, produces the output, grants XP.
+/// CraftingSystem — Crafts recipes from the recipe registry against either the
+/// player inventory or colony stockpile, with skill and optional station gates.
 /// </summary>
 public sealed class CraftingSystem
 {
@@ -22,7 +22,8 @@ public sealed class CraftingSystem
 
     /// <summary>Try to craft a recipe: skill gate, ingredient gate, all-or-nothing
     /// consume/produce, XP grant. Returns a result with a player-facing message.</summary>
-    public CraftResult Craft(string recipeId, Inventory inventory, SkillManager skillManager)
+    public CraftResult Craft(string recipeId, IItemStorage inventory, SkillManager skillManager,
+        IReadOnlySet<string>? availableStructures = null)
     {
         var recipe = Registry?.GetRecipe(recipeId);
         if (recipe == null)
@@ -35,7 +36,30 @@ public sealed class CraftingSystem
                 Message = $"Requires {recipe.RequiredSkill} level {recipe.RequiredLevel}.",
             };
 
-        foreach (var (itemId, quantity) in recipe.Inputs)
+        if (availableStructures != null && !string.IsNullOrEmpty(recipe.RequiresStructure)
+            && !availableStructures.Contains(recipe.RequiresStructure))
+            return new CraftResult
+            {
+                Success = false,
+                Message = $"Requires a {recipe.RequiresStructure}.",
+            };
+
+        if (availableStructures != null && recipe.RequiresCampfire
+            && !availableStructures.Contains("campfire")
+            && !availableStructures.Contains("cooking_station")
+            && !availableStructures.Contains("furnace")
+            && !availableStructures.Contains("smelter"))
+            return new CraftResult
+            {
+                Success = false,
+                Message = "Requires a campfire or cooking station.",
+            };
+
+        var groupedInputs = recipe.Inputs
+            .GroupBy(input => input.ItemId, StringComparer.Ordinal)
+            .Select(group => (ItemId: group.Key, Quantity: group.Sum(input => input.Quantity)))
+            .ToArray();
+        foreach (var (itemId, quantity) in groupedInputs)
         {
             if (inventory.GetItemQuantity(itemId) < quantity)
                 return new CraftResult
@@ -49,7 +73,7 @@ public sealed class CraftingSystem
         if (!inventory.CanAdd(recipe.OutputItem, recipe.OutputQuantity))
             return new CraftResult { Success = false, Message = "Inventory is full." };
 
-        foreach (var (itemId, quantity) in recipe.Inputs)
+        foreach (var (itemId, quantity) in groupedInputs)
             inventory.RemoveItem(itemId, quantity);
 
         inventory.AddItem(recipe.OutputItem, recipe.OutputQuantity);

@@ -8,6 +8,7 @@ using DontStarveRuneScape.Core;
 using DontStarveRuneScape.Data;
 using DontStarveRuneScape.Config;
 using DontStarveRuneScape.Skills;
+using DontStarveRuneScape.NPC;
 using Inv = DontStarveRuneScape.Inventory.Inventory;
 
 /// <summary>
@@ -32,10 +33,10 @@ public sealed class BuildingSystem
         // Update structure logic (fires, production, etc.)
     }
 
-    /// <summary>Place a structure at the given tile: biome gate, skill gate,
+    /// <summary>Place a structure or found a colony construction site at the given tile: biome gate, skill gate,
     /// material gate (all-or-nothing consume), then add to the world.</summary>
     public (bool Success, string Message) PlaceStructure(string structureId, int tileX, int tileY,
-        TileMap world, Inv inventory, SkillManager skillManager)
+        TileMap world, Inv inventory, SkillManager skillManager, ColonySystem? colony = null)
     {
         var def = Registry?.GetStructure(structureId);
         if (def == null)
@@ -44,6 +45,9 @@ public sealed class BuildingSystem
         var tile = world.GetTile(tileX, tileY);
         if (tile == null)
             return (false, "Can't build there.");
+        if (tile.Structure?.OccupiesTile == true || Structures.Any(s => s.IsActive
+                && s.TileX == tileX && s.TileY == tileY))
+            return (false, "That tile already has a structure.");
 
         if (tile.Biome != null && def.BiomeCompatibility.Length > 0 &&
             !def.BiomeCompatibility.Contains(tile.Biome.Id))
@@ -52,16 +56,7 @@ public sealed class BuildingSystem
         if (skillManager.GetSkillLevel("construction") < def.RequiresSkillLevel)
             return (false, $"Requires construction level {def.RequiresSkillLevel}.");
 
-        foreach (var material in def.Materials)
-        {
-            if (inventory.GetItemQuantity(material.ItemId) < material.Quantity)
-                return (false, $"Missing materials: needs {material.Quantity} {material.ItemId}.");
-        }
-
-        foreach (var material in def.Materials)
-            inventory.RemoveItem(material.ItemId, material.Quantity);
-
-        Structures.Add(new Structure
+        var placed = new Structure
         {
             StructureId = def.Id,
             StructureDef = def,
@@ -71,7 +66,47 @@ public sealed class BuildingSystem
             WorldY = tileY * Constants.TileSize + Constants.TileSize / 2f,
             Health = (int)def.Hp,
             MaxHealth = (int)def.Hp,
-        });
+        };
+        int homeDx = tileX - (colony?.AnchorTileX ?? tileX);
+        int homeDy = tileY - (colony?.AnchorTileY ?? tileY);
+        bool insideColonyWorkArea = colony?.IsFounded == true
+            && homeDx * homeDx + homeDy * homeDy <= colony.WorkRadiusTiles * colony.WorkRadiusTiles;
+        if (insideColonyWorkArea && colony != null)
+        {
+            foreach (var material in def.Materials)
+            {
+                int transfer = Math.Min(inventory.GetItemQuantity(material.ItemId), material.Quantity);
+                if (transfer > 0 && colony.CanStore(material.ItemId, transfer))
+                {
+                    inventory.RemoveItem(material.ItemId, transfer);
+                    colony.Store(material.ItemId, transfer);
+                }
+            }
+            placed.IsUnderConstruction = true;
+            placed.WorkStatus = "Awaiting materials";
+            Structures.Add(placed);
+            if (def.OccupiesTile) tile.Structure = def;
+            return (true, $"{def.Name} construction site placed.");
+        }
+
+        foreach (var material in def.Materials)
+        {
+            int available = inventory.GetItemQuantity(material.ItemId)
+                + (colony?.GetItemQuantity(material.ItemId) ?? 0);
+            if (available < material.Quantity)
+                return (false, $"Missing materials: needs {material.Quantity} {material.ItemId}.");
+        }
+
+        foreach (var material in def.Materials)
+        {
+            int fromInventory = Math.Min(inventory.GetItemQuantity(material.ItemId), material.Quantity);
+            if (fromInventory > 0) inventory.RemoveItem(material.ItemId, fromInventory);
+            int fromColony = material.Quantity - fromInventory;
+            if (fromColony > 0 && colony?.RemoveItem(material.ItemId, fromColony) != true)
+                throw new InvalidOperationException("Construction material storage changed during placement.");
+        }
+
+        Structures.Add(placed);
         if (def.OccupiesTile)
             tile.Structure = def;
 
@@ -108,6 +143,15 @@ public sealed class BuildingSystem
                 TileY = s.TileY,
                 Hp = s.Health,
                 AssignedNpcId = s.AssignedNpcId,
+                WorkRecipeId = s.WorkRecipeId,
+                WorkRecipeQueue = s.WorkRecipeQueue.ToArray(),
+                WorkOrdersPaused = s.WorkOrdersPaused,
+                HasManualWorkOrder = s.HasManualWorkOrder,
+                IsDependencyOrder = s.IsDependencyOrder,
+                IsUnderConstruction = s.IsUnderConstruction,
+                ConstructionMaterialsPaid = s.ConstructionMaterialsPaid,
+                WorkProgress = s.WorkProgress,
+                WorkStatus = s.WorkStatus,
             })
             .ToArray();
         return snapshot;
@@ -138,7 +182,21 @@ public sealed class BuildingSystem
                 MaxHealth = (int)structureDef.Hp,
                 IsActive = true,
                 AssignedNpcId = s.AssignedNpcId,
+                WorkRecipeId = s.WorkRecipeId,
+                WorkOrdersPaused = s.WorkOrdersPaused,
+                HasManualWorkOrder = s.HasManualWorkOrder,
+                IsDependencyOrder = s.IsDependencyOrder,
+                IsUnderConstruction = s.IsUnderConstruction,
+                ConstructionMaterialsPaid = s.ConstructionMaterialsPaid,
+                WorkProgress = s.WorkProgress,
+                WorkStatus = string.IsNullOrEmpty(s.WorkStatus) ? "Idle" : s.WorkStatus,
             });
+            Structures[^1].WorkRecipeQueue.AddRange(s.WorkRecipeQueue ?? []);
+            if (structureDef.OccupiesTile)
+            {
+                var tile = world.GetTile(s.TileX, s.TileY);
+                if (tile != null) tile.Structure = structureDef;
+            }
         }
     }
 }

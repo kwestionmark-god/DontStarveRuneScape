@@ -23,6 +23,7 @@ public sealed class CraftRecipe
     public int RequiredLevel { get; init; } = 1;
     public int Tier { get; init; } = 1;
     public bool RequiresCampfire { get; init; }
+    public string RequiresStructure { get; init; } = string.Empty;
     public bool IsFood { get; init; }
     public string? OreItem { get; init; }
     public string? FuelItem { get; init; }
@@ -71,7 +72,7 @@ public sealed class RecipeRegistry
             {
                 RecipeId = id,
                 Name = GetString(entry, "name") ?? id,
-                Inputs = ParseInputs(entry),
+                Inputs = ParseEffectiveInputs(entry),
                 OutputItem = output,
                 OutputQuantity = GetInt(entry, "output_quantity") ?? 1,
                 XpReward = GetFloat(entry, "xp_reward"),
@@ -79,6 +80,7 @@ public sealed class RecipeRegistry
                 RequiredLevel = GetInt(entry, "required_level") ?? 1,
                 Tier = GetInt(entry, "tier") ?? 1,
                 RequiresCampfire = GetBool(entry, "requires_campfire"),
+                RequiresStructure = GetString(entry, "requires_structure") ?? string.Empty,
                 IsFood = GetBool(entry, "is_food"),
                 OreItem = GetString(entry, "ore_item"),
                 FuelItem = GetString(entry, "fuel_item"),
@@ -113,6 +115,32 @@ public sealed class RecipeRegistry
             if (!string.IsNullOrEmpty(itemId) && quantity > 0)
                 inputs.Add((itemId, quantity));
         }
+        return inputs.ToArray();
+    }
+
+    /// <summary>
+    /// Metallurgy rows keep fuel and alloy extras in dedicated metadata as well
+    /// as a simplified input list. Fold those costs into the unified inputs so
+    /// player crafting, colony production, and work-order gathering agree.
+    /// </summary>
+    private static (string ItemId, int Quantity)[] ParseEffectiveInputs(Dictionary<string, object> entry)
+    {
+        var inputs = ParseInputs(entry)
+            .GroupBy(input => input.Item1, StringComparer.Ordinal)
+            .Select(group => (ItemId: group.Key, Quantity: group.Sum(input => input.Item2)))
+            .ToList();
+
+        void Require(string? itemId, int quantity)
+        {
+            if (string.IsNullOrWhiteSpace(itemId) || quantity <= 0) return;
+            int index = inputs.FindIndex(input => input.ItemId == itemId);
+            if (index < 0) inputs.Add((itemId, quantity));
+            else if (inputs[index].Quantity < quantity)
+                inputs[index] = (itemId, quantity);
+        }
+
+        Require(GetString(entry, "fuel_item"), GetInt(entry, "base_fuel_cost") ?? 0);
+        Require(GetString(entry, "extra_input"), GetInt(entry, "extra_quantity") ?? 0);
         return inputs.ToArray();
     }
 

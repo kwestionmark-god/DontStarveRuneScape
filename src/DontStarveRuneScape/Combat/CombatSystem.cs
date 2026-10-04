@@ -21,10 +21,11 @@ public sealed class CombatSystem
 
     private readonly Random _rng = new();
     private readonly List<SpawnRecord> _spawnPoints = [];
+    private readonly Dictionary<string, float> _guardAttackCooldowns = [];
     private float _playerAttackCooldown;
     private bool _pendingPlayerDeath;
 
-    public void Tick(float dt, Player? player = null)
+    public void Tick(float dt, Player? player = null, NPC.NPCSystem? npcSystem = null)
     {
         if (_playerAttackCooldown > 0) _playerAttackCooldown = MathF.Max(0f, _playerAttackCooldown - dt);
         UpdateRespawns(dt, player);
@@ -33,7 +34,7 @@ public sealed class CombatSystem
         {
             monster.UpdateTimers(dt);
             float prevX = monster.WorldX, prevY = monster.WorldY;
-            UpdateMonster(monster, player, dt);
+            UpdateMonster(monster, player, npcSystem, dt);
             // Net velocity from the position delta across this tick (patrol,
             // chase, flee — all paths) drives the stepping gait.
             if (dt > 1e-5f)
@@ -231,6 +232,32 @@ public sealed class CombatSystem
         return new CombatHitResult { Success = true, Message = message, Damage = damage, Killed = killed };
     }
 
+    /// <summary>Let a recruited settlement guard strike a nearby hostile.
+    /// Monster death uses the same loot, XP, respawn, and quest path as player combat.</summary>
+    public CombatHitResult GuardAttack(NPC.Npc guard, Monster target,
+        Inventory.Inventory inventory, Skills.SkillManager skills, float dt)
+    {
+        _guardAttackCooldowns.TryGetValue(guard.NpcId, out float cooldown);
+        cooldown = MathF.Max(0f, cooldown - Math.Max(0f, dt));
+        if (cooldown > 0f)
+        {
+            _guardAttackCooldowns[guard.NpcId] = cooldown;
+            return new CombatHitResult { Success = false, Message = "Guard recovering." };
+        }
+        if (!target.IsAlive() || !target.IsHostile)
+            return new CombatHitResult { Success = false, Message = "Target is no longer hostile." };
+
+        int damage = Math.Max(1, (int)MathF.Round(4f - target.Defence));
+        target.Health -= damage;
+        DamageNumbers.Add(new DamageNumber { Value = damage, WorldX = target.WorldX, WorldY = target.WorldY });
+        _guardAttackCooldowns[guard.NpcId] = 1.25f;
+        bool killed = !target.IsAlive();
+        string message = killed
+            ? HandleMonsterDeath(target, inventory, skills)
+            : $"{guard.Name} strikes {target.Name} for {damage}.";
+        return new CombatHitResult { Success = true, Message = message, Damage = damage, Killed = killed };
+    }
+
     private string HandleMonsterDeath(Monster monster, Inventory.Inventory inventory, Skills.SkillManager skills)
     {
         Monsters.Remove(monster);
@@ -283,9 +310,20 @@ public sealed class CombatSystem
 
     // ─── Monster AI ────────────────────────────────────────────────────────
 
-    private void UpdateMonster(Monster m, Player? player, float dt)
+    private void UpdateMonster(Monster m, Player? player, NPC.NPCSystem? npcSystem, float dt)
     {
-        float dist = player?.DistanceTo(m.WorldX, m.WorldY) ?? float.MaxValue;
+        var nearestRecruit = npcSystem?.NPCs.Where(n => n.IsActive && n.IsRecruited)
+            .Select(n => (Npc: n, Dx: n.WorldX - m.WorldX, Dy: n.WorldY - m.WorldY))
+            .OrderBy(candidate => candidate.Dx * candidate.Dx + candidate.Dy * candidate.Dy)
+            .FirstOrDefault();
+        float playerDist = player?.DistanceTo(m.WorldX, m.WorldY) ?? float.MaxValue;
+        float recruitDist = nearestRecruit?.Npc == null ? float.MaxValue
+            : MathF.Sqrt(nearestRecruit.Value.Dx * nearestRecruit.Value.Dx
+                + nearestRecruit.Value.Dy * nearestRecruit.Value.Dy);
+        bool targetRecruit = recruitDist < playerDist;
+        float dist = targetRecruit ? recruitDist : playerDist;
+        float targetX = targetRecruit ? nearestRecruit!.Value.Npc.WorldX : player?.WorldX ?? m.WorldX;
+        float targetY = targetRecruit ? nearestRecruit!.Value.Npc.WorldY : player?.WorldY ?? m.WorldY;
 
         // Low-health flee: run from the player while they are close; once out
         // of aggro range, calm down and resume wandering.
@@ -293,7 +331,7 @@ public sealed class CombatSystem
             || (m.Health <= m.MaxHealth * Constants.MonsterFleeHealthFraction && dist <= m.FleeRange))
         {
             m.State = MonsterState.Flee;
-            MoveAway(m, player!.WorldX, player.WorldY, dt);
+            MoveAway(m, targetX, targetY, dt);
             if (dist > m.AggroRange)
             {
                 m.State = MonsterState.Idle;
@@ -305,22 +343,26 @@ public sealed class CombatSystem
 
         bool engaged = m.State is MonsterState.Chase or MonsterState.Attack;
         float aggroRadius = engaged ? m.AggroRange * Constants.MonsterLeashMultiplier : m.AggroRange;
-        if (player?.Survival != null && !player.Survival.IsDead
-            && m.IsHostile && m.AggroCooldown <= 0 && dist <= aggroRadius)
+        bool playerAlive = player?.Survival != null && !player.Survival.IsDead;
+        bool recruitAlive = targetRecruit && nearestRecruit?.Npc?.IsActive == true;
+        if ((playerAlive || recruitAlive) && m.IsHostile && m.AggroCooldown <= 0 && dist <= aggroRadius)
         {
             if (dist <= m.AttackRange)
             {
                 m.State = MonsterState.Attack;
                 if (m.AttackCooldown <= 0)
                 {
-                    HitPlayer(m, player);
+                    if (targetRecruit)
+                        HitRecruit(m, nearestRecruit!.Value.Npc);
+                    else if (player != null)
+                        HitPlayer(m, player);
                     m.AttackCooldown = m.AttackCooldownMax;
                 }
             }
             else
             {
                 m.State = MonsterState.Chase;
-                MoveToward(m, player.WorldX, player.WorldY, dt);
+                MoveToward(m, targetX, targetY, dt);
             }
             return;
         }
@@ -376,6 +418,23 @@ public sealed class CombatSystem
             // death handling; the monster clear happens after this loop.
             player.Survival?.OnDeath?.Invoke();
             _pendingPlayerDeath = true;
+        }
+    }
+
+    private void HitRecruit(Monster monster, NPC.Npc recruit)
+    {
+        int damage = Math.Max(1, (int)MathF.Round(monster.Attack));
+        recruit.Health = Math.Max(0, recruit.Health - damage);
+        DamageNumbers.Add(new DamageNumber
+        {
+            Value = -damage,
+            WorldX = recruit.WorldX,
+            WorldY = recruit.WorldY,
+        });
+        if (recruit.Health == 0)
+        {
+            recruit.IsActive = false;
+            recruit.VelocityX = recruit.VelocityY = 0f;
         }
     }
 
