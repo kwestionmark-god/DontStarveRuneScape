@@ -160,6 +160,7 @@ public sealed class SpriteRenderer : IDisposable
     private const float KickPx = 3f;        // swim flutter-kick amplitude, screen px
     private readonly ConditionalWeakTable<object, GaitAnimator> _gaitRigs = new();
     private readonly GaitAnimator _playerGait = new(GaitConfigs.Player);
+    private readonly TurnLean _playerLean = new();
 
     /// <summary>The gait rig attached to an entity (player, monster, NPC):
     /// created on first use and kept alive while the entity lives.</summary>
@@ -439,10 +440,26 @@ public sealed class SpriteRenderer : IDisposable
         float cx = screen.X;
         float cy = screen.Y - half;
 
+        // Bank into left/right turns while running: the body and its carried
+        // gear pivot about the ground point, so the torso leans into the turn;
+        // the gait's stance also shifts laterally with the lean (passed to
+        // _playerGait below), so new foot plants land a bit toward the bank —
+        // feet "planted under the lean". Swimming or standing holds it
+        // upright. lean is a screen-space angle; positive tilts clockwise.
+        bool swimming = waterDepth >= SwimDepth && bootTex != 0;
+        float lean = swimming ? _playerLean.Update(0f, 0f, dt)
+                              : _playerLean.Update(velX, velY, dt);
+        // Rotating the body center about the ground point, then the quad
+        // about its (already rotated) center, is exactly a pivot at the
+        // feet — same convention as DrawRotatedTexturedQuad's Rot().
+        float leanCos = MathF.Cos(lean), leanSin = MathF.Sin(lean);
+        float lcx = screen.X + (cx - screen.X) * leanCos - (cy - screen.Y) * leanSin;
+        float lcy = screen.Y + (cx - screen.X) * leanSin + (cy - screen.Y) * leanCos;
+
         // Carried cape renders behind the body.
         var cape = player.Gear?.GetEquipped("cape");
         if (cape != null)
-            RenderCarried(batch, cape, cx, cy, half, player.Facing, behind: true, swing: 0f);
+            RenderCarried(batch, cape, lcx, lcy, half, player.Facing, behind: true, swing: 0f, lean);
 
         DrawShadow(batch, screen.X, screen.Y, half, 220);
 
@@ -456,17 +473,21 @@ public sealed class SpriteRenderer : IDisposable
             // side never paints over the torso. The player's boots are drawn
             // as projected world-space spherical domes (terrain-draped,
             // phase-tilted, smoothly shaded) — see DrawBootDomes.
-            bool swimming = waterDepth >= SwimDepth && bootTex != 0;
+            // (swimming was hoisted above with the turn-lean state.)
             float bootHalf = half * (4f / 32f);
             if (!swimming)
             {
-                _playerGait.Update(player.WorldX, player.WorldY, velX, velY, dt);
+                _playerGait.Update(player.WorldX, player.WorldY, velX, velY, dt,
+                    lean * TurnLean.StanceShiftPerRad);
                 // Boot base color matches the player/boot.png leather tone.
                 DrawBootDomes(_playerGait, GaitConfigs.Player, PlayerBoot,
                     batch, camera, elevation, screen.Y, inFront: false, 139, 90, 43);
             }
 
-            batch.DrawTexturedScreenQuad(cx, cy, half, half, bodyTex, 255, 255, 255);
+            // The body pivots about the planted feet by the turn lean
+            // (lcx/lcy is the center already rotated about the ground
+            // point); the boots below stay grounded in world space.
+            DrawRotatedTexturedQuad(batch, lcx, lcy, half, half, lean, bodyTex);
 
             if (bootTex != 0 && swimming)
             {
@@ -507,16 +528,17 @@ public sealed class SpriteRenderer : IDisposable
 
         // Carried equipment in front of the body: the weapon-slot item at the
         // leading hand (swinging during actions), armor overlays by slot.
+        // Rides the leaned body center so gear banks with the torso.
         var gear = player.Gear;
         if (gear != null)
         {
             if (gear.Weapon != null)
-                RenderCarried(batch, gear.Weapon, cx, cy, half, player.Facing, behind: false, swing);
+                RenderCarried(batch, gear.Weapon, lcx, lcy, half, player.Facing, behind: false, swing, lean);
             foreach (var slotName in CarriedSlots)
             {
                 var item = gear.GetEquipped(slotName);
                 if (item != null)
-                    RenderCarried(batch, item, cx, cy, half, player.Facing, behind: false, swing: 0f);
+                    RenderCarried(batch, item, lcx, lcy, half, player.Facing, behind: false, swing: 0f, lean);
             }
         }
 
@@ -552,7 +574,7 @@ public sealed class SpriteRenderer : IDisposable
     };
 
     private void RenderCarried(PrimitiveBatch batch, Data.GearItem item, float cx, float cy, float half,
-        float facing, bool behind, float swing)
+        float facing, bool behind, float swing, float lean = 0f)
     {
         // Sprite: catalog display key first, then the gear.json key, then the
         // item id — GetSpriteTexture caches misses, so fallbacks are free.
@@ -565,11 +587,17 @@ public sealed class SpriteRenderer : IDisposable
         var (dx, dy, size, tilt) = MountOf(item.Slot.ToLowerInvariant());
         float itemHalf = size * half;
 
+        // cx/cy is the leaned body center; mount offsets rotate with the
+        // same lean so items stay glued to the torso while it banks.
+        float leanCos = MathF.Cos(lean), leanSin = MathF.Sin(lean);
+        (float X, float Y) At(float lx, float ly) =>
+            (cx + lx * leanCos - ly * leanSin, cy + lx * leanSin + ly * leanCos);
+
         if (behind)
         {
             // Cape: hangs off the trailing side, mirrored with the facing.
-            float bx = cx - facing * dx * half;
-            DrawRotatedTexturedQuad(batch, bx, cy + dy * half, itemHalf, itemHalf, 0f, tex,
+            var (bx, by) = At(-facing * dx * half, dy * half);
+            DrawRotatedTexturedQuad(batch, bx, by, itemHalf, itemHalf, lean, tex,
                 mirror: facing < 0);
             return;
         }
@@ -581,9 +609,10 @@ public sealed class SpriteRenderer : IDisposable
             // sweeps the item down-forward through the target and back.
             const float SwingArcDeg = 75f;
             float angleDeg = tilt + SwingArcDeg * MathF.Sin(MathF.PI * swing);
-            float angle = angleDeg * (MathF.PI / 180f) * facing;
-            float pivotX = cx + facing * dx * half;
-            float pivotY = cy + dy * half;
+            // The swing arc mirrors with the facing; the turn lean adds on
+            // top in screen space (never mirrored).
+            float angle = angleDeg * (MathF.PI / 180f) * facing + lean;
+            var (pivotX, pivotY) = At(facing * dx * half, dy * half);
             float lever = itemHalf * 0.45f;
             float itemX = pivotX + lever * MathF.Sin(angle);
             float itemY = pivotY - lever * MathF.Cos(angle);
@@ -609,8 +638,10 @@ public sealed class SpriteRenderer : IDisposable
             return;
         }
 
-        // Armor overlays: fixed slot position, mirrored with the facing.
-        DrawRotatedTexturedQuad(batch, cx + facing * dx * half, cy + dy * half, itemHalf, itemHalf, 0f, tex,
+        // Armor overlays: fixed slot position, mirrored with the facing,
+        // banking with the body's turn lean.
+        var (px, py) = At(facing * dx * half, dy * half);
+        DrawRotatedTexturedQuad(batch, px, py, itemHalf, itemHalf, lean, tex,
             mirror: facing < 0);
     }
 

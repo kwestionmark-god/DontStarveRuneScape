@@ -108,8 +108,13 @@ public sealed class GaitAnimator
 
     /// <summary>Advance the whole gait one frame. <paramref name="velX"/>/Y are
     /// the entity's real net velocity (world px/s); the stance direction comes
-    /// from them while moving and from the last travel direction while idle.</summary>
-    public void Update(float originX, float originY, float velX, float velY, float dt)
+    /// from them while moving and from the last travel direction while idle.
+    /// <paramref name="stanceShift"/> offsets every stance laterally in world
+    /// px (positive = the traveler's right): the player passes the turn-lean
+    /// shift so feet plant toward the bank instead of under the old
+    /// centerline.</summary>
+    public void Update(float originX, float originY, float velX, float velY, float dt,
+        float stanceShift = 0f)
     {
         float speed = MathF.Sqrt(velX * velX + velY * velY);
         bool moving = speed > 1f;
@@ -145,8 +150,8 @@ public sealed class GaitAnimator
         {
             ref Foot f = ref _feet[i];
             var (lat, lon) = _cfg.FootOffsets[i];
-            float stanceX = originX + px * lat + dir.dx * lon;
-            float stanceY = originY + py * lat + dir.dy * lon;
+            float stanceX = originX + px * (lat + stanceShift) + dir.dx * lon;
+            float stanceY = originY + py * (lat + stanceShift) + dir.dy * lon;
             if (!f.Placed)
             {
                 f.X = stanceX; f.Y = stanceY;

@@ -208,4 +208,27 @@ public class GaitAnimatorTests
         // stride plus a frame.
         Assert.InRange(worst, 0f, 3f + speed * 0.1f * 0.5f + speed * dt + 1f);
     }
+
+    [Fact]
+    public void StanceShiftPlantsFeetLaterally()
+    {
+        // The turn-lean "plant under the bank" hook: a lateral stance
+        // shift (positive = the traveler's right) must move every plant
+        // sideways with it, at every point of the stride cycle.
+        var cfg = Biped();
+        var gait = new GaitAnimator(cfg);
+        const float speed = 150f, dt = 1f / 60f, shift = 5f;
+        float x = 0f, y = 0f;
+        for (int s = 0; s < (int)(1.5f / dt); s++)
+        {
+            x += speed * dt;
+            gait.Update(x, y, speed, 0f, dt, shift);
+        }
+        for (int i = 0; i < gait.FootCount; i++)
+        {
+            var f = gait.GetFoot(i);
+            float lateral = f.Y - y;   // walking east: +lat is +y
+            Assert.Equal(cfg.FootOffsets[i].Lat + shift, lateral, 5);
+        }
+    }
 }
