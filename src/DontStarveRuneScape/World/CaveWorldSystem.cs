@@ -1,8 +1,11 @@
 namespace DontStarveRuneScape.World;
 
 using DontStarveRuneScape.Config;
+using DontStarveRuneScape.Combat;
 using DontStarveRuneScape.Core;
 using DontStarveRuneScape.Data;
+using DontStarveRuneScape.NPC;
+using DontStarveRuneScape.Seasons;
 
 /// <summary>Builds and switches into deterministic, dry cave maps.</summary>
 public sealed class CaveWorldSystem
@@ -11,6 +14,9 @@ public sealed class CaveWorldSystem
     private TileMap? _surface;
     private float _surfaceX, _surfaceY;
     private int _entranceX, _entranceY;
+    private CombatSystem? _surfaceCombat;
+    private TileMap? _cave;
+    private CombatSystem? _caveCombat;
 
     public bool IsInside => _surface != null;
 
@@ -31,8 +37,17 @@ public sealed class CaveWorldSystem
         _entranceX = x;
         _entranceY = y;
 
-        var cave = Generate(unchecked(_game.Seed * 397 ^ x * 31 ^ y));
+        var seed = unchecked(_game.Seed * 397 ^ x * 31 ^ y);
+        if (_cave == null)
+        {
+            _cave = Generate(seed, _game.ResourceRegistry, _game.SeasonSystem);
+            _caveCombat = CreateCaveCombat(_game.MonsterRegistry, _game.QuestSystem, _cave);
+        }
+
+        var cave = _cave;
         _game.World = cave;
+        _surfaceCombat = _game.CombatSystem;
+        _game.CombatSystem = _caveCombat;
         _game.Player.WorldX = (cave.SpawnX + 0.5f) * Constants.TileSize;
         _game.Player.WorldY = (cave.SpawnY + 0.5f) * Constants.TileSize;
         _game.Player.TargetX = _game.Player.WorldX;
@@ -45,6 +60,7 @@ public sealed class CaveWorldSystem
     {
         if (_surface == null || _game.Player == null) return;
         _game.World = _surface;
+        _game.CombatSystem = _surfaceCombat;
         _game.Player.WorldX = _surfaceX;
         _game.Player.WorldY = _surfaceY;
         _game.Player.TargetX = _surfaceX;
@@ -52,13 +68,15 @@ public sealed class CaveWorldSystem
         _game.Player.ActionSystem?.SetTileMap(_surface);
         _game.Camera?.SetWorld(_surface);
         _surface = null;
+        _surfaceCombat = null;
     }
 
-    private static TileMap Generate(int seed)
+    private static TileMap Generate(int seed, ResourceRegistry? resources, SeasonSystem? seasons)
     {
         const int size = 64;
         // Start at the outer lip, then let the floor descend into the basin.
         var map = new TileMap(size, size) { IsCave = true, SpawnX = 6, SpawnY = size / 2 };
+        map.SeasonSystem = seasons;
         var cavern = new BiomeDef { Id = "cavern", Name = "Cavern" };
         for (int elevation = 0; elevation <= 31; elevation++)
         {
@@ -95,6 +113,54 @@ public sealed class CaveWorldSystem
                 (e01 + tile.Elevation) * .5f];
         }
         map.Tiles[map.SpawnX, map.SpawnY].IsCaveExit = true;
+        PlaceOreVeins(map, resources, seed);
         return map;
+    }
+
+    private static void PlaceOreVeins(TileMap map, ResourceRegistry? resources, int seed)
+    {
+        if (resources == null) return;
+
+        // The cave slopes inward from the western exit. Place guaranteed,
+        // deterministic ore pockets along that route so the first visit has
+        // an immediately useful copper vein and rarer finds reward exploring.
+        var veins = new (string Id, (int X, int Y)[] Tiles)[]
+        {
+            ("copper_rock", [(12, 27), (14, 35), (17, 30), (19, 38)]),
+            ("iron_rock", [(25, 25), (27, 37), (30, 29), (33, 35)]),
+            ("gold_vein", [(40, 26), (43, 38), (47, 31)]),
+            ("gemstone", [(50, 27), (53, 36)])
+        };
+        var random = new Random(seed ^ 0x4F524553);
+        foreach (var (id, spots) in veins)
+        {
+            var def = resources.GetResource(id);
+            if (def == null) continue;
+            foreach (var (x, y) in spots)
+            {
+                var tile = map.GetTile(x, y);
+                if (tile == null || tile.IsCaveExit) continue;
+                int charges = Math.Max(1, def.DepletionCount);
+                tile.ResourceNode = new ResourceNode(id, def, charges)
+                {
+                    SizeScale = 1f + (float)random.NextDouble() * def.SizeVariance
+                };
+            }
+        }
+    }
+
+    private static CombatSystem CreateCaveCombat(MonsterRegistry? registry, QuestSystem? quests, TileMap cave)
+    {
+        var combat = new CombatSystem { Quests = quests };
+        var troll = registry?.MonstersByBiome.Values
+            .SelectMany(monsters => monsters.Values)
+            .FirstOrDefault(def => def.MonsterId == "cave_troll");
+        if (troll != null)
+        {
+            float x = (43.5f) * Constants.TileSize;
+            float y = (cave.SpawnY + 0.5f) * Constants.TileSize;
+            combat.SpawnMonster(troll, x, y, "cavern");
+        }
+        return combat;
     }
 }

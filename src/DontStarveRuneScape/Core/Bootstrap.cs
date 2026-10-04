@@ -108,6 +108,32 @@ public sealed class Bootstrap
                     _game.RestoreSaveMetadata(_pendingSaveData);
                     _pendingSaveData = null;
                 }
+
+                // Headless cave captures can start inside the generated cave
+                // without simulating a surface walk and E-key interaction.
+                // Must run after _game.World/_game.Player are set: Enter()
+                // captures the live surface world to restore on exit.
+                if (System.Environment.GetEnvironmentVariable("DSR_START_IN_CAVE") == "1")
+                {
+                    Tile? entrance = null;
+                    foreach (var candidate in tileMap.Tiles)
+                        if (candidate.IsCaveEntrance) { entrance = candidate; break; }
+                    if (entrance != null)
+                    {
+                        _game.CaveWorlds.InteractWith(entrance);
+                        if (float.TryParse(System.Environment.GetEnvironmentVariable("DSR_CAVE_POS_X"),
+                                System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var cx)
+                            && float.TryParse(System.Environment.GetEnvironmentVariable("DSR_CAVE_POS_Y"),
+                                System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var cy))
+                        {
+                            player.WorldX = (cx + 0.5f) * Constants.TileSize;
+                            player.WorldY = (cy + 0.5f) * Constants.TileSize;
+                            player.TargetX = player.WorldX;
+                            player.TargetY = player.WorldY;
+                            _game.Camera?.SetWorld(_game.World!);
+                        }
+                    }
+                }
                 _game.SetWorldGenResult("success");
             }
             catch (System.Exception ex)

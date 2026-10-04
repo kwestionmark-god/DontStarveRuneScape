@@ -82,7 +82,7 @@ public sealed class ActionSystem
         // Skill-level gate: high-tier nodes require a minimum level
         if (resource != null && resource.ResourceDef != null)
         {
-            int requiredLevel = resource.ResourceDef.Tier;
+            int requiredLevel = Math.Max(resource.ResourceDef.Tier, resource.ResourceDef.RequiredLevel);
             if (requiredLevel > 1 && skillManager != null)
             {
                 string skillId = actionType.GetSkillId(resource);

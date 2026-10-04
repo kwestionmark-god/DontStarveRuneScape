@@ -1346,7 +1346,7 @@ public sealed class Game
                     Player, batch, Camera, elev, Dt, imm)));
             }
 
-            if (!World.IsCave && CombatSystem != null)
+            if (CombatSystem != null)
             {
                 foreach (var monster in CombatSystem.Monsters)
                 {
