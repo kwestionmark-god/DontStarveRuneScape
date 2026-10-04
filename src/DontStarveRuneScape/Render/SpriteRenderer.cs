@@ -205,9 +205,11 @@ public sealed class SpriteRenderer : IDisposable
     // Player boot: round footprint, slightly longer at the toe than the
     // heel, about a hemisphere tall. Heights are world px; the 3D
     // projection compresses them by sinPitch, so they read a touch
-    // chunkier on screen than the raw numbers suggest.
+    // chunkier on screen than the raw numbers suggest. Scaled up ~20%
+    // from the original (2.2/3.0 footprint) on user request 2026-10-04 —
+    // "make the feet a bit bigger".
     private static readonly FootDomeDims PlayerBoot = new(
-        toe: 3.0f, heel: 2.2f, halfWidth: 2.4f, height: 3.2f);
+        toe: 3.6f, heel: 2.65f, halfWidth: 2.9f, height: 3.85f);
 
     // Silhouette rim: the dark backing dome is the boot scaled about its
     // ground point by this factor and drawn first, so it peeks a hair

@@ -9,10 +9,12 @@ public static class GaitConfigs
 {
     // Player biped rig: the tunables the boots have always used
     // (StanceWidth 3, TriggerDist 3, SwingDur 0.1, LiftPx 4, stride floor 3).
+    // Stance widened to ±3.5 with the 2026-10-04 boot scale-up so the
+    // bigger domes keep their old ~1.2px inner clearance.
     public static GaitConfig Player { get; } = new()
     {
         Pattern = GaitPattern.Biped,
-        FootOffsets = [(-3f, 0f), (3f, 0f)],
+        FootOffsets = [(-3.5f, 0f), (3.5f, 0f)],
         SwingDur = 0.1f,
         LiftPx = 4f,
         TriggerDist = 3f,
