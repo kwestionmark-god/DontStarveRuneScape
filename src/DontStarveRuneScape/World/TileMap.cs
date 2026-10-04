@@ -61,6 +61,37 @@ public sealed class TileMap
     }
 
     /// <summary>
+    /// Shared 2.5D corner stitch for every world layer (surface AND caves).
+    /// The height at grid vertex (x, y) is the elevation of the tile whose
+    /// min-corner sits on that vertex, so all tiles bordering a vertex store
+    /// the identical float there and adjacent terrain quads share their
+    /// screen-space edges exactly. A per-tile variant of this rule (e.g.
+    /// averaging corners with the tile's own elevation) makes neighbors
+    /// disagree, pulls quads apart at every tile edge, and lets the clear
+    /// color bleed through as glowing seams. Edge vertices clamp to the
+    /// nearest in-bounds tile.
+    /// </summary>
+    public void BuildCornerElevations()
+    {
+        for (int x = 0; x < Width; x++)
+        {
+            for (int y = 0; y < Height; y++)
+            {
+                var tile = Tiles[x, y];
+
+                // Float corner heights: smooth slopes mean the sea plane /
+                // terrain intersection is a curving contour, never a terraced
+                // straight line.
+                float e00 = GetTile(x, y)?.Elevation ?? tile.Elevation;
+                float e10 = GetTile(x + 1, y)?.Elevation ?? tile.Elevation;
+                float e11 = GetTile(x + 1, y + 1)?.Elevation ?? tile.Elevation;
+                float e01 = GetTile(x, y + 1)?.Elevation ?? tile.Elevation;
+                tile.CornerElevations = [e00, e10, e11, e01];
+            }
+        }
+    }
+
+    /// <summary>
     /// Update all tiles (regrowth, seasonal changes).
     /// </summary>
     public void Update(float dt)

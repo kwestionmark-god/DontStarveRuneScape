@@ -378,24 +378,10 @@ public static class WorldGen
 
     private static void BuildCornerElevations(TileMap map)
     {
-        for (int x = 0; x < map.Width; x++)
-        {
-            for (int y = 0; y < map.Height; y++)
-            {
-                var tile = map.Tiles[x, y];
-
-                // Get 4 corners (with clamping at edges)
-                float e00 = map.GetTile(x, y)?.Elevation ?? tile.Elevation;
-                float e10 = map.GetTile(x + 1, y)?.Elevation ?? tile.Elevation;
-                float e11 = map.GetTile(x + 1, y + 1)?.Elevation ?? tile.Elevation;
-                float e01 = map.GetTile(x, y + 1)?.Elevation ?? tile.Elevation;
-
-                // Float corner heights: smooth slopes mean the sea plane /
-                // terrain intersection is a curving contour, never a terraced
-                // straight line.
-                tile.CornerElevations = [e00, e10, e11, e01];
-            }
-        }
+        // Shared corner stitch (see TileMap.BuildCornerElevations) — surface
+        // and cave layers must use the identical vertex convention or their
+        // quads pull apart at tile edges.
+        map.BuildCornerElevations();
 
         // Vertex-averaged bed field for the sea sheet's depth tint: raw tile
         // centers crease at every tile edge; averaging the four tiles around

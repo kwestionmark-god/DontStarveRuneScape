@@ -71,7 +71,7 @@ public sealed class CaveWorldSystem
         _surfaceCombat = null;
     }
 
-    private static TileMap Generate(int seed, ResourceRegistry? resources, SeasonSystem? seasons)
+    internal static TileMap Generate(int seed, ResourceRegistry? resources, SeasonSystem? seasons)
     {
         const int size = 64;
         // Start at the outer lip, then let the floor descend into the basin.
@@ -100,18 +100,9 @@ public sealed class CaveWorldSystem
             tile.Elevation = Math.Clamp(15f + radius * 8f + rolling, 13f, 26f);
             tile.Moisture = .25f;
         }
-        for (int x = 0; x < size; x++)
-        for (int y = 0; y < size; y++)
-        {
-            var tile = map.Tiles[x, y];
-            float e00 = map.GetTile(x, y)?.Elevation ?? tile.Elevation;
-            float e10 = map.GetTile(x + 1, y)?.Elevation ?? tile.Elevation;
-            float e11 = map.GetTile(x + 1, y + 1)?.Elevation ?? tile.Elevation;
-            float e01 = map.GetTile(x, y + 1)?.Elevation ?? tile.Elevation;
-            tile.CornerElevations = [(e00 + tile.Elevation) * .5f,
-                (e10 + tile.Elevation) * .5f, (e11 + tile.Elevation) * .5f,
-                (e01 + tile.Elevation) * .5f];
-        }
+        // Corner stitch shared with the surface: every vertex reads the
+        // min-corner tile's elevation so adjacent quads share edges exactly.
+        map.BuildCornerElevations();
         map.Tiles[map.SpawnX, map.SpawnY].IsCaveExit = true;
         PlaceOreVeins(map, resources, seed);
         return map;
