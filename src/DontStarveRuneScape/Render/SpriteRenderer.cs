@@ -190,42 +190,31 @@ public sealed class SpriteRenderer : IDisposable
         }
     }
 
-    // ── Next-level player boots: tapered world-space shoe boxes ──────────
-    // Each boot is two stacked boxes (a wide foot base + a narrower ankle
-    // stump — the taper). Every corner lives in world space and passes
-    // through the camera projection, so the boot reads as a real 3D object
-    // at any yaw. The base box's bottom corners sample the terrain
-    // individually, so the sole lies flush on slopes. The swing phase shears
-    // the tops along travel (toe-off drag → level → heel-strike) for the
-    // kick/plant/launch feel, and each visible face is lit by a fixed
-    // world-space light with a darker outline behind it.
+    // ── Spherical dome boots ─────────────────────────────────────────────
+    // Each boot is a tessellated half-ellipsoid dome with a slight toe bias
+    // (geometry in <see cref="BootDome"/>) — round, in place of the old
+    // stacked shoe boxes. Every grid vertex lives in world space and passes
+    // through the camera projection, so the boot reads as a curved 3D
+    // object at any yaw. Vertices drape onto the terrain individually, so
+    // boots sit flush on slopes; the swing phase rocks the whole dome
+    // rigidly on its toe/heel pivot (kick/plant/launch) and rolls it
+    // laterally mid-swing; per-vertex lighting shades the curvature
+    // smoothly; and a slightly scaled dark dome drawn behind provides the
+    // silhouette rim.
 
-    /// <summary>Foot-box dimensions in world px (per entity type later;
-    /// player values for now).</summary>
-    private readonly struct FootBoxDims
-    {
-        public readonly float Toe, Heel, HalfWidth, BaseHeight, AnkleToe, AnkleHeel, AnkleHalfWidth, AnkleHeight;
-        public FootBoxDims(float toe, float heel, float halfWidth, float baseHeight,
-            float ankleToe, float ankleHeel, float ankleHalfWidth, float ankleHeight)
-        {
-            Toe = toe; Heel = heel; HalfWidth = halfWidth; BaseHeight = baseHeight;
-            AnkleToe = ankleToe; AnkleHeel = ankleHeel; AnkleHalfWidth = ankleHalfWidth; AnkleHeight = ankleHeight;
-        }
-    }
+    // Player boot: round footprint, slightly longer at the toe than the
+    // heel, about a hemisphere tall. Heights are world px; the 3D
+    // projection compresses them by sinPitch, so they read a touch
+    // chunkier on screen than the raw numbers suggest.
+    private static readonly FootDomeDims PlayerBoot = new(
+        toe: 3.0f, heel: 2.2f, halfWidth: 2.4f, height: 3.2f);
 
-    // Player boot: short wide sole, boot toe biased forward of the ankle.
-    // Heights are world px; the 3D projection compresses them by sinPitch,
-    // so they read a touch chunkier on screen than the raw numbers suggest.
-    private static readonly FootBoxDims PlayerBoot = new(
-        toe: 3.4f, heel: 2.2f, halfWidth: 2.3f, baseHeight: 2.2f,
-        ankleToe: 1.8f, ankleHeel: 1.6f, ankleHalfWidth: 1.7f, ankleHeight: 3.6f);
+    // Silhouette rim: the dark backing dome is the boot scaled about its
+    // ground point by this factor and drawn first, so it peeks a hair
+    // beyond the shaded surface all around.
+    private const float BootRimScale = 1.16f;
 
-    // Swing tilt: max top-edge shear, as a tangent. ±~20° at the ankle top.
-    private const float BootTiltTan = 0.36f;
-    // Swing roll: lateral lean of the boot top (toe-out supination), shaped
-    // by sin(πT) — zero at liftoff/plant, max mid-swing. ~12° at the ankle.
-    private const float BootRollTan = 0.22f;
-    // Fixed world-space light for the face shading (xy + up component).
+    // Fixed world-space light for the dome shading (xy + up component).
     private const float LightX = 0.45f, LightY = 0.30f, LightZ = 1.00f;
 
     // WorldToScreen's elevation channel carries elevation units (ZScale ×
@@ -233,37 +222,36 @@ public sealed class SpriteRenderer : IDisposable
     // Convert before adding height, or the boots render as stilts (×12.8).
     private const float ElevPerWorldPx = 1f / (Constants.ZScale * Constants.TerrainHeightScale);
 
-    // Pooled face buffers (drawn many times per frame).
+    // Pooled cell buffers (every visible cell redraws them each frame).
     private readonly System.Collections.Generic.List<(float X, float Y, byte R, byte G, byte B, byte A)> _facePts = new(4);
     private readonly System.Collections.Generic.List<Silk.NET.Maths.Vector2D<float>> _outlinePts = new(4);
 
-    /// <summary>Draw one entity's feet as projected shoe boxes. Same depth
-    /// contract as <see cref="DrawGaitFeet"/>: <paramref name="inFront"/>
+    // Pooled dome-grid cache, reused for every foot each frame: BootDome's
+    // local points, the projected + shaded main-dome vertices, the rim
+    // dome's screen points, and one visibility bit per surface cell.
+    private struct DomeVert
+    {
+        public float NLon, NLat, NH;   // local-frame normal, for cell culling
+        public byte R, G, B;          // shaded base color, for the gradient fill
+        public float SX, SY;          // projected screen point (lift applied)
+    }
+    private readonly BootDome.Point[] _domePts = new BootDome.Point[(BootDome.Rings + 1) * BootDome.Segments];
+    private readonly DomeVert[] _domeGrid = new DomeVert[(BootDome.Rings + 1) * BootDome.Segments];
+    private readonly (float SX, float SY)[] _domeRim = new (float SX, float SY)[(BootDome.Rings + 1) * BootDome.Segments];
+    private readonly bool[] _domeCellVis = new bool[BootDome.Rings * BootDome.Segments];
+
+    /// <summary>Draw one entity's feet as projected spherical domes. Same
+    /// depth contract as <see cref="DrawGaitFeet"/>: <paramref name="inFront"/>
     /// selects feet whose ground contact is at/below (true) or above
     /// (false) the body's ground point, so far feet paint under the torso.
-    /// Uses the gait's per-foot positions, swing phase (tilt + lift), and
-    /// travel direction.</summary>
-    private void DrawFootBoxes(GaitAnimator gait, GaitConfig cfg, in FootBoxDims dims,
+    /// Uses the gait's per-foot positions, swing phase (tilt + roll + lift),
+    /// and travel direction.</summary>
+    private void DrawBootDomes(GaitAnimator gait, GaitConfig cfg, in FootDomeDims dims,
         PrimitiveBatch batch, Camera camera, float elevation, float groundScreenY, bool inFront,
         byte baseR, byte baseG, byte baseB)
     {
         var (dirX, dirY) = gait.Dir;
         float latX = -dirY, latY = dirX;
-        // World direction that maps to screen-down = toward the viewer for
-        // ground-plane faces: a side face is visible when its outward
-        // normal has a positive dot with it.
-        float viewX = MathF.Sin(camera.Yaw), viewY = MathF.Cos(camera.Yaw);
-        bool frontVisible = dirX * viewX + dirY * viewY > 0f;
-        bool latVisible = latX * viewX + latY * viewY > 0f;
-
-        // Face brightness from the fixed light: sides dot into the light's
-        // xy component, the top face into its dominant up component.
-        float lightLen = MathF.Sqrt(LightX * LightX + LightY * LightY + LightZ * LightZ);
-        float Shade(float nx, float ny, float nz)
-        {
-            float d = (nx * LightX + ny * LightY + nz * LightZ) / lightLen;
-            return 0.50f + 0.55f * MathF.Max(0f, d);
-        }
 
         for (int i = 0; i < gait.FootCount; i++)
         {
@@ -281,144 +269,129 @@ public sealed class SpriteRenderer : IDisposable
                 ? MathF.Sin(foot.T * MathF.PI) * sideSign
                 : 0f;
 
-            // Sole box: bottom corners at their own terrain heights.
-            DrawShoeBox(batch, camera, dims.Toe, dims.Heel, dims.HalfWidth, dims.BaseHeight,
-                dims.AnkleToe, dims.AnkleHeel, dims.AnkleHalfWidth, dims.AnkleHeight,
-                foot.X, foot.Y, dirX, dirY, latX, latY, elevation,
-                tilt, roll, lift, frontVisible, latVisible, Shade,
-                baseR, baseG, baseB);
+            DrawBootDome(batch, camera, dims, foot.X, foot.Y, dirX, dirY, latX, latY,
+                elevation, tilt, roll, lift, baseR, baseG, baseB);
         }
     }
 
-    /// <summary>Project and draw one foot's two stacked boxes. The sole's
-    /// bottom corners sample the terrain at their own positions (sole lies
-    /// flush on the slope); the ankle sits on the sole's top corners. Tops
-    /// shear by height along travel (kick/heel-strike tilt) and laterally
-    /// (mid-swing roll). Heights are world px converted to elevation units
-    /// via <see cref="ElevPerWorldPx"/> before reaching the projection.
-    /// Visible faces: two camera-facing sides + top, back-face culled by
-    /// the precomputed visibility flags.</summary>
-    private void DrawShoeBox(PrimitiveBatch batch, Camera camera,
-        float toe, float heel, float halfW, float baseH,
-        float ankToe, float ankHeel, float ankHalfW, float ankH,
+    /// <summary>Project and draw one foot's dome. Each grid vertex samples
+    /// the terrain at its own world position and lifts to its dome height
+    /// above it, so the base ring sits flush on slopes. The rim pass
+    /// re-projects the same grid scaled by <see cref="BootRimScale"/> for
+    /// the dark silhouette drawn behind. Surface cells facing away from
+    /// the camera cull via <see cref="BootDome.FacesCamera"/>; the dome is
+    /// convex, so the surviving cells never overlap and painter order is
+    /// free. Heights are world px converted to elevation units via
+    /// <see cref="ElevPerWorldPx"/> before reaching the projection.</summary>
+    private void DrawBootDome(PrimitiveBatch batch, Camera camera, in FootDomeDims dims,
         float cx, float cy, float dirX, float dirY, float latX, float latY, float fallbackElev,
-        float tilt, float roll, float lift, bool frontVisible, bool latVisible,
-        Func<float, float, float, float> shade, byte baseR, byte baseG, byte baseB)
+        float tilt, float roll, float lift, byte baseR, byte baseG, byte baseB)
     {
-        // Perimeter order (clockwise on the ground plane):
-        // 0: +toe +lat | 1: +toe −lat | 2: −heel −lat | 3: −heel +lat.
-        Span<float> lon = stackalloc float[4] { toe, toe, -heel, -heel };
-        Span<float> lat = stackalloc float[4] { halfW, -halfW, -halfW, halfW };
+        float yaw = camera.Yaw, pitch = camera.Pitch;
+        const int segs = BootDome.Segments, rings = BootDome.Rings;
+        float lightLen = MathF.Sqrt(LightX * LightX + LightY * LightY + LightZ * LightZ);
 
-        // Project all bottom + top corners of both boxes. Ground elevation
-        // per bottom corner makes the sole follow the tilt of the terrain.
-        Span<float> bx = stackalloc float[4], by = stackalloc float[4];
-        Span<float> groundElev = stackalloc float[4];
-        for (int c = 0; c < 4; c++)
-        {
-            bx[c] = cx + dirX * lon[c] + latX * lat[c];
-            by[c] = cy + dirY * lon[c] + latY * lat[c];
-            groundElev[c] = BootElevation?.Invoke(bx[c], by[c]) ?? fallbackElev;
-        }
-
-        // Top-corner shear (world px): along travel for the kick/heel-strike
-        // tilt, along the lateral axis for the mid-swing roll. Proportional
-        // to each corner's height, so the boxes shear as one rigid tilt.
-        float SoleTopShearDir(float h) => tilt * BootTiltTan * h;
-        float SoleTopShearLat(float h) => roll * BootRollTan * h;
-
-        // screen corners: sBase[k] = sole top, sBtm[k] = sole bottom,
-        // sAnk[k] = ankle top. Lift applies to every projected point.
-        var sBtm = new (float X, float Y)[4];
-        var sBase = new (float X, float Y)[4];
-        var sAnk = new (float X, float Y)[4];
-        for (int c = 0; c < 4; c++)
-        {
-            var pb = camera.WorldToScreen(bx[c], by[c], groundElev[c]);
-            sBtm[c] = (pb.X, pb.Y - lift);
-            float sd = SoleTopShearDir(baseH), sl = SoleTopShearLat(baseH);
-            var pt = camera.WorldToScreen(
-                bx[c] + dirX * sd + latX * sl, by[c] + dirY * sd + latY * sl,
-                groundElev[c] + baseH * ElevPerWorldPx);
-            sBase[c] = (pt.X, pt.Y - lift);
-            float ad = SoleTopShearDir(baseH + ankH), al = SoleTopShearLat(baseH + ankH);
-            var pa = camera.WorldToScreen(
-                bx[c] + dirX * ad + latX * al, by[c] + dirY * ad + latY * al,
-                groundElev[c] + (baseH + ankH) * ElevPerWorldPx);
-            sAnk[c] = (pa.X, pa.Y - lift);
-        }
-
-        // Faces: two visible sides + top, in painter order (sides then top).
-        // Sole box sides: indices pair (c, c+1 mod 4) with the right winding
-        // from the perimeter; bottom corners first so the face gradient
-        // darkens toward the ground.
-        for (int s = 0; s < 2; s++)
-        {
-            int c0, c1;         // perimeter edge for this face
-            float nx, ny;
-            bool visible;
-            if (s == 0)
+        // Vertex pass: geometry → terrain drape → projection → shading.
+        // Brightness is the fixed-light shade of the vertex's own normal
+        // (smooth across shared cell edges), plus a gentle height gradient
+        // — dark at the ground, brighter at the apex — so the dome reads
+        // solid.
+        for (int ring = 0; ring <= rings; ring++)
+            for (int seg = 0; seg < segs; seg++)
             {
-                // +lon (toe) or −lon (heel) face: perimeter edges 0-1 / 2-3.
-                if (frontVisible) { c0 = 0; c1 = 1; nx = dirX; ny = dirY; }
-                else { c0 = 2; c1 = 3; nx = -dirX; ny = -dirY; }
-                visible = true;
+                int idx = ring * segs + seg;
+                BootDome.Vertex(ring, seg, dims, tilt, roll, out _domePts[idx]);
+                var v = _domePts[idx];
+                float wx = cx + dirX * v.Lon + latX * v.Lat;
+                float wy = cy + dirY * v.Lon + latY * v.Lat;
+                float e = (BootElevation?.Invoke(wx, wy) ?? fallbackElev) + v.H * ElevPerWorldPx;
+                var s = camera.WorldToScreen(wx, wy, e);
+                float nx = v.NLon * dirX + v.NLat * latX;
+                float ny = v.NLon * dirY + v.NLat * latY;
+                float d = (nx * LightX + ny * LightY + v.NH * LightZ) / lightLen;
+                float bright = (0.50f + 0.55f * MathF.Max(0f, d))
+                    * (0.92f + 0.14f * (v.H / dims.Height));
+                _domeGrid[idx] = new DomeVert
+                {
+                    NLon = v.NLon, NLat = v.NLat, NH = v.NH,
+                    R = (byte)Math.Clamp(baseR * bright, 0, 255),
+                    G = (byte)Math.Clamp(baseG * bright, 0, 255),
+                    B = (byte)Math.Clamp(baseB * bright, 0, 255),
+                    SX = s.X, SY = s.Y - lift,
+                };
             }
-            else
-            {
-                // +lat or −lat face: perimeter edges 1-2 / 3-0.
-                if (latVisible) { c0 = 3; c1 = 0; nx = latX; ny = latY; }
-                else { c0 = 1; c1 = 2; nx = -latX; ny = -latY; }
-                visible = true;
-            }
-            float bright = shade(nx, ny, 0f);
-            // Sole side face spans bottom → sole top.
-            DrawBoxFace(batch, sBtm[c0], sBtm[c1], sBase[c1], sBase[c0], bright, baseR, baseG, baseB);
-            // Ankle side face spans sole top → ankle top (slightly inset
-            // footprint, but the same edge directions — the taper reads as
-            // the ankle's narrower silhouette overhanging nothing).
-            DrawBoxFace(batch, sBase[c0], sBase[c1], sAnk[c1], sAnk[c0], bright, baseR, baseG, baseB);
-        }
 
-        // Top faces last (they overlap the sides' upper edges).
-        float topBright = shade(0f, 0f, 1f);
-        DrawBoxFace(batch, sBase[0], sBase[1], sBase[2], sBase[3], topBright, baseR, baseG, baseB);
-        DrawBoxFace(batch, sAnk[0], sAnk[1], sAnk[2], sAnk[3], topBright, baseR, baseG, baseB);
+        // Rim pass: the same grid scaled about the ground point. Uniform
+        // scaling leaves the normals untouched, so the rim shares the
+        // surface cells' visibility.
+        for (int ring = 0; ring <= rings; ring++)
+            for (int seg = 0; seg < segs; seg++)
+            {
+                int idx = ring * segs + seg;
+                var v = _domePts[idx];
+                float wx = cx + dirX * (v.Lon * BootRimScale) + latX * (v.Lat * BootRimScale);
+                float wy = cy + dirY * (v.Lon * BootRimScale) + latY * (v.Lat * BootRimScale);
+                float e = (BootElevation?.Invoke(wx, wy) ?? fallbackElev)
+                    + v.H * BootRimScale * ElevPerWorldPx;
+                var s = camera.WorldToScreen(wx, wy, e);
+                _domeRim[idx] = (s.X, s.Y - lift);
+            }
+
+        // Cell visibility once, from the averaged cell normal.
+        for (int ring = 0; ring < rings; ring++)
+            for (int seg = 0; seg < segs; seg++)
+            {
+                int i00 = ring * segs + seg;
+                int i01 = ring * segs + (seg + 1) % segs;
+                int i10 = i00 + segs, i11 = i01 + segs;
+                float nLon = (_domeGrid[i00].NLon + _domeGrid[i01].NLon + _domeGrid[i10].NLon + _domeGrid[i11].NLon) * 0.25f;
+                float nLat = (_domeGrid[i00].NLat + _domeGrid[i01].NLat + _domeGrid[i10].NLat + _domeGrid[i11].NLat) * 0.25f;
+                float nH = (_domeGrid[i00].NH + _domeGrid[i01].NH + _domeGrid[i10].NH + _domeGrid[i11].NH) * 0.25f;
+                _domeCellVis[i00] = BootDome.FacesCamera(nLon, nLat, nH,
+                    dirX, dirY, latX, latY, yaw, pitch);
+            }
+
+        // Silhouette rim first (flat dark); the shaded surface paints over
+        // its interior, leaving the dark rim peeking around the silhouette.
+        for (int ring = 0; ring < rings; ring++)
+            for (int seg = 0; seg < segs; seg++)
+            {
+                int i00 = ring * segs + seg;
+                if (!_domeCellVis[i00]) continue;
+                int i01 = ring * segs + (seg + 1) % segs;
+                int i10 = i00 + segs, i11 = i01 + segs;
+                _outlinePts.Clear();
+                _outlinePts.Add(new(_domeRim[i00].SX, _domeRim[i00].SY));
+                _outlinePts.Add(new(_domeRim[i01].SX, _domeRim[i01].SY));
+                _outlinePts.Add(new(_domeRim[i11].SX, _domeRim[i11].SY));
+                _outlinePts.Add(new(_domeRim[i10].SX, _domeRim[i10].SY));
+                batch.DrawScreenPolygon(_outlinePts, 42, 27, 13, 255);
+            }
+
+        // Shaded surface cells; per-vertex colors make the tessellation
+        // read as one smooth curved dome.
+        for (int ring = 0; ring < rings; ring++)
+            for (int seg = 0; seg < segs; seg++)
+            {
+                int i00 = ring * segs + seg;
+                if (!_domeCellVis[i00]) continue;
+                int i01 = ring * segs + (seg + 1) % segs;
+                int i10 = i00 + segs, i11 = i01 + segs;
+                _facePts.Clear();
+                AddDomeFacePt(i00);
+                AddDomeFacePt(i01);
+                AddDomeFacePt(i11);
+                AddDomeFacePt(i10);
+                batch.DrawScreenPolygonGradient(_facePts);
+            }
     }
 
-    /// <summary>Draw one quad face: an expanded dark outline behind, then a
-    /// vertical gradient (dark toward the bottom edge, bright toward the
-    /// top) tinted from the boot base color by the face brightness.</summary>
-    private void DrawBoxFace(PrimitiveBatch batch,
-        (float X, float Y) b0, (float X, float Y) b1,
-        (float X, float Y) t1, (float X, float Y) t0,
-        float bright, byte baseR, byte baseG, byte baseB)
+    /// <summary>Append one dome-grid vertex to the shared gradient-cell
+    /// buffer (screen point + shaded base color).</summary>
+    private void AddDomeFacePt(int idx)
     {
-        // Outline: same quad scaled ~20% about its centroid, flat dark —
-        // thick enough to read at boot scale without blobbing tiny faces.
-        float mx = (b0.X + b1.X + t1.X + t0.X) * 0.25f;
-        float my = (b0.Y + b1.Y + t1.Y + t0.Y) * 0.25f;
-        const float expand = 1.20f;
-        _outlinePts.Clear();
-        _outlinePts.Add(new(b0.X + (b0.X - mx) * expand, b0.Y + (b0.Y - my) * expand));
-        _outlinePts.Add(new(b1.X + (b1.X - mx) * expand, b1.Y + (b1.Y - my) * expand));
-        _outlinePts.Add(new(t1.X + (t1.X - mx) * expand, t1.Y + (t1.Y - my) * expand));
-        _outlinePts.Add(new(t0.X + (t0.X - mx) * expand, t0.Y + (t0.Y - my) * expand));
-        batch.DrawScreenPolygon(_outlinePts, 42, 27, 13, 255);
-
-        // Gradient face: bottom corners dimmer, top corners brighter.
-        byte rLo = (byte)Math.Clamp(baseR * bright * 0.92f, 0, 255);
-        byte gLo = (byte)Math.Clamp(baseG * bright * 0.92f, 0, 255);
-        byte bLo = (byte)Math.Clamp(baseB * bright * 0.92f, 0, 255);
-        byte rHi = (byte)Math.Clamp(baseR * bright * 1.06f, 0, 255);
-        byte gHi = (byte)Math.Clamp(baseG * bright * 1.06f, 0, 255);
-        byte bHi = (byte)Math.Clamp(baseB * bright * 1.06f, 0, 255);
-        _facePts.Clear();
-        _facePts.Add((b0.X, b0.Y, rLo, gLo, bLo, 255));
-        _facePts.Add((b1.X, b1.Y, rLo, gLo, bLo, 255));
-        _facePts.Add((t1.X, t1.Y, rHi, gHi, bHi, 255));
-        _facePts.Add((t0.X, t0.Y, rHi, gHi, bHi, 255));
-        batch.DrawScreenPolygonGradient(_facePts);
+        ref var v = ref _domeGrid[idx];
+        _facePts.Add((v.SX, v.SY, v.R, v.G, v.B, 255));
     }
 
     // Swing arc for the carried weapon-slot item (attack/chop/mine). Purely
@@ -479,15 +452,15 @@ public sealed class SpriteRenderer : IDisposable
             // plant on the heightmap, contouring slopes. Far-side feet draw
             // before the body quad, near-side feet after, so a boot on the far
             // side never paints over the torso. The player's boots are drawn
-            // as projected world-space shoe boxes (tapered, terrain-tilted,
-            // phase-tilted, face-shaded) — see DrawFootBoxes.
+            // as projected world-space spherical domes (terrain-draped,
+            // phase-tilted, smoothly shaded) — see DrawBootDomes.
             bool swimming = waterDepth >= SwimDepth && bootTex != 0;
             float bootHalf = half * (4f / 32f);
             if (!swimming)
             {
                 _playerGait.Update(player.WorldX, player.WorldY, velX, velY, dt);
                 // Boot base color matches the player/boot.png leather tone.
-                DrawFootBoxes(_playerGait, GaitConfigs.Player, PlayerBoot,
+                DrawBootDomes(_playerGait, GaitConfigs.Player, PlayerBoot,
                     batch, camera, elevation, screen.Y, inFront: false, 139, 90, 43);
             }
 
@@ -517,7 +490,7 @@ public sealed class SpriteRenderer : IDisposable
             }
             else if (!swimming)
             {
-                DrawFootBoxes(_playerGait, GaitConfigs.Player, PlayerBoot,
+                DrawBootDomes(_playerGait, GaitConfigs.Player, PlayerBoot,
                     batch, camera, elevation, screen.Y, inFront: true, 139, 90, 43);
             }
         }
