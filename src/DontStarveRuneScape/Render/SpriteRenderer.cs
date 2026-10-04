@@ -812,12 +812,49 @@ public sealed class SpriteRenderer : IDisposable
     {
         var screen = camera.WorldToScreen(structure.WorldX, structure.WorldY, elevation);
         float half = 16f * camera.Zoom;
+        if (structure.StructureId == "woven_shelter")
+        {
+            // Procedural woven hut: stacked browns, doorway shadow, roof pole.
+            byte shelterAlpha = structure.IsUnderConstruction ? (byte)150 : (byte)255;
+            batch.DrawScreenQuad(screen.X, screen.Y + half * 0.35f, half * 0.95f, half * 0.38f,
+                51, 37, 25, shelterAlpha);
+            batch.DrawScreenQuad(screen.X, screen.Y + half * 0.12f, half * 0.8f, half * 0.28f,
+                113, 72, 38, shelterAlpha);
+            batch.DrawScreenQuad(screen.X, screen.Y - half * 0.12f, half * 0.62f, half * 0.25f,
+                139, 92, 48, shelterAlpha);
+            batch.DrawScreenQuad(screen.X, screen.Y - half * 0.34f, half * 0.4f, half * 0.22f,
+                164, 118, 66, shelterAlpha);
+            batch.DrawScreenQuad(screen.X, screen.Y - half * 0.52f, half * 0.18f, half * 0.18f,
+                126, 82, 45, shelterAlpha);
+            batch.DrawScreenQuad(screen.X, screen.Y + half * 0.44f, half * 0.09f, half * 0.3f,
+                82, 54, 31, shelterAlpha);
+            return;
+        }
         // Real structure sprite (structure/*.png), gray quad fallback.
         uint tex = GetSpriteTexture(structure.StructureDef.SpriteKey);
+        // Blueprint look while under construction: washed-out tint + alpha
+        // and a progress bar under the site (WorkProgress fills 20s).
+        byte alpha = structure.IsUnderConstruction ? (byte)145 : (byte)255;
         if (tex != 0)
-            batch.DrawTexturedScreenQuad(screen.X, screen.Y, half * 0.95f, half * 0.95f, tex, 255, 255, 255, 255);
+            batch.DrawTexturedScreenQuad(screen.X, screen.Y, half * 0.95f, half * 0.95f, tex,
+                structure.IsUnderConstruction ? (byte)190 : (byte)255,
+                structure.IsUnderConstruction ? (byte)175 : (byte)255,
+                structure.IsUnderConstruction ? (byte)125 : (byte)255, alpha);
         else
-            batch.DrawScreenQuad(screen.X, screen.Y, half, half, 150, 150, 160);
+            batch.DrawScreenQuad(screen.X, screen.Y, half, half,
+                structure.IsUnderConstruction ? (byte)185 : (byte)150,
+                structure.IsUnderConstruction ? (byte)140 : (byte)150,
+                structure.IsUnderConstruction ? (byte)80 : (byte)160, alpha);
+        if (structure.IsUnderConstruction)
+        {
+            float progress = Math.Clamp(structure.WorkProgress / 20f, 0f, 1f);
+            batch.DrawScreenQuad(screen.X, screen.Y + half + 3f * camera.Zoom,
+                half * 0.7f, 2f * camera.Zoom, 45, 30, 18, 200);
+            if (progress > 0f)
+                batch.DrawScreenQuad(screen.X - half * 0.7f * (1f - progress),
+                    screen.Y + half + 3f * camera.Zoom,
+                    half * 0.7f * progress, 2f * camera.Zoom, 230, 174, 65, 230);
+        }
     }
 
     public void RenderFire(FireInstance fire, PrimitiveBatch batch, Camera camera)

@@ -482,7 +482,7 @@ public sealed class Game
         if (!input.MouseLeftClick) return;
 
         var (success, message) = BuildingSystem.PlaceStructure(
-            BuildingPendingId, tx, ty, World, Inventory, SkillManager);
+            BuildingPendingId, tx, ty, World, Inventory, SkillManager, ColonySystem);
         var tint = success ? ((byte)100, (byte)255, (byte)100) : ((byte)255, (byte)100, (byte)100);
         Player?.ActionSystem?.AddNotification(message, tint);
         if (success)
@@ -682,14 +682,14 @@ public sealed class Game
             && Inventory != null && SkillManager != null && InputManager != null)
         {
             CraftingPanel.Update(InputManager.InputState, Crafting, Inventory, SkillManager,
-                _lastScreenW, _lastScreenH);
+                _lastScreenW, _lastScreenH, GetAvailableStructureIds());
         }
 
         if (State == GameState.BuildingPanel && BuildingPanel != null && BuildingSystem != null
             && Inventory != null && SkillManager != null && InputManager != null)
         {
             BuildingPanel.Update(InputManager.InputState, BuildingSystem, Inventory, SkillManager,
-                _lastScreenW, _lastScreenH);
+                _lastScreenW, _lastScreenH, ColonySystem);
         }
 
         if (State == GameState.GearPanel && GearPanel != null && Player != null
@@ -809,7 +809,7 @@ public sealed class Game
         }
 
         // Combat
-        CombatSystem?.Tick(dt, Player);
+        CombatSystem?.Tick(dt, Player, NPCSystem);
 
         // Firemaking
         Firemaking?.Tick(dt);
@@ -819,7 +819,9 @@ public sealed class Game
 
         // NPCs
         NPCSystem?.Tick(dt);
-        RecruitmentSystem?.Tick(dt);
+        RecruitmentSystem?.Tick(dt, NPCSystem, Player, World, ColonySystem,
+            BuildingSystem, Crafting, SkillManager, CombatSystem, FoodRegistry,
+            FactionRegistry, FactionSystem, WeatherSystem, Firemaking);
         NPCSystem?.TickFactionNPCs(dt);
 
         // Trade
@@ -1714,6 +1716,24 @@ public sealed class Game
         batch.DrawScreenQuad(cx + halfW - t * 0.5f, cy, t * 0.5f, halfH, r, g, b);
     }
 
+    /// <summary>Structure ids the player can currently craft at: every
+    /// active, finished structure plus a virtual campfire while standing
+    /// near a lit fire.</summary>
+    private HashSet<string> GetAvailableStructureIds()
+    {
+        var ids = new HashSet<string>(StringComparer.Ordinal);
+        if (BuildingSystem == null) return ids;
+        foreach (var structure in BuildingSystem.Structures)
+        {
+            if (structure.IsActive && !structure.IsUnderConstruction)
+                ids.Add(structure.StructureId);
+        }
+        if (Player != null && Firemaking?.GetFiresInRadius(Player.WorldX, Player.WorldY,
+                Constants.TileSize * Constants.CampfireSearchRadiusTiles).Count > 0)
+            ids.Add("campfire");
+        return ids;
+    }
+
     private void RenderPanels(Silk.NET.OpenGL.GL gl, PrimitiveBatch batch, int screenWidth, int screenHeight)
     {
         switch (State)
@@ -1730,11 +1750,11 @@ public sealed class Game
                 break;
             case GameState.CraftingPanel:
                 CraftingPanel?.Render(batch, TextRenderer, SpriteRenderer, Crafting, Inventory,
-                    SkillManager, screenWidth, screenHeight);
+                    SkillManager, screenWidth, screenHeight, GetAvailableStructureIds());
                 break;
             case GameState.BuildingPanel:
                 BuildingPanel?.Render(batch, TextRenderer, SpriteRenderer, BuildingSystem,
-                    Inventory, SkillManager, screenWidth, screenHeight);
+                    Inventory, SkillManager, screenWidth, screenHeight, ColonySystem);
                 break;
             case GameState.GearPanel:
                 GearPanel?.Render(batch, TextRenderer, SpriteRenderer, Player?.Gear, Inventory,
