@@ -1044,6 +1044,26 @@ public sealed class Game
             }
         }
 
+        // Held WASD: DSR_TEST_MOVE="up,right" holds those movement flags so
+        // mid-stride gait frames can be captured headlessly (clicks do not
+        // move the player — click-to-move is unwired). The Move* flags are
+        // not one-shots: ClearFrame leaves them alone, so this set-once
+        // sticks until real keyboard input changes them.
+        var moveEnv = Environment.GetEnvironmentVariable("DSR_TEST_MOVE");
+        if (!string.IsNullOrWhiteSpace(moveEnv) && InputManager != null)
+        {
+            foreach (var dir in moveEnv.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries))
+            {
+                switch (dir.ToLowerInvariant())
+                {
+                    case "up": InputManager.InputState.MoveUp = true; break;
+                    case "down": InputManager.InputState.MoveDown = true; break;
+                    case "left": InputManager.InputState.MoveLeft = true; break;
+                    case "right": InputManager.InputState.MoveRight = true; break;
+                }
+            }
+        }
+
         var itemsEnv = Environment.GetEnvironmentVariable("DSR_TEST_ITEMS");
         if (!string.IsNullOrWhiteSpace(itemsEnv) && Inventory != null)
         {

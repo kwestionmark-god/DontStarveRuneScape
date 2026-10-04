@@ -75,6 +75,10 @@ public sealed class GaitAnimator
     // Fallback stance direction while idle; seeds to north like the player's
     // default facing.
     private (float Dx, float Dy) _lastDir = (0f, -1f);
+    // Moving state of the previous Update; its rising edge pre-phases the
+    // feet into a mid-stride arrangement so a fresh walk starts stepping
+    // immediately instead of stranding a boot far behind (see Update).
+    private bool _wasMoving;
 
     /// <summary>Current stance/facing direction (unit): the travel direction
     /// while moving, the last travel direction while idle.</summary>
@@ -126,6 +130,17 @@ public sealed class GaitAnimator
         // lag-free at constant velocity; the floor keeps low speeds stepping.
         float halfStride = MathF.Max(_cfg.MinStride, speed * _cfg.SwingDur * 0.5f);
 
+        // Walk-start edge: idle replant leaves every foot parked on its
+        // stance, so without this the first alternation gates one foot
+        // through the other's whole swing — it strands halfStride +
+        // speed×SwingDur behind (a full boot-throw of visible lag on every
+        // stop-and-go). Pre-phase the planted feet into the mid-stride
+        // arrangement instead: group 0 sits halfStride behind (due to lift
+        // this frame), group 1 halfStride ahead (plants through). Applied in
+        // the foot loop below so a rig's very first Update (feet still
+        // unplaced) phases its fresh placements too.
+        bool startEdge = moving && !_wasMoving;
+
         for (int i = 0; i < _feet.Length; i++)
         {
             ref Foot f = ref _feet[i];
@@ -136,10 +151,32 @@ public sealed class GaitAnimator
             {
                 f.X = stanceX; f.Y = stanceY;
                 f.Placed = true;
-                continue;
+            }
+            if (startEdge && !f.Swinging)
+            {
+                // Covers freshly placed feet too: a rig born mid-walk would
+                // otherwise park on its stance and strand a foot on the
+                // first alternation.
+                float phase = GroupOf(i) % 2 == 0 ? 1f : -1f;
+                f.X = stanceX - dir.dx * phase * (halfStride + 0.5f);
+                f.Y = stanceY - dir.dy * phase * (halfStride + 0.5f);
             }
             if (f.Swinging)
             {
+                // Keep the landing point glued to the CURRENT stance: the
+                // body keeps moving during the swing, so a landing computed
+                // once at lift time goes stale whenever a frame spike
+                // stretches the swing — the foot would plant short of its
+                // stride and read as boots trailing the body (worst at low
+                // frame rates, e.g. zoomed out). Refreshing the target every
+                // frame makes the swing land halfStride ahead of wherever
+                // the body actually is when the foot comes down. Idle
+                // replant swings keep their stance target untouched.
+                if (moving)
+                {
+                    f.ToX = stanceX + dir.dx * (halfStride + speed * (1f - f.T) * _cfg.SwingDur);
+                    f.ToY = stanceY + dir.dy * (halfStride + speed * (1f - f.T) * _cfg.SwingDur);
+                }
                 UpdateSwing(ref f, dt);
                 continue;
             }
@@ -148,7 +185,13 @@ public sealed class GaitAnimator
             // land ahead of the stance — so feet swing through the stance
             // without a permanent behind-phase.
             float behind = (stanceX - f.X) * dir.dx + (stanceY - f.Y) * dir.dy;
-            if (moving && behind > halfStride && !GroupSwinging(GroupOf(i)))
+            // Hard cap: never let a planted foot trail more than one full
+            // swing's travel past due. The alternation gate below waits for
+            // the other group's swing; without the cap a frame spike or a
+            // direction change strands the foot for the whole wait and the
+            // boot visibly drags behind the body.
+            bool stranded = behind > halfStride + speed * _cfg.SwingDur;
+            if (moving && behind > halfStride && (stranded || !GroupSwinging(GroupOf(i))))
             {
                 // Land halfStride ahead of the stance plus the distance the
                 // body covers during the swing, so the foot plants halfStride
@@ -160,7 +203,7 @@ public sealed class GaitAnimator
                 f.Swinging = true;
                 // Phase mates (diagonal partners) lift together so the pair
                 // stays rigid; a biped foot has no mates.
-                SyncGroupMates(i, stanceX, stanceY, dir.dx, dir.dy, speed);
+                SyncGroupMates(i, stanceX, stanceY, dir.dx, dir.dy, speed, dt);
             }
             else if (!moving)
             {
@@ -176,6 +219,7 @@ public sealed class GaitAnimator
                 }
             }
         }
+        _wasMoving = moving;
     }
 
     /// <summary>True when any foot of a different phase group is mid-swing —
@@ -195,7 +239,7 @@ public sealed class GaitAnimator
     /// <paramref name="stanceX"/>/Y are the triggering foot's stance; mates
     /// derive their own stance from the difference of their foot offsets.</summary>
     private void SyncGroupMates(int index, float stanceX, float stanceY,
-        float dirX, float dirY, float speed)
+        float dirX, float dirY, float speed, float dt)
     {
         int group = GroupOf(index);
         var (lat, lon) = _cfg.FootOffsets[index];
@@ -204,7 +248,7 @@ public sealed class GaitAnimator
         float px = -dirY, py = dirX;
         for (int i = 0; i < _feet.Length; i++)
         {
-            if (i == index || GroupOf(i) != group || _feet[i].Swinging || !_feet[i].Placed)
+            if (i == index || GroupOf(i) != group || _feet[i].Swinging)
                 continue;
             var (mLat, mLong) = _cfg.FootOffsets[i];
             // The mate's stance sits at the triggering stance plus the offset
@@ -212,10 +256,24 @@ public sealed class GaitAnimator
             float mStanceX = stanceX + px * (mLat - lat) + dirX * (mLong - lon);
             float mStanceY = stanceY + py * (mLat - lat) + dirY * (mLong - lon);
             ref Foot f = ref _feet[i];
+            // A mate not placed yet (rig's very first Update) parks at its
+            // stance and swings from there, so the pair lifts together from
+            // frame one instead of the mate planting alone.
+            if (!f.Placed)
+            {
+                f.X = mStanceX; f.Y = mStanceY;
+                f.Placed = true;
+            }
             f.FromX = f.X; f.FromY = f.Y;
             f.ToX = mStanceX + dirX * lead;
             f.ToY = mStanceY + dirY * lead;
-            f.T = 0f;
+            // The sync runs mid-loop: a mate AFTER the trigger in foot order
+            // still gets its branch's dt advance this frame (the trigger's
+            // fresh T=0 swing does not), so seed it one step back; a mate
+            // BEFORE the trigger has already run its branch, so seed 0. This
+            // keeps the pair exactly in phase — without it the mate lands a
+            // frame early or late depending on foot order.
+            f.T = i > index ? -dt / _cfg.SwingDur : 0f;
             f.Swinging = true;
         }
     }
