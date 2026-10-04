@@ -19,6 +19,49 @@ as the identity of the fusion.
   systems over parallel implementations.
 - Keep the colony optional: a player can explore and survive without recruiting.
 
+## Tri-fusion design law (2026-10-04)
+
+This project fuses three games. Each contributes a pillar that future work must
+keep load-bearing:
+
+- **Don't Starve → player-centered survival.** Hunger/health pressure, seasons
+  and weather, darkness, and exploration are the core moment-to-moment loop.
+  The player personally gathers, crafts, and gets into danger.
+- **RuneScape → skill-XP progression in a lived-in world.** Gathering and
+  crafting grant skill XP; quest givers, merchants, and faction-flavored NPCs
+  make the world feel populated; long-tail leveling is the progression spine.
+- **MountainCore → colony logistics.** Recruited workers, hauling, stockpiles,
+  workplaces, and task assignment give the settlement a simulated life of its
+  own.
+
+**Balance rule:** No single lineage's systems may subsume the others' core
+loops. Logistics and colony features must *augment* the player-facing survival
+and skill loops — workers feed, supply, and guard the player's expeditionary
+play, and never replace it. Before building any colony feature, ask: what does
+the player still do themselves, what XP do they still earn, and what survival
+pressure still applies? If a proposed feature automates away a player loop
+(e.g. workers gather so the player never needs to), reshape it — cap worker
+throughput, require player-supplied materials or recipes, or gate the feature
+behind player progression — rather than ship it.
+
+Applying the rule to the pending work:
+
+- **Logistics slice (task board, reservations, hauling).** Hauling moves what
+  the colony already owns; it does not spawn resources. Raw-material gathering
+  stays player-led or worker-assisted at capped rates, and worker crafting
+  still consumes player-earned recipes and settlement stock. Player gathering
+  and crafting keep granting the player their skill XP; workers accrue their
+  own resident XP instead of siphoning the player's.
+- **Structure upgrades.** Upgrades consume gathered materials and player-gated
+  recipes, so better buildings track the player's progression instead of
+  running ahead of it. Seasonal and weather pressure keeps applying outdoors
+  (the woven-shelter precedent: shelter mitigates, never nullifies).
+- **Worker schedules.** Schedules make residents readable and alive (Don't
+  Starve-flavored night danger and Don't Starve-style seasons keep shaping
+  when work is safe); they exist to give the settlement rhythm, not to
+  maximize output. Guard duty and rest tie schedules back into survival and
+  faction-threat systems.
+
 ## Roadmap
 
 ### 0. Establish the experiment — complete
