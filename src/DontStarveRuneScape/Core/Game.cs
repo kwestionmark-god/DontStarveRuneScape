@@ -1045,7 +1045,10 @@ public sealed class Game
     /// click can be followed by a placement click; DSR_TEST_DAMAGE=1 triggers
     /// the HUD damage flash (no combat damage source exists yet);
     /// DSR_TEST_DISPLAY applies a display mode/resolution through the settings
-    /// callback ("fullscreen", "borderless", or "1280x720"-style size).
+    /// callback ("fullscreen", "borderless", or "1280x720"-style size);
+    /// DSR_TEST_COLONY=1 founds a settlement at the player and recruits the
+    /// two nearest non-merchant NPCs (assistant + guard) beside them, so
+    /// captures show colony workers walking on gait feet.
     /// </summary>
     private void InjectTestHooks()
     {
@@ -1084,6 +1087,88 @@ public sealed class Game
                     break;
                 }
                 if (done) break;
+            }
+        }
+
+        // DSR_TEST_COLONY=1 runs after the resource teleport so the
+        // settlement anchors at the player's final position.
+        if (Environment.GetEnvironmentVariable("DSR_TEST_COLONY") == "1"
+            && ColonySystem != null && NPCSystem != null && RecruitmentSystem != null
+            && Player != null && World != null)
+        {
+            if (!ColonySystem.IsFounded)
+                ColonySystem.FoundAt(Player.WorldX, Player.WorldY, World);
+
+            // Hire the real recruit-type NPCs onto pathfinder-verified tiles
+            // near the player, wired the same way the recruit panel flows
+            // wire them, so captures show workers walking on gait feet.
+            int ptx = (int)(Player.WorldX / Constants.TileSize);
+            int pty = (int)(Player.WorldY / Constants.TileSize);
+            var spots = new List<(int X, int Y)>();
+            for (int ring = 2; ring <= 5 && spots.Count < 2; ring++)
+            {
+                for (int dx = -ring; dx <= ring && spots.Count < 2; dx++)
+                {
+                    for (int dy = -ring; dy <= ring && spots.Count < 2; dy++)
+                    {
+                        if (Math.Abs(dx) + Math.Abs(dy) != ring) continue;
+                        int x = ptx + dx, y = pty + dy;
+                        if (x < 0 || y < 0 || x >= World.Width || y >= World.Height) continue;
+                        if (!NPC.WorkerPathfinder.CanStand(World, x, y)) continue;
+                        spots.Add((x, y));
+                    }
+                }
+            }
+            var hires = NPCSystem.NPCs
+                .Where(n => n.IsActive && n.NpcType == "recruit")
+                .ToList();
+            for (int i = 0; i < hires.Count && i < spots.Count; i++)
+            {
+                var hire = hires[i];
+                string behavior = hire.NpcId.Contains("guard") ? "guard" : "assistant";
+                hire.WorldX = (spots[i].X + 0.5f) * Constants.TileSize;
+                hire.WorldY = (spots[i].Y + 0.5f) * Constants.TileSize;
+                hire.IsRecruited = true;
+                hire.RecruitBehavior = behavior;
+                hire.AssignBehavior(behavior);
+                Player.AddRecruit(hire.NpcId);
+                RecruitmentSystem.OnRecruit(hire.NpcId, behavior);
+            }
+
+            // Guarantee the assistant has work nearby: plant a mature berry
+            // bush when the settlement anchored in empty terrain.
+            bool anyNode = false;
+            int radius = ColonySystem.WorkRadiusTiles;
+            for (int dx = -radius; dx <= radius && !anyNode; dx++)
+            {
+                for (int dy = -radius; dy <= radius && !anyNode; dy++)
+                {
+                    int x = ColonySystem.AnchorTileX + dx, y = ColonySystem.AnchorTileY + dy;
+                    if (x < 0 || y < 0 || x >= World.Width || y >= World.Height) continue;
+                    if (World.GetTile(x, y)?.ResourceNode != null) anyNode = true;
+                }
+            }
+            if (!anyNode && ResourceRegistry?.GetResource("berry_bush") is { } bush)
+            {
+                for (int ring = 2; ring <= 4; ring++)
+                {
+                    bool planted = false;
+                    for (int dx = -ring; dx <= ring && !planted; dx++)
+                    {
+                        for (int dy = -ring; dy <= ring && !planted; dy++)
+                        {
+                            if (Math.Abs(dx) + Math.Abs(dy) != ring) continue;
+                            int x = ColonySystem.AnchorTileX + dx, y = ColonySystem.AnchorTileY + dy;
+                            if (x < 0 || y < 0 || x >= World.Width || y >= World.Height) continue;
+                            var tile = World.GetTile(x, y);
+                            if (tile == null || tile.ResourceNode != null
+                                || !NPC.WorkerPathfinder.CanStand(World, x, y)) continue;
+                            tile.ResourceNode = new ResourceNode("berry_bush", bush, 1f) { GrowthStage = 2 };
+                            planted = true;
+                        }
+                    }
+                    if (planted) break;
+                }
             }
         }
 
