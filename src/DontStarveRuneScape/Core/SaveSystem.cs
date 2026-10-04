@@ -221,9 +221,9 @@ public sealed class SaveSystem
 
     private void RestoreNPCs(SaveData data, Game game)
     {
-        if (game.DataLoader != null)
+        if (game.NpcRegistry != null)
         {
-            game.NPCSystem?.RestoreSnapshot(data.NPCs, game.DataLoader);
+            game.NPCSystem?.RestoreSnapshot(data.NPCs, game.NpcRegistry, game.World);
             if (game.Player != null && game.NPCSystem != null)
             {
                 game.Player.RecruitedNpcs.Clear();

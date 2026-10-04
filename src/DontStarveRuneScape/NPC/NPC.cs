@@ -87,28 +87,6 @@ public abstract class Npc
             npc.DialogueLines.Add(line);
         return npc;
     }
-
-    /// <summary>Create an NPC instance from a definition dictionary.</summary>
-    public static Npc CreateFromDef(Dictionary<string, object> def)
-    {
-        string type = def.TryGetValue("type", out var typeObj) && typeObj is string t ? t : "npc";
-        Npc npc = type switch
-        {
-            "merchant" => new MerchantNpc(),
-            "recruit" => new RecruitNpc(),
-            "faction_leader" => new FactionLeaderNpc(),
-            "quest_giver" => new QuestGiverNpc(),
-            _ => new QuestGiverNpc(), // default
-        };
-
-        if (def.TryGetValue("id", out var id) && id is string idStr) npc.NpcId = idStr;
-        if (def.TryGetValue("name", out var name) && name is string nameStr) npc.Name = nameStr;
-        npc.NpcType = type;
-        if (def.TryGetValue("health", out var hp) && hp is int hpInt) npc.Health = hpInt;
-        if (def.TryGetValue("max_health", out var maxHp) && maxHp is int maxHpInt) npc.MaxHealth = maxHpInt;
-
-        return npc;
-    }
 }
 
 /// <summary>

@@ -1,8 +1,11 @@
 namespace DontStarveRuneScape.NPC;
 
+using System;
 using System.Collections.Generic;
 using DontStarveRuneScape.Core;
 using DontStarveRuneScape.Data;
+using DontStarveRuneScape.Building;
+using DontStarveRuneScape.World;
 
 /// <summary>
 /// NPCSystem — Manages all NPCs in the world.
@@ -112,32 +115,45 @@ public sealed class NPCSystem
                 Health = n.Health,
                 IsActive = n.IsActive,
                 RecruitedBy = n.RecruitedBy,
+                IsRecruited = n.IsRecruited,
+                RecruitBehavior = n.RecruitBehavior,
+                ColonyHunger = n.ColonyHunger,
+                ColonyRest = n.ColonyRest,
             })
             .ToArray();
         return snapshot;
     }
 
-    /// <summary>Restore from snapshot.</summary>
-    public void RestoreSnapshot(NPCSnapshot snapshot, DataLoader dataLoader)
+    /// <summary>Restore from snapshot. NPC definitions come from the real
+    /// typed registry (the npcs.json path used at boot); the snapshot
+    /// overlays position, health, recruitment, and colony needs.</summary>
+    public void RestoreSnapshot(NPCSnapshot snapshot, NpcRegistry? registry, TileMap? world = null)
     {
         NPCs.Clear();
         if (snapshot.NPCs != null)
         {
             foreach (var n in snapshot.NPCs)
             {
-                string? foundId = null;
-                var npcDef = dataLoader.NPCsData?
-                    .FirstOrDefault(d => d.TryGetValue("id", out var id) && id is string idStr && (foundId = idStr) == n.NpcId);
-                if (npcDef != null && foundId != null)
-                {
-                    var npc = Npc.CreateFromDef(npcDef);
-                    npc.WorldX = n.WorldX;
-                    npc.WorldY = n.WorldY;
-                    npc.Health = (int)n.Health;
-                    npc.IsActive = n.IsActive;
-                    npc.RecruitedBy = n.RecruitedBy;
-                    NPCs.Add(npc);
-                }
+                if (registry?.Npcs.TryGetValue(n.NpcId, out var def) != true)
+                    continue;
+                var npc = Npc.FromDef(def);
+                npc.WorldX = n.WorldX;
+                npc.WorldY = n.WorldY;
+                var tile = world?.GetTileAtWorld(npc.WorldX, npc.WorldY);
+                npc.Biome = tile?.Biome?.Id ?? string.Empty;
+                npc.Health = (int)n.Health;
+                npc.IsActive = n.IsActive;
+                npc.RecruitedBy = n.RecruitedBy;
+                npc.IsRecruited = n.IsRecruited;
+                npc.RecruitBehavior = n.RecruitBehavior;
+                npc.ColonyHunger = Math.Clamp(n.ColonyHunger, 0f, 100f);
+                npc.ColonyRest = Math.Clamp(n.ColonyRest, 0f, 100f);
+                npc.ColonyRestStatus = npc.ColonyRest <= 25f ? "Exhausted"
+                    : npc.ColonyRest <= 50f ? "Tired"
+                    : npc.ColonyRest <= 75f ? "Weary" : "Rested";
+                npc.ColonyNeedStatus = npc.ColonyHunger <= 15f ? "Starving"
+                    : npc.ColonyHunger <= 35f ? "Hungry" : "Fed";
+                NPCs.Add(npc);
             }
         }
     }
