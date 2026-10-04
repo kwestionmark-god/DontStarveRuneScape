@@ -20,7 +20,7 @@ public sealed class InventorySlot
 /// <summary>
 /// Inventory — 20-slot grid inventory with spoilage tracking.
 /// </summary>
-public sealed class Inventory
+public sealed class Inventory : IItemStorage
 {
     private const int SlotCount = 20;
     public List<InventorySlot> Slots { get; } = new(SlotCount);
@@ -70,6 +70,8 @@ public sealed class Inventory
 
         return quantity == 0;
     }
+
+    bool IItemStorage.AddItem(string itemId, int quantity) => AddItem(itemId, quantity);
 
     /// <summary>Check if inventory can add an item.</summary>
     public bool CanAdd(string itemId, int quantity)

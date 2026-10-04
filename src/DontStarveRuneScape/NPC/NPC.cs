@@ -21,6 +21,12 @@ public abstract class Npc
     public bool IsActive { get; set; } = true;
     public bool IsRecruited { get; set; } = false;
     public string? RecruitBehavior { get; set; }
+    /// <summary>Settlement food reserve, from 0 (starving) to 100 (sated).</summary>
+    public float ColonyHunger { get; set; } = 100f;
+    public string ColonyNeedStatus { get; set; } = "Fed";
+    /// <summary>Rest reserve from 0 (exhausted) to 100 (rested).</summary>
+    public float ColonyRest { get; set; } = 100f;
+    public string ColonyRestStatus { get; set; } = "Rested";
     public int Health { get; set; } = 100;
     public int MaxHealth { get; set; } = 100;
     public List<string> AvailableQuests { get; set; } = [];

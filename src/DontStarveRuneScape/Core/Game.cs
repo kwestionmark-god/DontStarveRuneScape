@@ -83,6 +83,7 @@ public sealed class Game
     public BuildingSystem? BuildingSystem { get; set; }
     public ConstructionSkill? Construction { get; set; }
     public NPCSystem? NPCSystem { get; set; }
+    public ColonySystem? ColonySystem { get; set; }
     public TradeSystem? TradeSystem { get; set; }
     public RecruitmentSystem? RecruitmentSystem { get; set; }
     public QuestSystem? QuestSystem { get; set; }

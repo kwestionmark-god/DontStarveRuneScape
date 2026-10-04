@@ -88,6 +88,7 @@ public sealed class SaveSystem
         RestoreStructures(saveData, game);
         RestoreFires(saveData, game);
         RestoreNPCs(saveData, game);
+        RestoreColony(saveData, game);
         RestoreQuests(saveData, game);
         RestoreFactions(saveData, game);
         RestoreWorld(saveData, game);
@@ -149,6 +150,7 @@ public sealed class SaveSystem
             Structures = game.BuildingSystem?.GetSnapshot() ?? new BuildingSnapshot(),
             Fires = game.Firemaking?.GetSnapshot() ?? new FireSnapshot(),
             NPCs = game.NPCSystem?.GetSnapshot() ?? new NPCSnapshot(),
+            Colony = game.ColonySystem?.GetSnapshot() ?? new ColonySnapshot(),
             Quests = game.QuestSystem?.GetSnapshot() ?? new QuestSnapshot(),
             Factions = game.FactionSystem?.GetSnapshot() ?? new FactionSnapshot(),
             World = new WorldSnapshot
@@ -222,7 +224,18 @@ public sealed class SaveSystem
         if (game.DataLoader != null)
         {
             game.NPCSystem?.RestoreSnapshot(data.NPCs, game.DataLoader);
+            if (game.Player != null && game.NPCSystem != null)
+            {
+                game.Player.RecruitedNpcs.Clear();
+                foreach (var npc in game.NPCSystem.NPCs.Where(n => n.IsRecruited))
+                    game.Player.AddRecruit(npc.NpcId);
+            }
         }
+    }
+
+    private void RestoreColony(SaveData data, Game game)
+    {
+        game.ColonySystem?.RestoreSnapshot(data.Colony, game.World);
     }
 
     private void RestoreQuests(SaveData data, Game game)
@@ -272,6 +285,7 @@ public sealed class SaveData
     public BuildingSnapshot Structures { get; set; } = new();
     public FireSnapshot Fires { get; set; } = new();
     public NPCSnapshot NPCs { get; set; } = new();
+    public ColonySnapshot Colony { get; set; } = new();
     public QuestSnapshot Quests { get; set; } = new();
     public FactionSnapshot Factions { get; set; } = new();
     public WorldSnapshot World { get; set; } = new();
@@ -360,6 +374,15 @@ public sealed class StructureSnapshot
     public int TileY { get; set; }
     public float Hp { get; set; }
     public string? AssignedNpcId { get; set; }
+    public string? WorkRecipeId { get; set; }
+    public string[] WorkRecipeQueue { get; set; } = [];
+    public bool WorkOrdersPaused { get; set; }
+    public bool HasManualWorkOrder { get; set; }
+    public bool IsDependencyOrder { get; set; }
+    public bool IsUnderConstruction { get; set; }
+    public bool ConstructionMaterialsPaid { get; set; }
+    public float WorkProgress { get; set; }
+    public string WorkStatus { get; set; } = "Idle";
 }
 
 public sealed class FireSnapshot
@@ -389,6 +412,10 @@ public sealed class NPCDataSnapshot
     public float Health { get; set; }
     public bool IsActive { get; set; }
     public string? RecruitedBy { get; set; }
+    public bool IsRecruited { get; set; }
+    public string? RecruitBehavior { get; set; }
+    public float ColonyHunger { get; set; } = 100f;
+    public float ColonyRest { get; set; } = 100f;
 }
 
 public sealed class QuestSnapshot

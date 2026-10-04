@@ -229,6 +229,7 @@ public sealed class Bootstrap
 
         // NPCs
         _game.NPCSystem = new NPCSystem();
+        _game.ColonySystem = new NPC.ColonySystem();
         _game.TradeSystem = new TradeSystem();
         _game.RecruitmentSystem = new RecruitmentSystem();
         _game.QuestSystem = new QuestSystem();
