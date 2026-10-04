@@ -214,14 +214,24 @@ public sealed class SpriteRenderer : IDisposable
     }
 
     // Player boot: short wide sole, boot toe biased forward of the ankle.
+    // Heights are world px; the 3D projection compresses them by sinPitch,
+    // so they read a touch chunkier on screen than the raw numbers suggest.
     private static readonly FootBoxDims PlayerBoot = new(
-        toe: 3.4f, heel: 2.2f, halfWidth: 2.3f, baseHeight: 1.8f,
-        ankleToe: 1.8f, ankleHeel: 1.6f, ankleHalfWidth: 1.7f, ankleHeight: 3.2f);
+        toe: 3.4f, heel: 2.2f, halfWidth: 2.3f, baseHeight: 2.2f,
+        ankleToe: 1.8f, ankleHeel: 1.6f, ankleHalfWidth: 1.7f, ankleHeight: 3.6f);
 
     // Swing tilt: max top-edge shear, as a tangent. ±~20° at the ankle top.
     private const float BootTiltTan = 0.36f;
+    // Swing roll: lateral lean of the boot top (toe-out supination), shaped
+    // by sin(πT) — zero at liftoff/plant, max mid-swing. ~12° at the ankle.
+    private const float BootRollTan = 0.22f;
     // Fixed world-space light for the face shading (xy + up component).
     private const float LightX = 0.45f, LightY = 0.30f, LightZ = 1.00f;
+
+    // WorldToScreen's elevation channel carries elevation units (ZScale ×
+    // TerrainHeightScale screen px per unit), while boot dims are world px.
+    // Convert before adding height, or the boots render as stilts (×12.8).
+    private const float ElevPerWorldPx = 1f / (Constants.ZScale * Constants.TerrainHeightScale);
 
     // Pooled face buffers (drawn many times per frame).
     private readonly System.Collections.Generic.List<(float X, float Y, byte R, byte G, byte B, byte A)> _facePts = new(4);
@@ -264,12 +274,18 @@ public sealed class SpriteRenderer : IDisposable
                 continue;
             float lift = foot.Swinging ? MathF.Sin(foot.T * MathF.PI) * cfg.LiftPx * camera.Zoom : 0f;
             float tilt = foot.Swinging ? GaitAnimator.SwingTilt(foot.T) : 0f;
+            // Roll toward the foot's outside (sideSigned by its stance
+            // offset), swelling mid-swing and settling at plant.
+            float sideSign = MathF.Sign(cfg.FootOffsets[i].Item1);
+            float roll = foot.Swinging
+                ? MathF.Sin(foot.T * MathF.PI) * sideSign
+                : 0f;
 
             // Sole box: bottom corners at their own terrain heights.
             DrawShoeBox(batch, camera, dims.Toe, dims.Heel, dims.HalfWidth, dims.BaseHeight,
                 dims.AnkleToe, dims.AnkleHeel, dims.AnkleHalfWidth, dims.AnkleHeight,
                 foot.X, foot.Y, dirX, dirY, latX, latY, elevation,
-                tilt, lift, frontVisible, latVisible, Shade,
+                tilt, roll, lift, frontVisible, latVisible, Shade,
                 baseR, baseG, baseB);
         }
     }
@@ -277,14 +293,16 @@ public sealed class SpriteRenderer : IDisposable
     /// <summary>Project and draw one foot's two stacked boxes. The sole's
     /// bottom corners sample the terrain at their own positions (sole lies
     /// flush on the slope); the ankle sits on the sole's top corners. Tops
-    /// shear by tilt×BootTiltTan×corner-height along the travel direction.
+    /// shear by height along travel (kick/heel-strike tilt) and laterally
+    /// (mid-swing roll). Heights are world px converted to elevation units
+    /// via <see cref="ElevPerWorldPx"/> before reaching the projection.
     /// Visible faces: two camera-facing sides + top, back-face culled by
     /// the precomputed visibility flags.</summary>
     private void DrawShoeBox(PrimitiveBatch batch, Camera camera,
         float toe, float heel, float halfW, float baseH,
         float ankToe, float ankHeel, float ankHalfW, float ankH,
         float cx, float cy, float dirX, float dirY, float latX, float latY, float fallbackElev,
-        float tilt, float lift, bool frontVisible, bool latVisible,
+        float tilt, float roll, float lift, bool frontVisible, bool latVisible,
         Func<float, float, float, float> shade, byte baseR, byte baseG, byte baseB)
     {
         // Perimeter order (clockwise on the ground plane):
@@ -303,9 +321,14 @@ public sealed class SpriteRenderer : IDisposable
             groundElev[c] = BootElevation?.Invoke(bx[c], by[c]) ?? fallbackElev;
         }
 
+        // Top-corner shear (world px): along travel for the kick/heel-strike
+        // tilt, along the lateral axis for the mid-swing roll. Proportional
+        // to each corner's height, so the boxes shear as one rigid tilt.
+        float SoleTopShearDir(float h) => tilt * BootTiltTan * h;
+        float SoleTopShearLat(float h) => roll * BootRollTan * h;
+
         // screen corners: sBase[k] = sole top, sBtm[k] = sole bottom,
-        // sAnk[k] = ankle top. Shear grows with corner height; lift applies
-        // to every projected point of this foot.
+        // sAnk[k] = ankle top. Lift applies to every projected point.
         var sBtm = new (float X, float Y)[4];
         var sBase = new (float X, float Y)[4];
         var sAnk = new (float X, float Y)[4];
@@ -313,13 +336,15 @@ public sealed class SpriteRenderer : IDisposable
         {
             var pb = camera.WorldToScreen(bx[c], by[c], groundElev[c]);
             sBtm[c] = (pb.X, pb.Y - lift);
-            float baseShear = tilt * BootTiltTan * baseH;
-            var pt = camera.WorldToScreen(bx[c] + dirX * baseShear, by[c] + dirY * baseShear,
-                groundElev[c] + baseH);
+            float sd = SoleTopShearDir(baseH), sl = SoleTopShearLat(baseH);
+            var pt = camera.WorldToScreen(
+                bx[c] + dirX * sd + latX * sl, by[c] + dirY * sd + latY * sl,
+                groundElev[c] + baseH * ElevPerWorldPx);
             sBase[c] = (pt.X, pt.Y - lift);
-            float ankShear = tilt * BootTiltTan * (baseH + ankH);
-            var pa = camera.WorldToScreen(bx[c] + dirX * ankShear, by[c] + dirY * ankShear,
-                groundElev[c] + baseH + ankH);
+            float ad = SoleTopShearDir(baseH + ankH), al = SoleTopShearLat(baseH + ankH);
+            var pa = camera.WorldToScreen(
+                bx[c] + dirX * ad + latX * al, by[c] + dirY * ad + latY * al,
+                groundElev[c] + (baseH + ankH) * ElevPerWorldPx);
             sAnk[c] = (pa.X, pa.Y - lift);
         }
 
@@ -369,10 +394,11 @@ public sealed class SpriteRenderer : IDisposable
         (float X, float Y) t1, (float X, float Y) t0,
         float bright, byte baseR, byte baseG, byte baseB)
     {
-        // Outline: same quad scaled ~30% about its centroid, flat dark.
+        // Outline: same quad scaled ~20% about its centroid, flat dark —
+        // thick enough to read at boot scale without blobbing tiny faces.
         float mx = (b0.X + b1.X + t1.X + t0.X) * 0.25f;
         float my = (b0.Y + b1.Y + t1.Y + t0.Y) * 0.25f;
-        const float expand = 1.30f;
+        const float expand = 1.20f;
         _outlinePts.Clear();
         _outlinePts.Add(new(b0.X + (b0.X - mx) * expand, b0.Y + (b0.Y - my) * expand));
         _outlinePts.Add(new(b1.X + (b1.X - mx) * expand, b1.Y + (b1.Y - my) * expand));
