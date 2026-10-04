@@ -256,6 +256,7 @@ public sealed class Bootstrap
         // Quest/trade progress hooks: quest gates read faction standings;
         // crafts and buys feed quest objectives.
         _game.QuestSystem.Factions = _game.FactionSystem;
+        _game.TradeSystem.Factions = _game.FactionSystem;
         _game.Crafting.OnCrafted = item => _game.QuestSystem.NotifyCraft(item);
         _game.TradeSystem.Quests = _game.QuestSystem;
 
@@ -388,6 +389,7 @@ public sealed class Bootstrap
         var npcFlows = new Interactions.NPCFlows(_game);
         _game.TradePanel.TradeSystem.Registry = _game.TradeRegistry;
         _game.TradePanel.TradeSystem.Quests = _game.QuestSystem;
+        _game.TradePanel.TradeSystem.Factions = _game.FactionSystem;
         _game.TradePanel.Player = player;
         _game.QuestPanel.SetPlayer(player);
         _game.RecruitPanel.Player = player;

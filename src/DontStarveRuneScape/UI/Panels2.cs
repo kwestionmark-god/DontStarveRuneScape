@@ -888,7 +888,8 @@ public sealed class CraftingPanel
 
     /// <summary>Mouse handling + craft action; call once per frame from Game.Update while open.</summary>
     public void Update(InputState input, CraftingSystem crafting, Inventory inventory,
-        SkillManager skills, int screenW, int screenH)
+        SkillManager skills, int screenW, int screenH,
+        IReadOnlySet<string>? availableStructures = null)
     {
         HandleKeyRepeats(input);
         Refresh(crafting);
@@ -918,7 +919,7 @@ public sealed class CraftingPanel
 
         if (SelectedIndex < _sorted.Count && (ui.TryClick(_craftX, _craftY, CraftW, CraftH) || _pendingCraft))
         {
-            var result = crafting.Craft(_sorted[SelectedIndex].RecipeId, inventory, skills);
+            var result = crafting.Craft(_sorted[SelectedIndex].RecipeId, inventory, skills, availableStructures);
             _status = result.Message;
             _statusOk = result.Success;
             _statusExtra.Clear();
@@ -929,7 +930,7 @@ public sealed class CraftingPanel
 
     public void Render(PrimitiveBatch batch, TextRenderer? text, SpriteRenderer? sprites,
         CraftingSystem crafting, Inventory inventory, SkillManager skills,
-        int screenW, int screenHeight)
+        int screenW, int screenHeight, IReadOnlySet<string>? availableStructures = null)
     {
         Refresh(crafting);
         Layout(screenW, screenHeight);
@@ -938,7 +939,7 @@ public sealed class CraftingPanel
         PanelChrome.Draw(batch, text, screenW, screenHeight, "CRAFTING", ContentW, ContentH,
             out _, out _, out _, out _);
 
-        int craftable = _sorted.Count(r => CanCraft(r, inventory, skills));
+        int craftable = _sorted.Count(r => CanCraft(r, inventory, skills, availableStructures));
         float headerY = _cy - HeaderH + 13f;
         DrawLeft(batch, text, $"Recipes: {_sorted.Count}", _cx, headerY, 15,
             PanelChrome.TextR, PanelChrome.TextG, PanelChrome.TextB, bold: true);
@@ -946,9 +947,9 @@ public sealed class CraftingPanel
             150, 200, 120, bold: true);
 
         for (int i = 0; i < VisibleRows && _scroll + i < _sorted.Count; i++)
-            RenderRow(batch, text, sprites, _sorted[_scroll + i], _scroll + i, inventory, skills);
+            RenderRow(batch, text, sprites, _sorted[_scroll + i], _scroll + i, inventory, skills, availableStructures);
 
-        RenderDetail(batch, text, sprites, inventory, skills);
+        RenderDetail(batch, text, sprites, inventory, skills, availableStructures);
     }
 
     private void Refresh(CraftingSystem? crafting)
@@ -963,12 +964,13 @@ public sealed class CraftingPanel
     }
 
     private void RenderRow(PrimitiveBatch batch, TextRenderer text, SpriteRenderer? sprites,
-        Data.CraftRecipe recipe, int index, Inventory inventory, SkillManager skills)
+        Data.CraftRecipe recipe, int index, Inventory inventory, SkillManager skills,
+        IReadOnlySet<string>? availableStructures)
     {
         float y = _rowY[index - _scroll];
         float cx = _rowX + _rowW * 0.5f, cy = y + RowH * 0.5f;
         bool selected = index == SelectedIndex;
-        bool craftable = CanCraft(recipe, inventory, skills);
+        bool craftable = CanCraft(recipe, inventory, skills, availableStructures);
 
         // Row well: warm wash for craftable, darker for gated; selection on top.
         if (selected)
@@ -1003,7 +1005,7 @@ public sealed class CraftingPanel
     }
 
     private void RenderDetail(PrimitiveBatch batch, TextRenderer text, SpriteRenderer? sprites,
-        Inventory inventory, SkillManager skills)
+        Inventory inventory, SkillManager skills, IReadOnlySet<string>? availableStructures)
     {
         float dividerX = _detailX - 10f;
         batch.DrawScreenQuad(dividerX, _detailY + 200f, 0.5f, 200f,
@@ -1049,6 +1051,7 @@ public sealed class CraftingPanel
 
         // Flags: campfire / food / quest unlock.
         string flags =
+            (!string.IsNullOrEmpty(recipe.RequiresStructure) ? $"Requires {recipe.RequiresStructure}   " : "") +
             (recipe.RequiresCampfire ? "Requires campfire   " : "") +
             (recipe.IsFood ? "Food   " : "") +
             (recipe.QuestUnlock != null ? $"Quest: {recipe.QuestUnlock}" : "");
@@ -1056,7 +1059,7 @@ public sealed class CraftingPanel
             DrawLeft(batch, text, flags.TrimEnd(), _detailX, _detailY + 230f, 13, 200, 170, 60);
 
         // CRAFT button: gold when craftable, dim when gated.
-        bool craftable = CanCraft(recipe, inventory, skills);
+        bool craftable = CanCraft(recipe, inventory, skills, availableStructures);
         bool craftSelected = _selectionMode == 1;
         byte br = craftable ? (craftSelected ? (byte)250 : PanelChrome.BorderR) : (byte)110;
         byte bg = craftable ? (craftSelected ? (byte)225 : PanelChrome.BorderG) : (byte)95;
@@ -1074,14 +1077,22 @@ public sealed class CraftingPanel
             DrawLeft(batch, text, _statusExtra[i], _detailX, statusY + 20f + i * 18f, 13, 255, 215, 0);
     }
 
-    // Panel-side craftable check for coloring; matches CraftingSystem's gates
-    // (skill level + ingredients; campfire is shown as a flag, not enforced).
-    private static bool CanCraft(Data.CraftRecipe recipe, Inventory inventory, SkillManager skills)
+    // Panel-side craftable check for coloring; matches CraftingSystem's skill,
+    // ingredient, and available-station gates.
+    private static bool CanCraft(Data.CraftRecipe recipe, Inventory inventory, SkillManager skills,
+        IReadOnlySet<string>? availableStructures)
     {
         if (skills.GetSkillLevel(recipe.RequiredSkill) < recipe.RequiredLevel) return false;
-        foreach (var (itemId, quantity) in recipe.Inputs)
+        if (availableStructures != null && !string.IsNullOrEmpty(recipe.RequiresStructure)
+            && !availableStructures.Contains(recipe.RequiresStructure)) return false;
+        if (availableStructures != null && recipe.RequiresCampfire
+            && !availableStructures.Contains("campfire")
+            && !availableStructures.Contains("cooking_station")
+            && !availableStructures.Contains("furnace")
+            && !availableStructures.Contains("smelter")) return false;
+        foreach (var group in recipe.Inputs.GroupBy(input => input.ItemId, StringComparer.Ordinal))
         {
-            if (inventory.GetItemQuantity(itemId) < quantity) return false;
+            if (inventory.GetItemQuantity(group.Key) < group.Sum(input => input.Quantity)) return false;
         }
         return true;
     }
@@ -1218,7 +1229,7 @@ public sealed class BuildingPanel
 
     /// <summary>Mouse handling; call once per frame from Game.Update while open.</summary>
     public void Update(InputState input, BuildingSystem building, Inventory inventory,
-        SkillManager skills, int screenW, int screenH)
+        SkillManager skills, int screenW, int screenH, ColonySystem? colony = null)
     {
         HandleKeyRepeats(input);
         Refresh(building);
@@ -1253,7 +1264,7 @@ public sealed class BuildingPanel
 
     public void Render(PrimitiveBatch batch, TextRenderer? text, SpriteRenderer? sprites,
         BuildingSystem building, Inventory inventory, SkillManager skills,
-        int screenW, int screenHeight)
+        int screenW, int screenHeight, ColonySystem? colony = null)
     {
         Refresh(building);
         Layout(screenW, screenHeight);
@@ -1262,17 +1273,17 @@ public sealed class BuildingPanel
         PanelChrome.Draw(batch, text, screenW, screenHeight, "BUILDING", ContentW, ContentH,
             out _, out _, out _, out _);
 
-        int buildable = _sorted.Count(d => CanBuild(d, inventory, skills));
+        int buildable = _sorted.Count(d => CanBuild(d, inventory, skills, colony));
         float headerY = _cy - HeaderH + 13f;
         DrawLeft(batch, text, $"Structures: {_sorted.Count}", _cx, headerY, 15,
             PanelChrome.TextR, PanelChrome.TextG, PanelChrome.TextB, bold: true);
-        DrawRight(batch, text, $"Buildable now: {buildable}", _cx + ContentW, headerY, 15,
+        DrawRight(batch, text, $"Materials ready: {buildable}", _cx + ContentW, headerY, 15,
             150, 200, 120, bold: true);
 
         for (int i = 0; i < VisibleRows && _scroll + i < _sorted.Count; i++)
-            RenderRow(batch, text, sprites, _sorted[_scroll + i], _scroll + i, inventory, skills);
+            RenderRow(batch, text, sprites, _sorted[_scroll + i], _scroll + i, inventory, skills, colony);
 
-        RenderDetail(batch, text, sprites, inventory, skills);
+        RenderDetail(batch, text, sprites, inventory, skills, colony);
     }
 
     private void Refresh(BuildingSystem? building)
@@ -1287,12 +1298,12 @@ public sealed class BuildingPanel
     }
 
     private void RenderRow(PrimitiveBatch batch, TextRenderer text, SpriteRenderer? sprites,
-        Data.StructureDef def, int index, Inventory inventory, SkillManager skills)
+        Data.StructureDef def, int index, Inventory inventory, SkillManager skills, ColonySystem? colony)
     {
         float y = _rowY[index - _scroll];
         float cx = _rowX + _rowW * 0.5f, cy = y + RowH * 0.5f;
         bool selected = index == SelectedIndex;
-        bool buildable = CanBuild(def, inventory, skills);
+        bool buildable = CanBuild(def, inventory, skills, colony);
 
         // Row well: warm wash for buildable, darker for gated; selection on top.
         if (selected)
@@ -1326,7 +1337,7 @@ public sealed class BuildingPanel
     }
 
     private void RenderDetail(PrimitiveBatch batch, TextRenderer text, SpriteRenderer? sprites,
-        Inventory inventory, SkillManager skills)
+        Inventory inventory, SkillManager skills, ColonySystem? colony)
     {
         float dividerX = _detailX - 10f;
         batch.DrawScreenQuad(dividerX, _detailY + 200f, 0.5f, 200f,
@@ -1353,7 +1364,8 @@ public sealed class BuildingPanel
         int line = 0;
         foreach (var material in def.Materials)
         {
-            int have = inventory.GetItemQuantity(material.ItemId);
+            int have = inventory.GetItemQuantity(material.ItemId)
+                + (colony?.GetItemQuantity(material.ItemId) ?? 0);
             bool ok = have >= material.Quantity;
             var display = Data.ItemCatalog.Get(material.ItemId);
             DrawLeft(batch, text, display?.Name ?? material.ItemId, _detailX, _detailY + 122f + line * 20f, 13,
@@ -1375,14 +1387,15 @@ public sealed class BuildingPanel
             _detailX, _detailY + 230f, 13, 200, 170, 60);
 
         // BUILD button: gold when buildable, dim when gated.
-        bool buildable = CanBuild(def, inventory, skills);
+        bool buildable = CanBuild(def, inventory, skills, colony);
         bool buildSelected = _selectionMode == 1;
         byte br = buildable ? (buildSelected ? (byte)250 : PanelChrome.BorderR) : (byte)110;
         byte bg = buildable ? (buildSelected ? (byte)225 : PanelChrome.BorderG) : (byte)95;
         byte bb = buildable ? (buildSelected ? (byte)180 : PanelChrome.BorderB) : (byte)70;
         batch.DrawScreenQuad(_buildX + BuildW * 0.5f, _buildY + BuildH * 0.5f, BuildW * 0.5f + 2f, BuildH * 0.5f + 2f, br, bg, bb);
         batch.DrawScreenQuad(_buildX + BuildW * 0.5f, _buildY + BuildH * 0.5f, BuildW * 0.5f, BuildH * 0.5f, 30, 20, 10);
-        text.DrawText(batch, "BUILD", _buildX + BuildW * 0.5f, _buildY + BuildH * 0.5f, 15, br, bg, bb, bold: true);
+        text.DrawText(batch, colony?.IsFounded == true ? "PLACE SITE" : "BUILD",
+            _buildX + BuildW * 0.5f, _buildY + BuildH * 0.5f, 15, br, bg, bb, bold: true);
 
         DrawLeft(batch, text, "Click a tile in the world to place", _buildX + BuildW + 14f,
             _buildY + BuildH * 0.5f, 12, 150, 140, 130);
@@ -1391,12 +1404,14 @@ public sealed class BuildingPanel
     // Panel-side buildable check for coloring; matches PlaceStructure's gates
     // (skill level + materials; the biome gate is per-tile and checked at
     // placement time).
-    private static bool CanBuild(Data.StructureDef def, Inventory inventory, SkillManager skills)
+    private static bool CanBuild(Data.StructureDef def, Inventory inventory, SkillManager skills,
+        ColonySystem? colony)
     {
         if (skills.GetSkillLevel("construction") < def.RequiresSkillLevel) return false;
         foreach (var material in def.Materials)
         {
-            if (inventory.GetItemQuantity(material.ItemId) < material.Quantity) return false;
+            if (inventory.GetItemQuantity(material.ItemId)
+                + (colony?.GetItemQuantity(material.ItemId) ?? 0) < material.Quantity) return false;
         }
         return true;
     }
@@ -1801,13 +1816,20 @@ public sealed class GearPanel
 } // GearPanel
 
 /// <summary>
-/// DashboardPanel — Unified dashboard with 5 tabs (placeholder until it gets content).
+/// DashboardPanel — Unified player and colony dashboard.
 /// </summary>
 public sealed class DashboardPanel
 {
+    private bool _showWorkOrders;
+    private string? _selectedWorkplaceKey;
+    private int _workRecipeIndex;
+    private string? _selectedColonyItemId;
+    private string? _selectedColonistId;
+    private int _colonyItemScroll;
+    private string _colonyStatus = "Select a stockpile item, then transfer it.";
     public bool Visible { get; set; } = false;
     public Game? Game { get; set; }
-    public string[] Tabs { get; } = ["inventory", "skills", "crafting", "quests", "diplomacy"];
+    public string[] Tabs { get; } = ["inventory", "skills", "crafting", "quests", "diplomacy", "colony"];
     public string ActiveTab { get; private set; } = "inventory";
     public Action<string>? OnTabSelected { get; set; }
     public void SetActive(string tab) { if (Tabs.Contains(tab)) ActiveTab = tab; }
@@ -1823,15 +1845,85 @@ public sealed class DashboardPanel
         var ui = new UiInput(input);
         float x = screenWidth * 0.5f - 325f;
         float y = screenHeight * 0.5f - 158f;
+        float tabWidth = 650f / Tabs.Length;
         for (int i = 0; i < Tabs.Length; i++)
         {
-            float buttonX = x + 5f + i * 130f;
-            if (ui.TryClick(buttonX, y + 25f, 120f, 40f))
+            float buttonX = x + tabWidth * i + 3f;
+            if (ui.TryClick(buttonX, y + 25f, tabWidth - 6f, 40f))
             {
                 SetActive(Tabs[i]);
                 HandleConfirm();
                 return;
             }
+        }
+
+        if (ActiveTab != "colony" || Game?.ColonySystem == null) return;
+        var colony = Game.ColonySystem;
+        var inventory = Game.Player?.Inventory ?? Game.Inventory;
+        if (!colony.IsFounded)
+        {
+            if (Game.Player != null && ui.TryClick(x + 333f, y + 242f, 284f, 40f))
+            {
+                bool founded = colony.FoundAt(Game.Player.WorldX, Game.Player.WorldY, Game.World);
+                _colonyStatus = founded
+                    ? "Settlement founded. Assistants will gather within its work radius."
+                    : "Choose a dry surface tile to found your settlement.";
+            }
+            return;
+        }
+
+        if (ui.TryClick(x + 480f, y + 101f, 145f, 22f))
+        {
+            _showWorkOrders = !_showWorkOrders;
+            return;
+        }
+
+        if (_showWorkOrders)
+        {
+            UpdateColonyWorkOrders(ui, x, y);
+            return;
+        }
+
+        var recruits = GetRecruits();
+        if (_selectedColonistId == null || recruits.All(n => n.NpcId != _selectedColonistId))
+            _selectedColonistId = recruits.FirstOrDefault()?.NpcId;
+        for (int i = 0; i < Math.Min(3, recruits.Length); i++)
+        {
+            if (ui.TryClick(x + 16f, y + 215f + i * 22f, 250f, 21f))
+            {
+                _selectedColonistId = recruits[i].NpcId;
+                return;
+            }
+        }
+        if (_selectedColonistId != null && ui.TryClick(x + 20f, y + 284f, 112f, 30f))
+            AssignSelectedRecruit("assistant");
+        else if (_selectedColonistId != null && ui.TryClick(x + 148f, y + 284f, 112f, 30f))
+            AssignSelectedRecruit("guard");
+
+        var itemIds = GetColonyItemIds(colony, inventory);
+        _colonyItemScroll = Math.Clamp(_colonyItemScroll - Math.Sign(ui.GetScroll()), 0,
+            Math.Max(0, itemIds.Length - 6));
+        if (_selectedColonyItemId == null || !itemIds.Contains(_selectedColonyItemId))
+            _selectedColonyItemId = itemIds.Skip(_colonyItemScroll).FirstOrDefault();
+        for (int i = 0; i < Math.Min(6, itemIds.Length - _colonyItemScroll); i++)
+        {
+            if (ui.TryClick(x + 292f, y + 124f + i * 25f, 348f, 24f))
+            {
+                _selectedColonyItemId = itemIds[_colonyItemScroll + i];
+                return;
+            }
+        }
+
+        if (_selectedColonyItemId == null) return;
+        if (ui.TryClick(x + 365f, y + 286f, 118f, 30f))
+        {
+            int moved = colony.Deposit(_selectedColonyItemId, inventory);
+            _colonyStatus = moved > 0 ? $"Stored {moved} {_selectedColonyItemId}." : "Nothing moved; check storage capacity.";
+        }
+        else if (ui.TryClick(x + 500f, y + 286f, 118f, 30f))
+        {
+            int moved = colony.Withdraw(_selectedColonyItemId, inventory);
+            _colonyStatus = moved > 0 ? $"Withdrew {moved} {_selectedColonyItemId}." : "Nothing moved; check inventory space.";
         }
     }
 
@@ -1856,16 +1948,307 @@ public sealed class DashboardPanel
         if (text == null) return;
         for (int i = 0; i < Tabs.Length; i++)
         {
-            float cx = x + 65 + i * 130;
+            float cx = x + (650f / Tabs.Length) * (i + 0.5f);
             bool active = Tabs[i] == ActiveTab;
-            batch.DrawScreenQuad(cx, y + 45, 60, 20, active ? (byte)80 : (byte)30, 50, 25);
+            batch.DrawScreenQuad(cx, y + 45, 48, 20, active ? (byte)80 : (byte)30, 50, 25);
             text.DrawText(batch, Tabs[i].ToUpperInvariant(), cx, y + 45, 12,
                 PanelChrome.TextR, PanelChrome.TextG, PanelChrome.TextB, bold: active);
         }
 
-        RenderOverview(batch, text, x, y);
-        text.DrawText(batch, "Choose a tab · Enter or click to open · O / Esc closes",
-            x + 325, y + 330, 12, 160, 150, 130);
+        if (ActiveTab == "colony") RenderColony(batch, text, x, y);
+        else RenderOverview(batch, text, x, y);
+        if (ActiveTab == "colony")
+            text.DrawText(batch, _colonyStatus, x + 325, y + 330, 11, 190, 178, 145);
+        else
+            text.DrawText(batch, "Choose a tab · Enter or click to open · O / Esc closes",
+                x + 325, y + 330, 12, 160, 150, 130);
+    }
+
+    private void RenderColony(PrimitiveBatch batch, TextRenderer text, float x, float y)
+    {
+        var game = Game;
+        var colony = game?.ColonySystem;
+        var player = game?.Player;
+        var inventory = player?.Inventory ?? game?.Inventory;
+        if (colony == null) return;
+
+        batch.DrawScreenQuad(x + 127, y + 194, 122, 116, 24, 17, 11, 210);
+        Left(batch, text, "SETTLEMENT", x + 16, y + 105, 12,
+            PanelChrome.BorderR, PanelChrome.BorderG, PanelChrome.BorderB, true);
+        if (!colony.IsFounded)
+        {
+            Left(batch, text, "No settlement founded", x + 20, y + 141, 16);
+            Left(batch, text, "Found one at your current dry surface tile.", x + 20, y + 175, 12);
+            Left(batch, text, "Assistants will work around its anchor.", x + 20, y + 197, 12);
+            Left(batch, text, _colonyStatus, x + 16, y + 222, 11, 190, 178, 145);
+            batch.DrawScreenQuad(x + 475, y + 262, 142, 20, 74, 55, 24);
+            text.DrawText(batch, "FOUND SETTLEMENT", x + 475, y + 262, 12,
+                PanelChrome.TextR, PanelChrome.TextG, PanelChrome.TextB, bold: true);
+        }
+        else
+        {
+            Left(batch, text, $"Anchor  {colony.AnchorTileX}, {colony.AnchorTileY}", x + 16, y + 138, 13);
+            Left(batch, text, $"Work radius  {colony.WorkRadiusTiles} tiles", x + 16, y + 164, 13);
+            Left(batch, text, $"Stores  {colony.StoredUnits} / {colony.StorageCapacity} units", x + 16, y + 190, 12);
+            Left(batch, text, "COLONISTS · select one, then assign a job", x + 16, y + 211, 10,
+                PanelChrome.BorderR, PanelChrome.BorderG, PanelChrome.BorderB, true);
+            var recruits = GetRecruits();
+            for (int i = 0; i < Math.Min(3, recruits.Length); i++)
+            {
+                var npc = recruits[i];
+                float rowY = y + 225 + i * 22;
+                bool selected = npc.NpcId == _selectedColonistId;
+                if (selected) batch.DrawScreenQuad(x + 131, rowY, 115, 10, 68, 48, 23, 210);
+                Left(batch, text, npc.Name, x + 20, rowY, 11,
+                    selected ? PanelChrome.BorderR : PanelChrome.TextR,
+                    selected ? PanelChrome.BorderG : PanelChrome.TextG,
+                    selected ? PanelChrome.BorderB : PanelChrome.TextB);
+                var workplace = game?.BuildingSystem?.Structures
+                    .FirstOrDefault(structure => structure.AssignedNpcId == npc.NpcId);
+                string jobLabel = workplace == null
+                    ? npc.RecruitBehavior ?? "unassigned"
+                    : ColonyWorkLabel(workplace.WorkStatus);
+                if (npc.ColonyRestStatus is "Resting" or "Seeking rest")
+                    jobLabel = npc.ColonyRestStatus == "Resting" ? "resting" : "seeking rest";
+                else if (npc.ColonyRest <= 25f)
+                    jobLabel = "exhausted";
+                byte needColor = npc.ColonyNeedStatus == "Starving" ? (byte)220
+                    : npc.ColonyNeedStatus == "Hungry" ? (byte)210 : (byte)150;
+                string needAndHealth = $"{(npc.ColonyNeedStatus == "Fed" ? "fed" : npc.ColonyNeedStatus.ToLowerInvariant())} {npc.Health}hp";
+                text.DrawText(batch, needAndHealth, x + 164, rowY, 9, needColor, 150, 120);
+                byte restColor = npc.ColonyRest <= 25f ? (byte)210
+                    : npc.ColonyRest <= 50f ? (byte)190
+                    : npc.ColonyRest <= 75f ? (byte)165 : (byte)110;
+                batch.DrawScreenQuad(x + 164, rowY + 8, 16, 1.5f, 42, 34, 26, 220);
+                float restWidth = 16f * Math.Clamp(npc.ColonyRest / 100f, 0f, 1f);
+                if (restWidth > 0f)
+                    batch.DrawScreenQuad(x + 148 + restWidth, rowY + 8, restWidth, 1.5f,
+                        restColor, (byte)Math.Min(220, (int)restColor), 95, 235);
+                text.DrawText(batch, jobLabel, x + 198, rowY, 9,
+                    PanelChrome.TextR, PanelChrome.TextG, PanelChrome.TextB);
+            }
+            if (recruits.Length == 0)
+                Left(batch, text, "Recruit people to staff the settlement.", x + 20, y + 237, 11, 180, 170, 150);
+            batch.DrawScreenQuad(x + 76, y + 299, 56, 14, 74, 55, 24);
+            batch.DrawScreenQuad(x + 204, y + 299, 56, 14, 74, 55, 24);
+            text.DrawText(batch, "ASSISTANT", x + 76, y + 299, 10,
+                PanelChrome.TextR, PanelChrome.TextG, PanelChrome.TextB, bold: true);
+            text.DrawText(batch, "GUARD", x + 204, y + 299, 10,
+                PanelChrome.TextR, PanelChrome.TextG, PanelChrome.TextB, bold: true);
+        }
+
+        batch.DrawScreenQuad(x + 464, y + 194, 180, 116, 24, 17, 11, 210);
+        batch.DrawScreenQuad(x + 564, y + 105, 73, 12, 74, 55, 24);
+        text.DrawText(batch, _showWorkOrders ? "STORES" : "WORK", x + 564, y + 105, 10,
+            PanelChrome.TextR, PanelChrome.TextG, PanelChrome.TextB, bold: true);
+        Left(batch, text, _showWorkOrders ? "WORK ORDERS" : "STOCKPILE", x + 292, y + 105, 12,
+            PanelChrome.BorderR, PanelChrome.BorderG, PanelChrome.BorderB, true);
+        if (colony.IsFounded)
+        {
+            var workplaces = game?.BuildingSystem?.Structures.Where(s => s.IsActive && s.AssignedNpcId != null).ToArray() ?? [];
+            if (_showWorkOrders)
+            {
+                RenderColonyWorkOrders(batch, text, game, x, y);
+                return;
+            }
+            int working = workplaces.Count(s => s.WorkStatus.StartsWith("Working", StringComparison.Ordinal));
+            Left(batch, text, $"Workplaces  {working} active / {workplaces.Length} staffed", x + 292, y + 120, 10,
+                190, 178, 145);
+            var itemIds = GetColonyItemIds(colony, inventory);
+            _colonyItemScroll = Math.Clamp(_colonyItemScroll, 0, Math.Max(0, itemIds.Length - 6));
+            for (int i = 0; i < Math.Min(6, itemIds.Length - _colonyItemScroll); i++)
+            {
+                string itemId = itemIds[_colonyItemScroll + i];
+                float rowY = y + 137 + i * 25;
+                bool selected = itemId == _selectedColonyItemId;
+                if (selected)
+                    batch.DrawScreenQuad(x + 466, rowY, 174, 12, 68, 48, 23, 210);
+                int stored = colony.Stockpile.TryGetValue(itemId, out int quantity) ? quantity : 0;
+                int carried = inventory?.GetItemQuantity(itemId) ?? 0;
+                Left(batch, text, itemId, x + 300, rowY, 11,
+                    selected ? PanelChrome.BorderR : PanelChrome.TextR,
+                    selected ? PanelChrome.BorderG : PanelChrome.TextG,
+                    selected ? PanelChrome.BorderB : PanelChrome.TextB);
+                text.DrawText(batch, $"{stored} stored  ·  {carried} carried", x + 570, rowY, 10,
+                    PanelChrome.TextR, PanelChrome.TextG, PanelChrome.TextB);
+            }
+            if (itemIds.Length > 6)
+                text.DrawText(batch, $"{_colonyItemScroll + 1}–{Math.Min(itemIds.Length, _colonyItemScroll + 6)} / {itemIds.Length}  ·  scroll",
+                    x + 575, y + 118, 9, 180, 170, 150);
+            batch.DrawScreenQuad(x + 410, y + 301, 59, 15, 74, 55, 24);
+            batch.DrawScreenQuad(x + 545, y + 301, 59, 15, 74, 55, 24);
+            text.DrawText(batch, "DEPOSIT", x + 410, y + 301, 11,
+                PanelChrome.TextR, PanelChrome.TextG, PanelChrome.TextB, bold: true);
+            text.DrawText(batch, "WITHDRAW", x + 545, y + 301, 11,
+                PanelChrome.TextR, PanelChrome.TextG, PanelChrome.TextB, bold: true);
+        }
+    }
+
+    private void UpdateColonyWorkOrders(UiInput ui, float x, float y)
+    {
+        var structures = Game?.BuildingSystem?.Structures.Where(s => s.IsActive)
+            .OrderBy(s => s.TileY).ThenBy(s => s.TileX).ToArray() ?? [];
+        if (_selectedWorkplaceKey == null || structures.All(s => WorkplaceKey(s) != _selectedWorkplaceKey))
+            _selectedWorkplaceKey = structures.Length > 0 ? WorkplaceKey(structures[0]) : null;
+        for (int i = 0; i < Math.Min(4, structures.Length); i++)
+        {
+            if (ui.TryClick(x + 294f, y + 137f + i * 25f, 340f, 24f))
+            {
+                _selectedWorkplaceKey = WorkplaceKey(structures[i]);
+                _workRecipeIndex = 0;
+                return;
+            }
+        }
+        var selected = structures.FirstOrDefault(s => WorkplaceKey(s) == _selectedWorkplaceKey);
+        var recipes = CompatibleWorkRecipes(selected).ToArray();
+        if (selected == null || recipes.Length == 0) return;
+        if (ui.TryClick(x + 300f, y + 292f, 32f, 16f)) _workRecipeIndex = (_workRecipeIndex + recipes.Length - 1) % recipes.Length;
+        else if (ui.TryClick(x + 566f, y + 292f, 32f, 16f)) _workRecipeIndex = (_workRecipeIndex + 1) % recipes.Length;
+        else if (ui.TryClick(x + 338f, y + 292f, 70f, 16f))
+        {
+            selected.WorkRecipeId = recipes[_workRecipeIndex].RecipeId;
+            selected.WorkRecipeQueue.Clear();
+            selected.WorkOrdersPaused = false;
+            selected.HasManualWorkOrder = true;
+            selected.WorkProgress = 0;
+            selected.WorkStatus = selected.AssignedNpcId == null ? "Waiting for worker" : "Waiting for materials";
+            _colonyStatus = $"{selected.StructureId}: set {recipes[_workRecipeIndex].Name} as the active order.";
+        }
+        else if (ui.TryClick(x + 414f, y + 292f, 70f, 16f))
+        {
+            if (selected.WorkOrdersPaused || selected.WorkRecipeId == null)
+            {
+                selected.WorkRecipeId = recipes[_workRecipeIndex].RecipeId;
+                selected.WorkRecipeQueue.Clear();
+                selected.WorkOrdersPaused = false;
+                selected.WorkProgress = 0;
+            }
+            else
+            {
+                selected.WorkRecipeQueue.Add(recipes[_workRecipeIndex].RecipeId);
+            }
+            selected.HasManualWorkOrder = true;
+            selected.WorkStatus = "Waiting for materials";
+            _colonyStatus = $"Queued {recipes[_workRecipeIndex].Name} at {selected.StructureId}.";
+        }
+        else if (ui.TryClick(x + 490f, y + 292f, 70f, 16f))
+        {
+            selected.WorkRecipeId = null;
+            selected.WorkRecipeQueue.Clear();
+            selected.WorkOrdersPaused = true;
+            selected.HasManualWorkOrder = true;
+            selected.WorkProgress = 0;
+            selected.AssignedNpcId = null;
+            selected.WorkStatus = "Work orders paused";
+            _colonyStatus = $"Cleared and paused orders at {selected.StructureId}.";
+        }
+    }
+
+    private void RenderColonyWorkOrders(PrimitiveBatch batch, TextRenderer text, Game? game, float x, float y)
+    {
+        var structures = game?.BuildingSystem?.Structures.Where(s => s.IsActive)
+            .OrderBy(s => s.TileY).ThenBy(s => s.TileX).ToArray() ?? [];
+        Left(batch, text, "BUILT WORKPLACES · select one", x + 300, y + 124, 10, 190, 178, 145);
+        for (int i = 0; i < Math.Min(4, structures.Length); i++)
+        {
+            var structure = structures[i];
+            float rowY = y + 140 + i * 25;
+            if (WorkplaceKey(structure) == _selectedWorkplaceKey)
+                batch.DrawScreenQuad(x + 466, rowY, 174, 12, 68, 48, 23, 210);
+            string worker = structure.AssignedNpcId == null ? "unstaffed" : "staffed";
+            Left(batch, text, $"{structure.StructureId} · {worker}", x + 300, rowY, 10);
+            string order = structure.WorkRecipeId ?? (structure.WorkOrdersPaused ? "paused" : "automatic");
+            if (structure.WorkRecipeQueue.Count > 0) order += $" +{structure.WorkRecipeQueue.Count}";
+            text.DrawText(batch, order, x + 570, rowY, 9, 180, 170, 150);
+        }
+        var selected = structures.FirstOrDefault(s => WorkplaceKey(s) == _selectedWorkplaceKey);
+        var recipes = CompatibleWorkRecipes(selected).ToArray();
+        if (selected == null)
+        {
+            Left(batch, text, "Build a production station to create work orders.", x + 300, y + 257, 10, 180, 170, 150);
+            return;
+        }
+        if (recipes.Length == 0)
+        {
+            Left(batch, text, $"No recipes use {selected.StructureId}.", x + 300, y + 257, 10, 180, 170, 150);
+            return;
+        }
+        _workRecipeIndex = Math.Clamp(_workRecipeIndex, 0, recipes.Length - 1);
+        var recipe = recipes[_workRecipeIndex];
+        Left(batch, text, $"Order: {recipe.Name}  ·  {recipe.OutputQuantity} {recipe.OutputItem}", x + 300, y + 249, 10);
+        string activeOrder = selected.WorkRecipeId ?? (selected.WorkOrdersPaused ? "paused" : "automatic");
+        Left(batch, text, $"Active: {activeOrder}  ·  {selected.WorkStatus}", x + 300, y + 263, 9, 180, 170, 150);
+        string queuePreview = string.Join(", ", selected.WorkRecipeQueue.Take(2));
+        if (selected.WorkRecipeQueue.Count > 2) queuePreview += $" +{selected.WorkRecipeQueue.Count - 2}";
+        Left(batch, text, $"Next: {(queuePreview.Length == 0 ? "none" : queuePreview)}", x + 300, y + 276, 9, 180, 170, 150);
+        foreach (var (label, bx, width) in new[] { ("<", 300f, 32f), ("SET", 338f, 70f), ("QUEUE", 414f, 70f), ("CLEAR", 490f, 70f), (">", 566f, 32f) })
+        {
+            batch.DrawScreenQuad(x + bx, y + 292, width, 16, 74, 55, 24);
+            text.DrawText(batch, label, x + bx + width / 2, y + 292, 9,
+                PanelChrome.TextR, PanelChrome.TextG, PanelChrome.TextB, bold: true);
+        }
+    }
+
+    private IEnumerable<CraftRecipe> CompatibleWorkRecipes(Structure? structure)
+    {
+        var registry = Game?.Crafting?.Registry;
+        if (structure == null || registry == null) return [];
+        return registry.Recipes.Values.Where(recipe =>
+                (!string.IsNullOrWhiteSpace(recipe.RequiresStructure)
+                    && recipe.RequiresStructure == structure.StructureId)
+                || (recipe.RequiresCampfire
+                    && structure.StructureId is "campfire" or "cooking_station" or "furnace" or "smelter"))
+            .OrderBy(recipe => recipe.Tier).ThenBy(recipe => recipe.Name, StringComparer.Ordinal);
+    }
+
+    private static string WorkplaceKey(Structure structure) => $"{structure.StructureId}:{structure.TileX}:{structure.TileY}";
+
+    private static string[] GetColonyItemIds(ColonySystem colony, Inventory? inventory)
+        => colony.Stockpile.Keys
+            .Concat(inventory?.Slots.Where(slot => slot.ItemId != null && slot.Quantity > 0)
+                .Select(slot => slot.ItemId!) ?? [])
+            .Distinct(StringComparer.Ordinal)
+            .OrderBy(id => id, StringComparer.Ordinal)
+            .ToArray();
+
+    private Npc[] GetRecruits()
+        => Game?.NPCSystem?.NPCs
+            .Where(npc => npc.IsActive && npc.IsRecruited)
+            .OrderBy(npc => npc.Name, StringComparer.Ordinal)
+            .ToArray() ?? [];
+
+    private void AssignSelectedRecruit(string behavior)
+    {
+        var recruit = GetRecruits().FirstOrDefault(npc => npc.NpcId == _selectedColonistId);
+        if (recruit == null) return;
+        if (!recruit.AvailableBehaviors.Contains(behavior))
+        {
+            _colonyStatus = $"{recruit.Name} cannot take the {behavior} job.";
+            return;
+        }
+
+        recruit.RecruitBehavior = behavior;
+        foreach (var structure in Game?.BuildingSystem?.Structures.Where(s => s.AssignedNpcId == recruit.NpcId) ?? [])
+        {
+            structure.AssignedNpcId = null;
+            structure.WorkStatus = structure.WorkRecipeId == null ? "Idle" : "Waiting for worker";
+        }
+        recruit.AssignBehavior(behavior);
+        Game?.RecruitmentSystem?.OnRecruit(recruit.NpcId, behavior);
+        _colonyStatus = $"{recruit.Name} assigned as {behavior}.";
+    }
+
+    private static string ColonyWorkLabel(string status)
+    {
+        if (status.StartsWith("Working", StringComparison.Ordinal)) return "working";
+        if (status == "Worker en route") return "travelling";
+        if (status == "Waiting for materials") return "gathering inputs";
+        if (status.StartsWith("Growing wheat", StringComparison.Ordinal)) return "farming";
+        if (status == "Fallow (winter)" || status == "Crop dormant (winter)") return "winter rest";
+        if (status == "Waiting for stockpile space") return "stores full";
+        if (status.StartsWith("No food", StringComparison.Ordinal)) return "needs food";
+        if (status.StartsWith("Produced", StringComparison.Ordinal)) return "work done";
+        return "workplace idle";
     }
 
     private void RenderOverview(PrimitiveBatch batch, TextRenderer text, float x, float y)

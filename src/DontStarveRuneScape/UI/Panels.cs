@@ -70,9 +70,9 @@ public sealed class TradePanel
     }
     public void Update(InputState input, TradeSystem system, Inventory inventory, SkillManager skills, int screenW, int screenH)
     {
-        TradeSystem.Registry=system.Registry; TradeSystem.Quests=system.Quests; _inventory=inventory; _skills=skills;
+        TradeSystem.Registry=system.Registry; TradeSystem.Quests=system.Quests; TradeSystem.Factions=system.Factions; _inventory=inventory; _skills=skills;
         BuyRows=TradeSession==null?[]:TradeSystem.GetTradeItemsForMerchant(TradeSession);
-        SellRows=TradeSystem.Registry?.TradeItems.Values.Select(d=>(d.ItemId,inventory.GetItemQuantity(d.ItemId),d.SellPrice)).Where(r=>r.SellPrice>0).DistinctBy(r=>r.ItemId).ToList()??[];
+        SellRows=TradeSystem.Registry?.TradeItems.Values.Select(d=>(ItemId:d.ItemId, Quantity:inventory.GetItemQuantity(d.ItemId), SellPrice:TradeSystem.SellPriceFor(d.ItemId, TradeSession))).Where(r=>r.SellPrice>0).DistinctBy(r=>r.ItemId).ToList()??[];
         SelectedIndex=Math.Clamp(SelectedIndex,0,Math.Max(0,CurrentCount-1));
         var ui=new UiInput(input); float x=screenW/2f-325,y=screenH/2f-193;
         for(int i=0;i<2;i++) if(ui.TryClick(x+i*110,y+23,100,32)) SetTab(i==0?"buy":"sell");

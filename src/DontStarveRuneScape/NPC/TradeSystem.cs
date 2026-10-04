@@ -19,6 +19,7 @@ public sealed class TradeSystem
     /// <summary>Quest progress hooks (wired at boot): buys count toward
     /// trade_at_location and collect_item objectives.</summary>
     public QuestSystem? Quests { get; set; }
+    public FactionSystem? Factions { get; set; }
 
     /// <summary>Gold item id used as currency.</summary>
     public const string GoldItemId = "gold";
@@ -54,13 +55,23 @@ public sealed class TradeSystem
     }
 
     /// <summary>Buy price with the merchant's modifier applied (min 1).</summary>
-    public int BuyPriceFor(TradeItemDef def, MerchantNpc merchant) =>
-        Math.Max(1, (int)MathF.Round(def.BuyPrice * merchant.PriceModifier));
+    public int BuyPriceFor(TradeItemDef def, MerchantNpc merchant)
+    {
+        float standing = MerchantStanding(merchant);
+        float diplomaticModifier = string.IsNullOrEmpty(merchant.FactionId)
+            ? 1f : 1f + (QuestSystem.DefaultStanding - standing) * 0.5f;
+        return Math.Max(1, (int)MathF.Round(def.BuyPrice * merchant.PriceModifier * diplomaticModifier));
+    }
 
     /// <summary>Sell price for an inventory item from any matching trade def
     /// (items with no trade listing have no market price).</summary>
-    public int SellPriceFor(string itemId) =>
-        Registry?.TradeItems.Values.FirstOrDefault(t => t.ItemId == itemId)?.SellPrice ?? 0;
+    public int SellPriceFor(string itemId, MerchantNpc? merchant = null)
+    {
+        int basePrice = Registry?.TradeItems.Values.FirstOrDefault(t => t.ItemId == itemId)?.SellPrice ?? 0;
+        if (basePrice <= 0 || merchant == null || string.IsNullOrEmpty(merchant.FactionId)) return basePrice;
+        float diplomaticModifier = 1f + (MerchantStanding(merchant) - QuestSystem.DefaultStanding) * 0.5f;
+        return Math.Max(1, (int)MathF.Round(basePrice * diplomaticModifier));
+    }
 
     /// <summary>The merchant's current gold pool.</summary>
     public int MerchantGoldOf(MerchantNpc merchant)
@@ -112,7 +123,7 @@ public sealed class TradeSystem
         if (quantity <= 0)
             return new TradeResult { Success = false, Message = "Nothing to sell." };
 
-        int unit = SellPriceFor(itemId);
+        int unit = SellPriceFor(itemId, merchant);
         if (unit <= 0)
             return new TradeResult { Success = false, Message = "No market for that item." };
 
@@ -140,6 +151,11 @@ public sealed class TradeSystem
         }
         return stock;
     }
+
+    private float MerchantStanding(MerchantNpc merchant) =>
+        string.IsNullOrEmpty(merchant.FactionId)
+            ? QuestSystem.DefaultStanding
+            : Math.Clamp(Factions?.StandingOf(merchant.FactionId) ?? QuestSystem.DefaultStanding, 0f, 1f);
 }
 
 /// <summary>

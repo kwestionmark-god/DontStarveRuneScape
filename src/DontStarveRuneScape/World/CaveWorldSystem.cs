@@ -17,6 +17,7 @@ public sealed class CaveWorldSystem
     private CombatSystem? _surfaceCombat;
     private TileMap? _cave;
     private CombatSystem? _caveCombat;
+    private readonly Dictionary<string, (float X, float Y)> _surfaceWorkerPositions = [];
 
     public bool IsInside => _surface != null;
 
@@ -46,6 +47,17 @@ public sealed class CaveWorldSystem
 
         var cave = _cave;
         _game.World = cave;
+        _surfaceWorkerPositions.Clear();
+        if (_game.NPCSystem != null)
+        {
+            foreach (var worker in _game.NPCSystem.NPCs.Where(n => n.IsActive && n.IsRecruited))
+            {
+                _surfaceWorkerPositions[worker.NpcId] = (worker.WorldX, worker.WorldY);
+                worker.WorldX = (cave.SpawnX + 0.5f) * Constants.TileSize;
+                worker.WorldY = (cave.SpawnY + 0.5f) * Constants.TileSize;
+                worker.VelocityX = worker.VelocityY = 0f;
+            }
+        }
         _surfaceCombat = _game.CombatSystem;
         _game.CombatSystem = _caveCombat;
         _game.Player.WorldX = (cave.SpawnX + 0.5f) * Constants.TileSize;
@@ -60,6 +72,17 @@ public sealed class CaveWorldSystem
     {
         if (_surface == null || _game.Player == null) return;
         _game.World = _surface;
+        if (_game.NPCSystem != null)
+        {
+            foreach (var worker in _game.NPCSystem.NPCs)
+                if (_surfaceWorkerPositions.TryGetValue(worker.NpcId, out var position))
+                {
+                    worker.WorldX = position.X;
+                    worker.WorldY = position.Y;
+                    worker.VelocityX = worker.VelocityY = 0f;
+                }
+        }
+        _surfaceWorkerPositions.Clear();
         _game.CombatSystem = _surfaceCombat;
         _game.Player.WorldX = _surfaceX;
         _game.Player.WorldY = _surfaceY;
