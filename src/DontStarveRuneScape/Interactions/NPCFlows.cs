@@ -171,7 +171,7 @@ public sealed class NPCFlows
         // Assign guard to structure if a structure_id is provided
         if (!string.IsNullOrEmpty(structureId) && game.NPCSystem != null)
         {
-            var resultMsg = game.NPCSystem.AssignNpcToStructure(npcId, structureId);
+            var resultMsg = game.NPCSystem.AssignNpcToStructure(npcId, structureId, game.BuildingSystem);
             if (game.Player?.ActionSystem != null)
             {
                 var color = resultMsg.Success ? ((byte)100, (byte)255, (byte)100) : ((byte)255, (byte)150, (byte)100);

@@ -90,14 +90,32 @@ public sealed class NPCSystem
     }
 
     /// <summary>Assign NPC to structure.</summary>
-    public (bool Success, string Message) AssignNpcToStructure(string npcId, string structureId)
+    public (bool Success, string Message) AssignNpcToStructure(string npcId, string structureId,
+        BuildingSystem? buildingSystem = null)
     {
         var npc = NPCs.Find(n => n.NpcId == npcId);
-        if (npc == null)
-            return (false, "NPC not found.");
+        if (npc == null || !npc.IsActive)
+            return (false, "Active NPC not found.");
+        if (!npc.IsRecruited)
+            return (false, "Recruit this NPC before assigning a workplace.");
+        if (buildingSystem == null)
+            return (false, "Building system unavailable.");
 
-        // Structure assignment logic would go here
-        return (true, $"Assigned {npc.Name} to {structureId}.");
+        var structure = buildingSystem.Structures.FirstOrDefault(s =>
+            s.IsActive && s.StructureId == structureId
+            && (s.AssignedNpcId == null || s.AssignedNpcId == npcId));
+        if (structure == null)
+            return (false, $"No available {structureId} workplace.");
+
+        foreach (var previous in buildingSystem.Structures.Where(s => s.AssignedNpcId == npcId))
+        {
+            if (previous == structure) continue;
+            previous.AssignedNpcId = null;
+            previous.WorkStatus = previous.WorkRecipeId == null ? "Idle" : "Waiting for worker";
+        }
+        structure.AssignedNpcId = npcId;
+        structure.WorkStatus = npc.RecruitBehavior == "guard" ? "Guard assigned" : "Worker assigned";
+        return (true, $"Assigned {npc.Name} to {structure.StructureDef.Name}.");
     }
 
     /// <summary>Get snapshot for saving.</summary>
