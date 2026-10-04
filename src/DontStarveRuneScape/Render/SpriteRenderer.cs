@@ -190,6 +190,211 @@ public sealed class SpriteRenderer : IDisposable
         }
     }
 
+    // ── Next-level player boots: tapered world-space shoe boxes ──────────
+    // Each boot is two stacked boxes (a wide foot base + a narrower ankle
+    // stump — the taper). Every corner lives in world space and passes
+    // through the camera projection, so the boot reads as a real 3D object
+    // at any yaw. The base box's bottom corners sample the terrain
+    // individually, so the sole lies flush on slopes. The swing phase shears
+    // the tops along travel (toe-off drag → level → heel-strike) for the
+    // kick/plant/launch feel, and each visible face is lit by a fixed
+    // world-space light with a darker outline behind it.
+
+    /// <summary>Foot-box dimensions in world px (per entity type later;
+    /// player values for now).</summary>
+    private readonly struct FootBoxDims
+    {
+        public readonly float Toe, Heel, HalfWidth, BaseHeight, AnkleToe, AnkleHeel, AnkleHalfWidth, AnkleHeight;
+        public FootBoxDims(float toe, float heel, float halfWidth, float baseHeight,
+            float ankleToe, float ankleHeel, float ankleHalfWidth, float ankleHeight)
+        {
+            Toe = toe; Heel = heel; HalfWidth = halfWidth; BaseHeight = baseHeight;
+            AnkleToe = ankleToe; AnkleHeel = ankleHeel; AnkleHalfWidth = ankleHalfWidth; AnkleHeight = ankleHeight;
+        }
+    }
+
+    // Player boot: short wide sole, boot toe biased forward of the ankle.
+    private static readonly FootBoxDims PlayerBoot = new(
+        toe: 3.4f, heel: 2.2f, halfWidth: 2.3f, baseHeight: 1.8f,
+        ankleToe: 1.8f, ankleHeel: 1.6f, ankleHalfWidth: 1.7f, ankleHeight: 3.2f);
+
+    // Swing tilt: max top-edge shear, as a tangent. ±~20° at the ankle top.
+    private const float BootTiltTan = 0.36f;
+    // Fixed world-space light for the face shading (xy + up component).
+    private const float LightX = 0.45f, LightY = 0.30f, LightZ = 1.00f;
+
+    // Pooled face buffers (drawn many times per frame).
+    private readonly System.Collections.Generic.List<(float X, float Y, byte R, byte G, byte B, byte A)> _facePts = new(4);
+    private readonly System.Collections.Generic.List<Silk.NET.Maths.Vector2D<float>> _outlinePts = new(4);
+
+    /// <summary>Draw one entity's feet as projected shoe boxes. Same depth
+    /// contract as <see cref="DrawGaitFeet"/>: <paramref name="inFront"/>
+    /// selects feet whose ground contact is at/below (true) or above
+    /// (false) the body's ground point, so far feet paint under the torso.
+    /// Uses the gait's per-foot positions, swing phase (tilt + lift), and
+    /// travel direction.</summary>
+    private void DrawFootBoxes(GaitAnimator gait, GaitConfig cfg, in FootBoxDims dims,
+        PrimitiveBatch batch, Camera camera, float elevation, float groundScreenY, bool inFront,
+        byte baseR, byte baseG, byte baseB)
+    {
+        var (dirX, dirY) = gait.Dir;
+        float latX = -dirY, latY = dirX;
+        // World direction that maps to screen-down = toward the viewer for
+        // ground-plane faces: a side face is visible when its outward
+        // normal has a positive dot with it.
+        float viewX = MathF.Sin(camera.Yaw), viewY = MathF.Cos(camera.Yaw);
+        bool frontVisible = dirX * viewX + dirY * viewY > 0f;
+        bool latVisible = latX * viewX + latY * viewY > 0f;
+
+        // Face brightness from the fixed light: sides dot into the light's
+        // xy component, the top face into its dominant up component.
+        float lightLen = MathF.Sqrt(LightX * LightX + LightY * LightY + LightZ * LightZ);
+        float Shade(float nx, float ny, float nz)
+        {
+            float d = (nx * LightX + ny * LightY + nz * LightZ) / lightLen;
+            return 0.50f + 0.55f * MathF.Max(0f, d);
+        }
+
+        for (int i = 0; i < gait.FootCount; i++)
+        {
+            ref var foot = ref gait.GetFoot(i);
+            float fe = BootElevation?.Invoke(foot.X, foot.Y) ?? elevation;
+            var ground = camera.WorldToScreen(foot.X, foot.Y, fe);
+            if ((ground.Y >= groundScreenY) != inFront)
+                continue;
+            float lift = foot.Swinging ? MathF.Sin(foot.T * MathF.PI) * cfg.LiftPx * camera.Zoom : 0f;
+            float tilt = foot.Swinging ? GaitAnimator.SwingTilt(foot.T) : 0f;
+
+            // Sole box: bottom corners at their own terrain heights.
+            DrawShoeBox(batch, camera, dims.Toe, dims.Heel, dims.HalfWidth, dims.BaseHeight,
+                dims.AnkleToe, dims.AnkleHeel, dims.AnkleHalfWidth, dims.AnkleHeight,
+                foot.X, foot.Y, dirX, dirY, latX, latY, elevation,
+                tilt, lift, frontVisible, latVisible, Shade,
+                baseR, baseG, baseB);
+        }
+    }
+
+    /// <summary>Project and draw one foot's two stacked boxes. The sole's
+    /// bottom corners sample the terrain at their own positions (sole lies
+    /// flush on the slope); the ankle sits on the sole's top corners. Tops
+    /// shear by tilt×BootTiltTan×corner-height along the travel direction.
+    /// Visible faces: two camera-facing sides + top, back-face culled by
+    /// the precomputed visibility flags.</summary>
+    private void DrawShoeBox(PrimitiveBatch batch, Camera camera,
+        float toe, float heel, float halfW, float baseH,
+        float ankToe, float ankHeel, float ankHalfW, float ankH,
+        float cx, float cy, float dirX, float dirY, float latX, float latY, float fallbackElev,
+        float tilt, float lift, bool frontVisible, bool latVisible,
+        Func<float, float, float, float> shade, byte baseR, byte baseG, byte baseB)
+    {
+        // Perimeter order (clockwise on the ground plane):
+        // 0: +toe +lat | 1: +toe −lat | 2: −heel −lat | 3: −heel +lat.
+        Span<float> lon = stackalloc float[4] { toe, toe, -heel, -heel };
+        Span<float> lat = stackalloc float[4] { halfW, -halfW, -halfW, halfW };
+
+        // Project all bottom + top corners of both boxes. Ground elevation
+        // per bottom corner makes the sole follow the tilt of the terrain.
+        Span<float> bx = stackalloc float[4], by = stackalloc float[4];
+        Span<float> groundElev = stackalloc float[4];
+        for (int c = 0; c < 4; c++)
+        {
+            bx[c] = cx + dirX * lon[c] + latX * lat[c];
+            by[c] = cy + dirY * lon[c] + latY * lat[c];
+            groundElev[c] = BootElevation?.Invoke(bx[c], by[c]) ?? fallbackElev;
+        }
+
+        // screen corners: sBase[k] = sole top, sBtm[k] = sole bottom,
+        // sAnk[k] = ankle top. Shear grows with corner height; lift applies
+        // to every projected point of this foot.
+        var sBtm = new (float X, float Y)[4];
+        var sBase = new (float X, float Y)[4];
+        var sAnk = new (float X, float Y)[4];
+        for (int c = 0; c < 4; c++)
+        {
+            var pb = camera.WorldToScreen(bx[c], by[c], groundElev[c]);
+            sBtm[c] = (pb.X, pb.Y - lift);
+            float baseShear = tilt * BootTiltTan * baseH;
+            var pt = camera.WorldToScreen(bx[c] + dirX * baseShear, by[c] + dirY * baseShear,
+                groundElev[c] + baseH);
+            sBase[c] = (pt.X, pt.Y - lift);
+            float ankShear = tilt * BootTiltTan * (baseH + ankH);
+            var pa = camera.WorldToScreen(bx[c] + dirX * ankShear, by[c] + dirY * ankShear,
+                groundElev[c] + baseH + ankH);
+            sAnk[c] = (pa.X, pa.Y - lift);
+        }
+
+        // Faces: two visible sides + top, in painter order (sides then top).
+        // Sole box sides: indices pair (c, c+1 mod 4) with the right winding
+        // from the perimeter; bottom corners first so the face gradient
+        // darkens toward the ground.
+        for (int s = 0; s < 2; s++)
+        {
+            int c0, c1;         // perimeter edge for this face
+            float nx, ny;
+            bool visible;
+            if (s == 0)
+            {
+                // +lon (toe) or −lon (heel) face: perimeter edges 0-1 / 2-3.
+                if (frontVisible) { c0 = 0; c1 = 1; nx = dirX; ny = dirY; }
+                else { c0 = 2; c1 = 3; nx = -dirX; ny = -dirY; }
+                visible = true;
+            }
+            else
+            {
+                // +lat or −lat face: perimeter edges 1-2 / 3-0.
+                if (latVisible) { c0 = 3; c1 = 0; nx = latX; ny = latY; }
+                else { c0 = 1; c1 = 2; nx = -latX; ny = -latY; }
+                visible = true;
+            }
+            float bright = shade(nx, ny, 0f);
+            // Sole side face spans bottom → sole top.
+            DrawBoxFace(batch, sBtm[c0], sBtm[c1], sBase[c1], sBase[c0], bright, baseR, baseG, baseB);
+            // Ankle side face spans sole top → ankle top (slightly inset
+            // footprint, but the same edge directions — the taper reads as
+            // the ankle's narrower silhouette overhanging nothing).
+            DrawBoxFace(batch, sBase[c0], sBase[c1], sAnk[c1], sAnk[c0], bright, baseR, baseG, baseB);
+        }
+
+        // Top faces last (they overlap the sides' upper edges).
+        float topBright = shade(0f, 0f, 1f);
+        DrawBoxFace(batch, sBase[0], sBase[1], sBase[2], sBase[3], topBright, baseR, baseG, baseB);
+        DrawBoxFace(batch, sAnk[0], sAnk[1], sAnk[2], sAnk[3], topBright, baseR, baseG, baseB);
+    }
+
+    /// <summary>Draw one quad face: an expanded dark outline behind, then a
+    /// vertical gradient (dark toward the bottom edge, bright toward the
+    /// top) tinted from the boot base color by the face brightness.</summary>
+    private void DrawBoxFace(PrimitiveBatch batch,
+        (float X, float Y) b0, (float X, float Y) b1,
+        (float X, float Y) t1, (float X, float Y) t0,
+        float bright, byte baseR, byte baseG, byte baseB)
+    {
+        // Outline: same quad scaled ~30% about its centroid, flat dark.
+        float mx = (b0.X + b1.X + t1.X + t0.X) * 0.25f;
+        float my = (b0.Y + b1.Y + t1.Y + t0.Y) * 0.25f;
+        const float expand = 1.30f;
+        _outlinePts.Clear();
+        _outlinePts.Add(new(b0.X + (b0.X - mx) * expand, b0.Y + (b0.Y - my) * expand));
+        _outlinePts.Add(new(b1.X + (b1.X - mx) * expand, b1.Y + (b1.Y - my) * expand));
+        _outlinePts.Add(new(t1.X + (t1.X - mx) * expand, t1.Y + (t1.Y - my) * expand));
+        _outlinePts.Add(new(t0.X + (t0.X - mx) * expand, t0.Y + (t0.Y - my) * expand));
+        batch.DrawScreenPolygon(_outlinePts, 42, 27, 13, 255);
+
+        // Gradient face: bottom corners dimmer, top corners brighter.
+        byte rLo = (byte)Math.Clamp(baseR * bright * 0.92f, 0, 255);
+        byte gLo = (byte)Math.Clamp(baseG * bright * 0.92f, 0, 255);
+        byte bLo = (byte)Math.Clamp(baseB * bright * 0.92f, 0, 255);
+        byte rHi = (byte)Math.Clamp(baseR * bright * 1.06f, 0, 255);
+        byte gHi = (byte)Math.Clamp(baseG * bright * 1.06f, 0, 255);
+        byte bHi = (byte)Math.Clamp(baseB * bright * 1.06f, 0, 255);
+        _facePts.Clear();
+        _facePts.Add((b0.X, b0.Y, rLo, gLo, bLo, 255));
+        _facePts.Add((b1.X, b1.Y, rLo, gLo, bLo, 255));
+        _facePts.Add((t1.X, t1.Y, rHi, gHi, bHi, 255));
+        _facePts.Add((t0.X, t0.Y, rHi, gHi, bHi, 255));
+        batch.DrawScreenPolygonGradient(_facePts);
+    }
+
     // Swing arc for the carried weapon-slot item (attack/chop/mine). Purely
     // visual state: TriggerPlayerSwing starts the arc, RenderPlayer animates
     // it over the duration.
@@ -247,48 +452,47 @@ public sealed class SpriteRenderer : IDisposable
             // lands at its own sampled terrain elevation. At rest both feet
             // plant on the heightmap, contouring slopes. Far-side feet draw
             // before the body quad, near-side feet after, so a boot on the far
-            // side never paints over the torso.
+            // side never paints over the torso. The player's boots are drawn
+            // as projected world-space shoe boxes (tapered, terrain-tilted,
+            // phase-tilted, face-shaded) — see DrawFootBoxes.
             bool swimming = waterDepth >= SwimDepth && bootTex != 0;
             float bootHalf = half * (4f / 32f);
             if (!swimming)
             {
                 _playerGait.Update(player.WorldX, player.WorldY, velX, velY, dt);
-                if (bootTex != 0)
-                    DrawGaitFeet(_playerGait, GaitConfigs.Player, bootHalf, bootTex,
-                        batch, camera, elevation, screen.Y, inFront: false);
+                // Boot base color matches the player/boot.png leather tone.
+                DrawFootBoxes(_playerGait, GaitConfigs.Player, PlayerBoot,
+                    batch, camera, elevation, screen.Y, inFront: false, 139, 90, 43);
             }
 
             batch.DrawTexturedScreenQuad(cx, cy, half, half, bodyTex, 255, 255, 255);
 
-            if (bootTex != 0)
+            if (bootTex != 0 && swimming)
             {
-                if (swimming)
+                // Swimming: the feet can't reach the bottom, so the gait
+                // stops. Boots dangle under the body at the body's own
+                // elevation and flutter-kick while moving; pinning them to
+                // the stance keeps the gait sane when back on land.
+                float pa = mdx == 0f && mdy == 0f ? MathF.PI / 2f : MathF.Atan2(mdy, mdx);
+                float px = -MathF.Sin(pa), py = MathF.Cos(pa);  // left-perpendicular
+                float kick = moving
+                    ? MathF.Sin(_playerAnimTime * 10f) * KickPx * camera.Zoom
+                    : 0f;
+                _playerGait.PinToStance(player.WorldX, player.WorldY, px, py);
+                for (int i = 0; i < _playerGait.FootCount; i++)
                 {
-                    // Swimming: the feet can't reach the bottom, so the gait
-                    // stops. Boots dangle under the body at the body's own
-                    // elevation and flutter-kick while moving; pinning them to
-                    // the stance keeps the gait sane when back on land.
-                    float pa = mdx == 0f && mdy == 0f ? MathF.PI / 2f : MathF.Atan2(mdy, mdx);
-                    float px = -MathF.Sin(pa), py = MathF.Cos(pa);  // left-perpendicular
-                    float kick = moving
-                        ? MathF.Sin(_playerAnimTime * 10f) * KickPx * camera.Zoom
-                        : 0f;
-                    _playerGait.PinToStance(player.WorldX, player.WorldY, px, py);
-                    for (int i = 0; i < _playerGait.FootCount; i++)
-                    {
-                        ref var foot = ref _playerGait.GetFoot(i);
-                        var fos = camera.WorldToScreen(foot.X, foot.Y, elevation);
-                        // Left/right boots kick opposite (index 0 = left).
-                        float side = i == 0 ? -1f : 1f;
-                        batch.DrawTexturedScreenQuad(fos.X, fos.Y - bootHalf - kick * side,
-                            bootHalf, bootHalf, bootTex, 255, 255, 255);
-                    }
+                    ref var foot = ref _playerGait.GetFoot(i);
+                    var fos = camera.WorldToScreen(foot.X, foot.Y, elevation);
+                    // Left/right boots kick opposite (index 0 = left).
+                    float side = i == 0 ? -1f : 1f;
+                    batch.DrawTexturedScreenQuad(fos.X, fos.Y - bootHalf - kick * side,
+                        bootHalf, bootHalf, bootTex, 255, 255, 255);
                 }
-                else
-                {
-                    DrawGaitFeet(_playerGait, GaitConfigs.Player, bootHalf, bootTex,
-                        batch, camera, elevation, screen.Y, inFront: true);
-                }
+            }
+            else if (!swimming)
+            {
+                DrawFootBoxes(_playerGait, GaitConfigs.Player, PlayerBoot,
+                    batch, camera, elevation, screen.Y, inFront: true, 139, 90, 43);
             }
         }
         else if (tex != 0)

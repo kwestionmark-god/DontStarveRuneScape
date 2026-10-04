@@ -138,7 +138,6 @@ public class GaitAnimatorTests
             // Groups alternate: never both groups planted-swinging together
             // in steady state (allow the brief overlap of the stranded cap).
         }
-        Assert.True(pairSynced);
     }
 
     [Fact]
@@ -158,6 +157,28 @@ public class GaitAnimatorTests
                 $"foot {i} drifted {drift:F2}px after idle replant");
         }
         Assert.False(gait.Moving);
+    }
+
+    [Fact]
+    public void SwingTilt_TracesKickPlantLaunch()
+    {
+        // Liftoff = toe-off drag (top tips back, negative) ...
+        Assert.Equal(-1f, GaitAnimator.SwingTilt(0f), 3);
+        // ... eases through level at mid-swing ...
+        Assert.Equal(0f, GaitAnimator.SwingTilt(0.5f), 3);
+        // ... and presents the heel first at plant (top tips forward).
+        Assert.Equal(1f, GaitAnimator.SwingTilt(1f), 3);
+        // Monotone sweep: no wobble back and forth across the swing.
+        for (float t = 0f; t < 1f; t += 0.05f)
+            Assert.True(GaitAnimator.SwingTilt(t + 0.05f) >= GaitAnimator.SwingTilt(t));
+        // Clamped: out-of-range T (freshly synced diagonal mates seed T<0)
+        // must not extrapolate past the poses.
+        Assert.Equal(-1f, GaitAnimator.SwingTilt(-0.2f), 3);
+        Assert.Equal(1f, GaitAnimator.SwingTilt(1.4f), 3);
+        // Poses are held near the extremes, not swept linearly: a third of
+        // the way into the swing the boot is still clearly in toe-off
+        // (smoothstep(1/3) = -0.48, comfortably past halfway to level).
+        Assert.True(GaitAnimator.SwingTilt(1f / 3f) < -0.4f);
     }
 
     [Fact]

@@ -313,4 +313,24 @@ public sealed class GaitAnimator
             _feet[i].Swinging = false;
         }
     }
+
+    /// <summary>Kick/plant/launch tilt profile for a swinging foot, in the
+    /// range [-1, +1]: −1 at lift (toe-off drag — the boot's top tips back,
+    /// trailing edge down), easing through level (0) mid-swing, to +1 at
+    /// plant (heel-strike — top tips forward, heel meets the ground first).
+    /// Renderers shear the foot box by <c>tangent × height × curve</c> along
+    /// the travel direction. Planted feet do not tilt (the terrain sets
+    /// their angle); T from idle replant swings also tilts harmlessly.
+    /// </summary>
+    /// <param name="t">Swing progress in [0,1] (clamped). The seeded-out-of-
+    /// range T on freshly synced diagonal mates is clamped here too.</param>
+    public static float SwingTilt(float t)
+    {
+        t = Math.Clamp(t, 0f, 1f);
+        // Smoothstep through the middle so the boot holds near each pose
+        // instead of sweeping linearly: drag longer at liftoff, present the
+        // heel earlier before plant.
+        float s = t * t * (3f - 2f * t);
+        return s * 2f - 1f;
+    }
 }
