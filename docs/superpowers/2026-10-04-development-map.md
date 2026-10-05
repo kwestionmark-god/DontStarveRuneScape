@@ -40,11 +40,13 @@ roadmap is unchecked.
 
 - **Phase 3 — structure upgrades.** The only open phase-3 checkbox:
   `- [ ] Add structure upgrades.`
-- **Phase 4 — worker schedules and task selection.** Roadmap line, still
-  unchecked: "Give workers schedules and simple task selection, with
-  sensible fallbacks." The logistics slice (task board, item
-  reservations, hauling) is the concrete first cut of this line. It is
-  studied, not built: no haul/task-board code is in `src/` yet.
+- **Phase 4 — worker schedules and task selection.** Roadmap line: "Give
+  workers schedules and simple task selection, with sensible fallbacks."
+  Its logistic first cut shipped 2026-10-04 (`c7a9b6d`): task board with
+  synchronous tile reservations, haul-home carrying, deposit reclaim,
+  interruption-safe release, carried-goods persistence. Remaining on the
+  line: schedules themselves (time-of-day work rhythms) and the broader
+  task-selection fallbacks beyond gather/haul.
 - **Phase 4 — defense and trade wiring, remainder.** Roadmap line, still
   open: "Connect threats, caves, factions, and diplomacy to settlement
   defense and trade without making ordinary play feel like an RTS."
@@ -76,11 +78,11 @@ priority; stage 3 waits behind them. One ordered list, below.
 Dependency order, then pillar balance. Each item names how the design
 law shapes it.
 
-1. **Logistics slice — task board, reservations, hauling.** First cut of
-   the open phase-4 schedules line, and the arc already designed.
-   Pillar: MC. The design law shapes it: hauling moves stock the colony
-   already owns; it does not spawn resources or replace player gathering.
-2. **Structure upgrades.** Closes the last phase-3 checkbox. Pillars: RS
+~~1. **Logistics slice — task board, reservations, hauling.**~~ **Done
+   2026-10-04 (`c7a9b6d`).** First cut of the open phase-4 schedules line.
+   Pillar: MC. Per the design law, hauling moves stock the colony already
+   owns; it does not spawn resources or replace player gathering.
+2. **Structure upgrades** — NEXT. Closes the last phase-3 checkbox. Pillars: RS
    (player-gated recipes and skill) and DS (materials the player helped
    gather). The design law: upgrades track player progression; shelter
    mitigates weather, it does not erase it.

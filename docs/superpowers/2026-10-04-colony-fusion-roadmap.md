@@ -323,3 +323,10 @@ Structure upgrades remain future work.
 - Worker paths account for elevation changes and reject steps above the shared
   cliff threshold. Cave expeditions use the cave's local map and ore; settlement
   buildings and routes between the surface and cave are not modeled yet.
+
+- 2026-10-04: Logistics slice (first cut of the phase-4 schedules line):
+  ColonyTaskBoard with synchronous gather-tile reservations (no two workers
+  on one node), haul-home — workers carry harvested goods to the stockpile
+  instead of teleporting, deposit reclaims space incrementally, rest
+  interruption releases claims without leaking, carried goods persist in NPC
+  snapshots, dashboard roster shows hauling status. 226/226 tests.
