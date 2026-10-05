@@ -190,7 +190,18 @@ public sealed class PrimitiveBatch : IDisposable
     /// Corners are ordered: bottom-left, bottom-right, top-right, top-left.
     /// </summary>
     public void DrawScreenQuadCornersTextured(float blX, float blY, float brX, float brY, float trX, float trY, float tlX, float tlY,
-        uint texture, byte r, byte g, byte b, byte a = 255)
+        uint texture, byte r, byte g, byte b, byte a = 255) =>
+        DrawScreenQuadCornersTexturedUSpan(blX, blY, brX, brY, trX, trY, tlX, tlY, texture, r, g, b, a, 0f, 1f);
+
+    /// <summary>
+    /// Draw a textured quadrilateral from four screen-space corners with an
+    /// explicit U range (used by the crossed-billboard half-planes, which
+    /// texture each half of a plane with the matching half of the sprite).
+    /// Corners are ordered: bottom-left, bottom-right, top-right, top-left;
+    /// u0 maps at the left corners, u1 at the right.
+    /// </summary>
+    public void DrawScreenQuadCornersTexturedUSpan(float blX, float blY, float brX, float brY, float trX, float trY, float tlX, float tlY,
+        uint texture, byte r, byte g, byte b, byte a, float u0, float u1)
     {
         if (!_textureMode || _boundTexture != texture) Flush();
 
@@ -202,12 +213,12 @@ public sealed class PrimitiveBatch : IDisposable
         float cb = b / 255f;
         float ca = a / 255f;
 
-        AddVertex(ToNdcX(blX), ToNdcY(blY), 0f, 1f, cr, cg, cb, ca);
-        AddVertex(ToNdcX(brX), ToNdcY(brY), 1f, 1f, cr, cg, cb, ca);
-        AddVertex(ToNdcX(trX), ToNdcY(trY), 1f, 0f, cr, cg, cb, ca);
-        AddVertex(ToNdcX(blX), ToNdcY(blY), 0f, 1f, cr, cg, cb, ca);
-        AddVertex(ToNdcX(trX), ToNdcY(trY), 1f, 0f, cr, cg, cb, ca);
-        AddVertex(ToNdcX(tlX), ToNdcY(tlY), 0f, 0f, cr, cg, cb, ca);
+        AddVertex(ToNdcX(blX), ToNdcY(blY), u0, 1f, cr, cg, cb, ca);
+        AddVertex(ToNdcX(brX), ToNdcY(brY), u1, 1f, cr, cg, cb, ca);
+        AddVertex(ToNdcX(trX), ToNdcY(trY), u1, 0f, cr, cg, cb, ca);
+        AddVertex(ToNdcX(blX), ToNdcY(blY), u0, 1f, cr, cg, cb, ca);
+        AddVertex(ToNdcX(trX), ToNdcY(trY), u1, 0f, cr, cg, cb, ca);
+        AddVertex(ToNdcX(tlX), ToNdcY(tlY), u0, 0f, cr, cg, cb, ca);
 
         _textureMode = true;
         _boundTexture = texture;

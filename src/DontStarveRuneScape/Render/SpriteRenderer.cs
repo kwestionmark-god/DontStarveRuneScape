@@ -160,6 +160,8 @@ public sealed class SpriteRenderer : IDisposable
     private const float KickPx = 3f;        // swim flutter-kick amplitude, screen px
     private readonly ConditionalWeakTable<object, GaitAnimator> _gaitRigs = new();
     private readonly GaitAnimator _playerGait = new(GaitConfigs.Player);
+    // Crossed-billboard half-planes, sorted by view depth every frame.
+    private readonly BillQuad[] _bodyHalves = new BillQuad[4];
     private readonly TurnLean _playerLean = new();
 
     /// <summary>The gait rig attached to an entity (player, monster, NPC):
@@ -225,6 +227,20 @@ public sealed class SpriteRenderer : IDisposable
     // Convert before adding height, or the boots render as stilts (×12.8).
     private const float ElevPerWorldPx = 1f / (Constants.ZScale * Constants.TerrainHeightScale);
 
+    // Body billboard height in world px: 88 reads as the legacy 44·zoom
+    // screen px at the default ~30° pitch (the projection foreshortens
+    // verticals by sinPitch). The foreshortening is tempered by
+    // BodyPitchResponse below rather than applied raw: every other sprite
+    // in the world (trees, NPCs, resources) keeps a constant screen size,
+    // so a fully honest billboard flattens to a pancake at near-horizon
+    // pitch; a 0.75–1.3 clamp gives the 3D read without breaking
+    // readability.
+    private const float BodyHeightWorld = 88f;
+    private const float BodyPitchResponseMin = 0.75f;
+    private const float BodyPitchResponseMax = 1.30f;
+    // Reference pitch = the camera's default (~30°).
+    private const float BodyPitchResponseRef = 0.5f; // sin(30°)
+
     // Pooled cell buffers (every visible cell redraws them each frame).
     private readonly System.Collections.Generic.List<(float X, float Y, byte R, byte G, byte B, byte A)> _facePts = new(4);
     private readonly System.Collections.Generic.List<Silk.NET.Maths.Vector2D<float>> _outlinePts = new(4);
@@ -243,25 +259,30 @@ public sealed class SpriteRenderer : IDisposable
     private readonly (float SX, float SY)[] _domeRim = new (float SX, float SY)[(BootDome.Rings + 1) * BootDome.Segments];
     private readonly bool[] _domeCellVis = new bool[BootDome.Rings * BootDome.Segments];
 
-    /// <summary>Draw one entity's feet as projected spherical domes. Same
-    /// depth contract as <see cref="DrawGaitFeet"/>: <paramref name="inFront"/>
-    /// selects feet whose ground contact is at/below (true) or above
-    /// (false) the body's ground point, so far feet paint under the torso.
-    /// Uses the gait's per-foot positions, swing phase (tilt + roll + lift),
-    /// and travel direction.</summary>
+    /// <summary>Draw one entity's feet as projected spherical domes.
+    /// <paramref name="inFront"/> selects which side of the body to draw
+    /// for: a foot is in front when it is closer to the camera than the
+    /// body's billboard plane — i.e. its horizontal offset from the ground
+    /// point (<paramref name="bodyWX"/>/Y) along the view-yaw direction is
+    /// positive — and behind otherwise, so a far-side foot never paints
+    /// over the torso. (The body is a vertical yaw-facing billboard, so the
+    /// side-of-plane test is that horizontal dot product; elevation does
+    /// not enter it.) Uses the gait's per-foot positions, swing phase
+    /// (tilt + roll + lift), and travel direction.</summary>
     private void DrawBootDomes(GaitAnimator gait, GaitConfig cfg, in FootDomeDims dims,
-        PrimitiveBatch batch, Camera camera, float elevation, float groundScreenY, bool inFront,
+        PrimitiveBatch batch, Camera camera, float elevation, float bodyWX, float bodyWY, bool inFront,
         byte baseR, byte baseG, byte baseB)
     {
         var (dirX, dirY) = gait.Dir;
         float latX = -dirY, latY = dirX;
+        float sinYaw = MathF.Sin(camera.Yaw), cosYaw = MathF.Cos(camera.Yaw);
 
         for (int i = 0; i < gait.FootCount; i++)
         {
             ref var foot = ref gait.GetFoot(i);
-            float fe = BootElevation?.Invoke(foot.X, foot.Y) ?? elevation;
-            var ground = camera.WorldToScreen(foot.X, foot.Y, fe);
-            if ((ground.Y >= groundScreenY) != inFront)
+            // In front of the body plane ⇔ toward the camera along the yaw.
+            float depth = (foot.X - bodyWX) * sinYaw + (foot.Y - bodyWY) * cosYaw;
+            if ((depth > 0f) != inFront)
                 continue;
             float lift = foot.Swinging ? MathF.Sin(foot.T * MathF.PI) * cfg.LiftPx * camera.Zoom : 0f;
             float tilt = foot.Swinging ? GaitAnimator.SwingTilt(foot.T) : 0f;
@@ -275,6 +296,92 @@ public sealed class SpriteRenderer : IDisposable
             DrawBootDome(batch, camera, dims, foot.X, foot.Y, dirX, dirY, latX, latY,
                 elevation, tilt, roll, lift, baseR, baseG, baseB);
         }
+    }
+
+    /// <summary>An axis-described projected quad: four screen corners
+    /// (bottom-left, bottom-right, top-right, top-left) plus its center and
+    /// half extents, for anchored overlays (carried gear, waterline).</summary>
+    private struct BillQuad
+    {
+        public float BLx, BLy, BRx, BRy, TRx, TRy, TLx, TLy;
+        public float Cx, Cy, HalfW, HalfH;
+        // UV horizontal range (for half-planes): full quad is 0..1.
+        public float U0 = 0f, U1 = 1f;
+        // View depth of the quad's center, for back-to-front sorting of the
+        // crossed halves (larger = closer to the camera = drawn later).
+        public float Depth;
+
+        public BillQuad() { }
+    }
+
+    /// <summary>Project one plane of the body as a world-space vertical
+    /// billboard quad standing on the entity's ground point, spanning
+    /// ±<paramref name="halfWidthWorld"/> world px along the world axis
+    /// (<paramref name="ax"/>, <paramref name="ay"/>) and
+    /// <paramref name="heightWorld"/> world px up from the ground. Corners
+    /// pass through <see cref="Camera.WorldToScreen"/> — the same projection
+    /// the boot domes use — so the body foreshortens with pitch and anchors
+    /// to terrain elevation. The plane is STATIC: it keeps its world
+    /// orientation while the camera orbits (a quad seen edge-on collapses
+    /// to zero width, which is the classic crossed-billboard look). All
+    /// four corners then rotate about the projected ground point by
+    /// <paramref name="lean"/> (the turn-lean pivot at the feet).</summary>
+    /// <summary>Project a span of a body plane: <paramref name="span0"/>/
+    /// <paramref name="span1"/> are fractions along the plane's axis in
+    /// [-1, +1] (the full plane is −1..+1; the crossed billboards split each
+    /// plane at the fold into halves). The UV range follows the span so the
+    /// sprite's matching strip maps onto the half-quad.
+    /// <paramref name="Depth"/> is the quad center's view depth
+    /// (along view yaw: larger = closer) for back-to-front sorting.</summary>
+    private static BillQuad ProjectBodyBillboard(Camera camera, float wx, float wy,
+        float groundElev, float halfWidthWorld, float heightWorld, float lean,
+        float ax, float ay, float span0 = -1f, float span1 = 1f)
+    {
+        // Tempered pitch foreshortening: nominal screen height is 44·zoom at
+        // the reference pitch; tilting stretches/squashes within a clamp so
+        // the sprite reads 3D against the terrain but never pancakes (see
+        // BodyPitchResponseMin/Max). heightWorld is the nominal value at the
+        // reference pitch; divide the foreshortening back out of it.
+        float response = Math.Clamp(MathF.Sin(camera.Pitch) / BodyPitchResponseRef,
+            BodyPitchResponseMin, BodyPitchResponseMax);
+        heightWorld *= response / (MathF.Sin(camera.Pitch) / BodyPitchResponseRef);
+        float topElev = groundElev + heightWorld * ElevPerWorldPx;
+        var q = new BillQuad();
+        q.U0 = (span0 + 1f) * 0.5f;
+        q.U1 = (span1 + 1f) * 0.5f;
+        var p = camera.WorldToScreen(wx + ax * halfWidthWorld * span0, wy + ay * halfWidthWorld * span0, groundElev);
+        (q.BLx, q.BLy) = (p.X, p.Y);
+        p = camera.WorldToScreen(wx + ax * halfWidthWorld * span1, wy + ay * halfWidthWorld * span1, groundElev);
+        (q.BRx, q.BRy) = (p.X, p.Y);
+        p = camera.WorldToScreen(wx + ax * halfWidthWorld * span1, wy + ay * halfWidthWorld * span1, topElev);
+        (q.TRx, q.TRy) = (p.X, p.Y);
+        p = camera.WorldToScreen(wx + ax * halfWidthWorld * span0, wy + ay * halfWidthWorld * span0, topElev);
+        (q.TLx, q.TLy) = (p.X, p.Y);
+
+        // Turn lean pivots the whole sprite about the projected ground
+        // point (the midpoint of the base edge).
+        float gx = (q.BLx + q.BRx) * 0.5f, gy = (q.BLy + q.BRy) * 0.5f;
+        float lc = MathF.Cos(lean), ls = MathF.Sin(lean);
+        (float, float) Lean(float x, float y) =>
+            (gx + (x - gx) * lc - (y - gy) * ls, gy + (x - gx) * ls + (y - gy) * lc);
+        (q.BLx, q.BLy) = Lean(q.BLx, q.BLy);
+        (q.BRx, q.BRy) = Lean(q.BRx, q.BRy);
+        (q.TRx, q.TRy) = Lean(q.TRx, q.TRy);
+        (q.TLx, q.TLy) = Lean(q.TLx, q.TLy);
+
+        q.Cx = (q.BLx + q.BRx + q.TRx + q.TLx) * 0.25f;
+        q.Cy = (q.BLy + q.BRy + q.TRy + q.TLy) * 0.25f;
+        q.HalfW = (MathF.Abs(q.BRx - q.BLx) + MathF.Abs(q.TRx - q.TLx)) * 0.25f;
+        q.HalfH = (MathF.Abs(q.BLy - q.TLy) + MathF.Abs(q.BRy - q.TRy)) * 0.25f;
+
+        // View depth of the quad center (view yaw direction in world
+        // coords, matching DrawBootDomes' sorting): larger = nearer the
+        // camera = paints later.
+        float sinYaw = MathF.Sin(camera.Yaw), cosYaw = MathF.Cos(camera.Yaw);
+        float mid = (span0 + span1) * 0.5f;
+        float mwx = wx + ax * halfWidthWorld * mid, mwy = wy + ay * halfWidthWorld * mid;
+        q.Depth = mwx * sinYaw + mwy * cosYaw;
+        return q;
     }
 
     /// <summary>Project and draw one foot's dome. Each grid vertex samples
@@ -449,17 +556,40 @@ public sealed class SpriteRenderer : IDisposable
         bool swimming = waterDepth >= SwimDepth && bootTex != 0;
         float lean = swimming ? _playerLean.Update(0f, 0f, dt)
                               : _playerLean.Update(velX, velY, dt);
-        // Rotating the body center about the ground point, then the quad
-        // about its (already rotated) center, is exactly a pivot at the
-        // feet — same convention as DrawRotatedTexturedQuad's Rot().
-        float leanCos = MathF.Cos(lean), leanSin = MathF.Sin(lean);
-        float lcx = screen.X + (cx - screen.X) * leanCos - (cy - screen.Y) * leanSin;
-        float lcy = screen.Y + (cx - screen.X) * leanSin + (cy - screen.Y) * leanCos;
+
+        // The body is a classic crossed billboard riding the travel axis:
+        // two static planes at 90° to each other — one ALONG the current
+        // gait direction (the side view), one ACROSS it (the front/back
+        // view) — intersecting on the vertical line above the ground point
+        // and turning with the character like the boots do. Both pass
+        // through the same camera projection as the boot domes, so the
+        // whole figure is one rigid 3D paper-doll. Each plane is split at
+        // the fold into its two halves, and the four half-quads are painted
+        // strictly back-to-front by view depth — neither plane ever wins
+        // over the other; the camera decides which half-arm is nearest.
+        // The more camera-facing full quad anchors gear and the waterline.
+        var (gdirX, gdirY) = _playerGait.Dir;
+        var quadFull = ProjectBodyBillboard(camera, player.WorldX, player.WorldY,
+            elevation, HalfWidth, BodyHeightWorld, lean, gdirX, gdirY);
+        var quadFull2 = ProjectBodyBillboard(camera, player.WorldX, player.WorldY,
+            elevation, HalfWidth, BodyHeightWorld, lean, -gdirY, gdirX);
+        var bodyQuad = quadFull.HalfW >= quadFull2.HalfW ? quadFull : quadFull2;
+        _bodyHalves[0] = ProjectBodyBillboard(camera, player.WorldX, player.WorldY,
+            elevation, HalfWidth, BodyHeightWorld, lean, gdirX, gdirY, -1f, 0f);
+        _bodyHalves[1] = ProjectBodyBillboard(camera, player.WorldX, player.WorldY,
+            elevation, HalfWidth, BodyHeightWorld, lean, gdirX, gdirY, 0f, 1f);
+        _bodyHalves[2] = ProjectBodyBillboard(camera, player.WorldX, player.WorldY,
+            elevation, HalfWidth, BodyHeightWorld, lean, -gdirY, gdirX, -1f, 0f);
+        _bodyHalves[3] = ProjectBodyBillboard(camera, player.WorldX, player.WorldY,
+            elevation, HalfWidth, BodyHeightWorld, lean, -gdirY, gdirX, 0f, 1f);
+        Array.Sort(_bodyHalves, (a, b) => a.Depth.CompareTo(b.Depth));
+        float lcx = bodyQuad.Cx, lcy = bodyQuad.Cy;
 
         // Carried cape renders behind the body.
         var cape = player.Gear?.GetEquipped("cape");
         if (cape != null)
-            RenderCarried(batch, cape, lcx, lcy, half, player.Facing, behind: true, swing: 0f, lean);
+            RenderCarried(batch, cape, lcx, lcy, bodyQuad.HalfW,
+                player.Facing, behind: true, swing: 0f, lean, halfV: bodyQuad.HalfH);
 
         DrawShadow(batch, screen.X, screen.Y, half, 220);
 
@@ -481,13 +611,18 @@ public sealed class SpriteRenderer : IDisposable
                     lean * TurnLean.StanceShiftPerRad);
                 // Boot base color matches the player/boot.png leather tone.
                 DrawBootDomes(_playerGait, GaitConfigs.Player, PlayerBoot,
-                    batch, camera, elevation, screen.Y, inFront: false, 139, 90, 43);
+                    batch, camera, elevation, player.WorldX, player.WorldY,
+                    inFront: false, 139, 90, 43);
             }
 
-            // The body pivots about the planted feet by the turn lean
-            // (lcx/lcy is the center already rotated about the ground
-            // point); the boots below stay grounded in world space.
-            DrawRotatedTexturedQuad(batch, lcx, lcy, half, half, lean, bodyTex);
+            // Draw the cross: four half-quads back-to-front by view depth.
+            // Halves only meet at the fold line, so painter order is exact
+            // and stable under every yaw — no flicker as planes cross.
+            foreach (var hq in _bodyHalves)
+                batch.DrawScreenQuadCornersTexturedUSpan(
+                    hq.BLx, hq.BLy, hq.BRx, hq.BRy,
+                    hq.TRx, hq.TRy, hq.TLx, hq.TLy,
+                    bodyTex, 255, 255, 255, 255, hq.U0, hq.U1);
 
             if (bootTex != 0 && swimming)
             {
@@ -514,7 +649,8 @@ public sealed class SpriteRenderer : IDisposable
             else if (!swimming)
             {
                 DrawBootDomes(_playerGait, GaitConfigs.Player, PlayerBoot,
-                    batch, camera, elevation, screen.Y, inFront: true, 139, 90, 43);
+                    batch, camera, elevation, player.WorldX, player.WorldY,
+                    inFront: true, 139, 90, 43);
             }
         }
         else if (tex != 0)
@@ -528,17 +664,19 @@ public sealed class SpriteRenderer : IDisposable
 
         // Carried equipment in front of the body: the weapon-slot item at the
         // leading hand (swinging during actions), armor overlays by slot.
-        // Rides the leaned body center so gear banks with the torso.
+        // Rides the projected billboard center so gear banks with the torso.
         var gear = player.Gear;
         if (gear != null)
         {
             if (gear.Weapon != null)
-                RenderCarried(batch, gear.Weapon, lcx, lcy, half, player.Facing, behind: false, swing, lean);
+                RenderCarried(batch, gear.Weapon, lcx, lcy, bodyQuad.HalfW,
+                    player.Facing, behind: false, swing, lean, halfV: bodyQuad.HalfH);
             foreach (var slotName in CarriedSlots)
             {
                 var item = gear.GetEquipped(slotName);
                 if (item != null)
-                    RenderCarried(batch, item, lcx, lcy, half, player.Facing, behind: false, swing: 0f, lean);
+                    RenderCarried(batch, item, lcx, lcy, bodyQuad.HalfW,
+                        player.Facing, behind: false, swing: 0f, lean, halfV: bodyQuad.HalfH);
             }
         }
 
@@ -547,9 +685,10 @@ public sealed class SpriteRenderer : IDisposable
         if (waterDepth > 0.2f)
         {
             float frac = Math.Clamp(waterDepth / 2.6f, 0f, 0.45f);
-            float stripHalf = half * frac;
+            float stripHalf = bodyQuad.HalfH * frac;
             byte a = (byte)Math.Clamp(45 + waterDepth * 22f, 0f, 100f);
-            batch.DrawScreenQuad(cx, cy + half - stripHalf, half * 0.6f, stripHalf, 70, 130, 195, a);
+            batch.DrawScreenQuad(lcx, lcy + bodyQuad.HalfH - stripHalf,
+                bodyQuad.HalfW * 0.6f, stripHalf, 70, 130, 195, a);
         }
     }
 
@@ -574,8 +713,11 @@ public sealed class SpriteRenderer : IDisposable
     };
 
     private void RenderCarried(PrimitiveBatch batch, Data.GearItem item, float cx, float cy, float half,
-        float facing, bool behind, float swing, float lean = 0f)
+        float facing, bool behind, float swing, float lean = 0f, float halfV = 0f)
     {
+        // halfV is the billboard's vertical half extent (pitch-foreshortened),
+        // used for dy mounts; horizontal mounts and item size use half.
+        if (halfV <= 0f) halfV = half;
         // Sprite: catalog display key first, then the gear.json key, then the
         // item id — GetSpriteTexture caches misses, so fallbacks are free.
         var display = Data.ItemCatalog.Get(item.Id);
@@ -596,7 +738,7 @@ public sealed class SpriteRenderer : IDisposable
         if (behind)
         {
             // Cape: hangs off the trailing side, mirrored with the facing.
-            var (bx, by) = At(-facing * dx * half, dy * half);
+            var (bx, by) = At(-facing * dx * half, dy * halfV);
             DrawRotatedTexturedQuad(batch, bx, by, itemHalf, itemHalf, lean, tex,
                 mirror: facing < 0);
             return;
@@ -612,7 +754,7 @@ public sealed class SpriteRenderer : IDisposable
             // The swing arc mirrors with the facing; the turn lean adds on
             // top in screen space (never mirrored).
             float angle = angleDeg * (MathF.PI / 180f) * facing + lean;
-            var (pivotX, pivotY) = At(facing * dx * half, dy * half);
+            var (pivotX, pivotY) = At(facing * dx * half, dy * halfV);
             float lever = itemHalf * 0.45f;
             float itemX = pivotX + lever * MathF.Sin(angle);
             float itemY = pivotY - lever * MathF.Cos(angle);
@@ -640,7 +782,7 @@ public sealed class SpriteRenderer : IDisposable
 
         // Armor overlays: fixed slot position, mirrored with the facing,
         // banking with the body's turn lean.
-        var (px, py) = At(facing * dx * half, dy * half);
+        var (px, py) = At(facing * dx * half, dy * halfV);
         DrawRotatedTexturedQuad(batch, px, py, itemHalf, itemHalf, lean, tex,
             mirror: facing < 0);
     }
