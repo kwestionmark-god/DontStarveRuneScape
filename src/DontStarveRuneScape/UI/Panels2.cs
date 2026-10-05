@@ -2012,6 +2012,8 @@ public sealed class DashboardPanel
                     jobLabel = npc.ColonyRestStatus == "Resting" ? "resting" : "seeking rest";
                 else if (npc.ColonyRest <= 25f)
                     jobLabel = "exhausted";
+                else if (npc.CarriedQuantity > 0 && !string.IsNullOrEmpty(npc.CarriedItemId))
+                    jobLabel = $"hauling {npc.CarriedQuantity} {npc.CarriedItemId}";
                 byte needColor = npc.ColonyNeedStatus == "Starving" ? (byte)220
                     : npc.ColonyNeedStatus == "Hungry" ? (byte)210 : (byte)150;
                 string needAndHealth = $"{(npc.ColonyNeedStatus == "Fed" ? "fed" : npc.ColonyNeedStatus.ToLowerInvariant())} {npc.Health}hp";

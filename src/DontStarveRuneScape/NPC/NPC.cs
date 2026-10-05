@@ -27,6 +27,11 @@ public abstract class Npc
     /// <summary>Rest reserve from 0 (exhausted) to 100 (rested).</summary>
     public float ColonyRest { get; set; } = 100f;
     public string ColonyRestStatus { get; set; } = "Rested";
+    /// <summary>Goods a worker is hauling to the settlement stockpile.
+    /// Persisted so a mid-haul save loses nothing.</summary>
+    public string? CarriedItemId { get; set; }
+    public int CarriedQuantity { get; set; }
+    public string CarryStatus { get; set; } = "";
     public int Health { get; set; } = 100;
     public int MaxHealth { get; set; } = 100;
     public List<string> AvailableQuests { get; set; } = [];

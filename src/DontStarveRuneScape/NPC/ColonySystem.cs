@@ -20,6 +20,9 @@ public sealed class ColonySystem : IItemStorage
     public Dictionary<string, int> Stockpile { get; } = [];
     public int StoredUnits => Stockpile.Values.Sum();
     public int FreeCapacity => Math.Max(0, StorageCapacity - StoredUnits);
+    /// <summary>Shared worker task list with reservations. Runtime-only:
+    /// tasks re-derive from the live world after a load.</summary>
+    public ColonyTaskBoard TaskBoard { get; } = new();
 
     public bool FoundAt(float worldX, float worldY, TileMap? world)
     {

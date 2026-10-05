@@ -137,6 +137,8 @@ public sealed class NPCSystem
                 RecruitBehavior = n.RecruitBehavior,
                 ColonyHunger = n.ColonyHunger,
                 ColonyRest = n.ColonyRest,
+                CarriedItemId = n.CarriedItemId,
+                CarriedQuantity = n.CarriedQuantity,
             })
             .ToArray();
         return snapshot;
@@ -171,6 +173,9 @@ public sealed class NPCSystem
                     : npc.ColonyRest <= 75f ? "Weary" : "Rested";
                 npc.ColonyNeedStatus = npc.ColonyHunger <= 15f ? "Starving"
                     : npc.ColonyHunger <= 35f ? "Hungry" : "Fed";
+                npc.CarriedItemId = string.IsNullOrWhiteSpace(n.CarriedItemId) ? null : n.CarriedItemId;
+                npc.CarriedQuantity = Math.Max(0, n.CarriedQuantity);
+                if (npc.CarriedQuantity == 0) npc.CarriedItemId = null;
                 NPCs.Add(npc);
             }
         }

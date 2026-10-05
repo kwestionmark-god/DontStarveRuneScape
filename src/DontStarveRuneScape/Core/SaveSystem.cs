@@ -416,6 +416,8 @@ public sealed class NPCDataSnapshot
     public string? RecruitBehavior { get; set; }
     public float ColonyHunger { get; set; } = 100f;
     public float ColonyRest { get; set; } = 100f;
+    public string? CarriedItemId { get; set; }
+    public int CarriedQuantity { get; set; }
 }
 
 public sealed class QuestSnapshot

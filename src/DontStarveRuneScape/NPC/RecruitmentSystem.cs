@@ -67,6 +67,8 @@ public sealed class RecruitmentSystem
             _homes.Clear();
             _paths.Clear();
             _approaches.Clear();
+            // Stale surface reservations must not survive a map switch.
+            colony?.TaskBoard.Clear();
         }
         _unreachableRetryTimer += Math.Min(dt, 0.25f);
         if (_unreachableRetryTimer >= 30f)
@@ -119,7 +121,12 @@ public sealed class RecruitmentSystem
                 home = (workerX, workerY);
             _homes[npc.NpcId] = home;
             if (TickResidentRest(npc, home, dt, world, colony, buildings, combat, weather, firemaking))
+            {
+                // Resting releases the worker's claims so others can take
+                // them; carried goods stay with the worker.
+                colony?.TaskBoard.ReleaseAllFor(npc.NpcId);
                 continue;
+            }
             if (npc.RecruitBehavior == "guard")
             {
                 TickGuard(npc, home, dt, world, colony, combat, player, skills, factions, factionSystem);
@@ -267,6 +274,16 @@ public sealed class RecruitmentSystem
                 if (!gatherInputs) continue;
             }
 
+            // Hauling: a surface-colony worker carrying goods walks them to
+            // the stockpile before starting any new work. This one phase
+            // serves gatherers, recipe-input runs, and construction supply.
+            bool haulsHome = !inCave && colony?.IsFounded == true && npc.CarriedQuantity > 0;
+            if (haulsHome)
+            {
+                TickDepositCarried(npc, colony!, world, dt);
+                continue;
+            }
+
             (int X, int Y)? target = null;
             if (_targets.TryGetValue(npc.NpcId, out var current))
             {
@@ -280,12 +297,21 @@ public sealed class RecruitmentSystem
                     inSeason = targetDef.Seasons.Contains(world.SeasonSystem.CurrentSeason);
                 bool edible = !needsFood || (node != null && foods?.Get(node.YieldItem) != null);
                 bool neededInput = missingInputs == null || node != null && missingInputs.Contains(node.YieldItem);
+                bool reservationHeld = ReservationHeldByWorker(npc, colony, inCave, current.X, current.Y);
                 if (inWorkArea && inSeason && edible && WorkerPathfinder.CanStand(world, current.X, current.Y)
                     && !_unreachableResourceTiles.Contains(current)
                     && node != null && !node.IsDepleted
                     && neededInput && CanWorkerHarvest(node, player.Inventory, colony, inCave)
+                    && reservationHeld
                     && !claimed.Contains(current))
                     target = current;
+                else if (!reservationHeld)
+                {
+                    // The claim expired (rest interruption, world switch) —
+                    // the worker re-selects and re-claims through the board.
+                    _targets.Remove(npc.NpcId);
+                    ReleaseGatherReservation(colony, npc, current.X, current.Y);
+                }
             }
 
             if (!target.HasValue)
@@ -295,6 +321,10 @@ public sealed class RecruitmentSystem
                 {
                     if (claimed.Contains((tile.X, tile.Y)) || node.IsDepleted
                         || !CanWorkerHarvest(node, player.Inventory, colony, inCave))
+                        continue;
+                    if (colony?.IsFounded == true && !inCave
+                        && colony.TaskBoard.IsTileReserved(tile.X, tile.Y)
+                        && !ReservationHeldByWorker(npc, colony, inCave, tile.X, tile.Y))
                         continue;
                     if (!WorkerPathfinder.CanStand(world, tile.X, tile.Y)) continue;
                     if (_unreachableResourceTiles.Contains((tile.X, tile.Y))) continue;
@@ -341,12 +371,24 @@ public sealed class RecruitmentSystem
             var targetTile = target.Value;
             claimed.Add(targetTile);
             _targets[npc.NpcId] = targetTile;
+            // Surface-colony gathers go through the task board: the claim is
+            // synchronous, so two workers can never hold the same node.
+            if (colony?.IsFounded == true && !inCave)
+            {
+                string yieldItem = world.GetTile(targetTile.X, targetTile.Y)?.ResourceNode?.YieldItem ?? "";
+                if (colony.TaskBoard.ClaimGather(npc.NpcId, targetTile.X, targetTile.Y, yieldItem) == null)
+                {
+                    _targets.Remove(npc.NpcId);
+                    continue;
+                }
+            }
             if (!MoveAlongPath(npc, world, targetTile.X, targetTile.Y, dt, WalkSpeed))
             {
                 if (_paths.TryGetValue(npc.NpcId, out var blockedPath) && blockedPath.Nodes == null)
                 {
                     _unreachableResourceTiles.Add(targetTile);
                     _targets.Remove(npc.NpcId);
+                    ReleaseGatherReservation(colony, npc, targetTile.X, targetTile.Y);
                 }
                 continue;
             }
@@ -369,15 +411,38 @@ public sealed class RecruitmentSystem
             var (itemId, quantity, xp) = resource.Harvest(1f, world.SeasonSystem);
             if (quantity > 0)
             {
-                bool delivered = colony?.IsFounded == true
-                    ? colony.Store(itemId, quantity)
-                    : player.Inventory.AddItem(itemId, quantity);
-                if (!delivered)
-                    throw new InvalidOperationException("Worker storage capacity changed during harvest.");
+                if (!inCave && colony?.IsFounded == true)
+                {
+                    // Haul home: the goods ride with the worker to the
+                    // stockpile instead of teleporting into storage. The
+                    // deposit phase guarantees carried is empty here, so a
+                    // mismatched leftover is merged defensively.
+                    if (npc.CarriedQuantity > 0 && npc.CarriedItemId != itemId)
+                    {
+                        if (!colony.Store(npc.CarriedItemId!, npc.CarriedQuantity))
+                            throw new InvalidOperationException("Worker storage capacity changed during haul merge.");
+                        npc.CarriedQuantity = 0;
+                    }
+                    npc.CarriedItemId = itemId;
+                    npc.CarriedQuantity += quantity;
+                    npc.CarryStatus = $"Hauling {npc.CarriedQuantity} {itemId}";
+                }
+                else
+                {
+                    bool delivered = colony?.IsFounded == true
+                        ? colony.Store(itemId, quantity)
+                        : player.Inventory.AddItem(itemId, quantity);
+                    if (!delivered)
+                        throw new InvalidOperationException("Worker storage capacity changed during harvest.");
+                }
                 if (inCave && resource.RequiresTool)
                     skills?.AddXp("mining", xp);
             }
-            if (resource.IsDepleted) _targets.Remove(npc.NpcId);
+            if (resource.IsDepleted)
+            {
+                _targets.Remove(npc.NpcId);
+                ReleaseGatherReservation(colony, npc, targetTile.X, targetTile.Y);
+            }
         }
 
         foreach (var id in _workTimers.Keys.Where(id => !liveIds.Contains(id)).ToArray())
@@ -389,7 +454,76 @@ public sealed class RecruitmentSystem
             _approaches.Remove(id);
             _patrolPoints.Remove(id);
             _patrolTimers.Remove(id);
+            colony?.TaskBoard.ReleaseAllFor(id);
         }
+    }
+
+    /// <summary>True when the worker holds the board reservation for a tile.
+    /// Off-board contexts (no colony, caves) have nothing to reserve.</summary>
+    private static bool ReservationHeldByWorker(Npc worker, ColonySystem? colony, bool inCave, int x, int y)
+    {
+        if (colony?.IsFounded != true || inCave) return true;
+        return colony.TaskBoard.FindGatherByTile(x, y) is { } reservation
+            && reservation.AssigneeNpcId == worker.NpcId;
+    }
+
+    private static void ReleaseGatherReservation(ColonySystem? colony, Npc worker, int x, int y)
+    {
+        if (colony?.IsFounded != true) return;
+        var reservation = colony.TaskBoard.FindGatherByTile(x, y);
+        if (reservation != null && reservation.AssigneeNpcId == worker.NpcId)
+            colony.TaskBoard.Release(reservation);
+    }
+
+    /// <summary>Walk carried goods to the settlement anchor and store them.
+    /// Partial deliveries are allowed; a full stockpile keeps the goods on
+    /// the worker with a blocked status instead of discarding them.</summary>
+    private void TickDepositCarried(Npc npc, ColonySystem colony, TileMap world, float dt)
+    {
+        var task = colony.TaskBoard.GetOrAddDeposit(npc.NpcId);
+        task.ItemId = npc.CarriedItemId ?? string.Empty;
+        task.Quantity = npc.CarriedQuantity;
+
+        float anchorX = (colony.AnchorTileX + 0.5f) * Constants.TileSize;
+        float anchorY = (colony.AnchorTileY + 0.5f) * Constants.TileSize;
+        float dx = anchorX - npc.WorldX;
+        float dy = anchorY - npc.WorldY;
+        float reach = Constants.TileSize * 1.5f;
+        if (dx * dx + dy * dy <= reach * reach)
+        {
+            npc.VelocityX = npc.VelocityY = 0f;
+            string itemId = npc.CarriedItemId ?? string.Empty;
+            int quantity = npc.CarriedQuantity;
+            int acceptable = Math.Min(quantity, colony.FreeCapacity);
+            if (acceptable > 0 && colony.Store(itemId, acceptable))
+                quantity -= acceptable;
+            if (quantity <= 0)
+            {
+                npc.CarriedItemId = null;
+                npc.CarriedQuantity = 0;
+                npc.CarryStatus = string.Empty;
+                colony.TaskBoard.Release(task);
+            }
+            else
+            {
+                npc.CarriedQuantity = quantity;
+                npc.CarryStatus = "Stockpile full";
+                task.Status = "Blocked: stockpile full";
+            }
+            return;
+        }
+
+        // MoveAlongPath returns false while still walking; a null plan means
+        // no route exists at all.
+        if (!MoveAlongPath(npc, world, colony.AnchorTileX, colony.AnchorTileY, dt, WalkSpeed)
+            && _paths.TryGetValue(npc.NpcId, out var haulPlan) && haulPlan.Nodes == null)
+        {
+            npc.CarryStatus = "No route to stockpile";
+            task.Status = "Blocked: no route to stockpile";
+            return;
+        }
+        task.Status = $"Hauling {npc.CarriedQuantity} {task.ItemId} to stockpile";
+        npc.CarryStatus = task.Status;
     }
 
     private static bool CanWorkerHarvest(ResourceNode node,
