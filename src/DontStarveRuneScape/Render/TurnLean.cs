@@ -35,11 +35,14 @@ public sealed class TurnLean
     /// <summary>Bank radians per rad/s of smoothed turn rate. Tuned so a
     /// held camera orbit while running forward (circling at
     /// <c>CameraOrbitSpeed</c>) holds a visible ~3° bank, and a 90° WASD
-    /// direction change peaks near 6°.</summary>
+    /// direction change peaks near 6°. Sprinting widens this downstream
+    /// (SpriteRenderer scales the lean up while the sprint flag is set) —
+    /// the base walk bank stays here.</summary>
     public const float Gain = 0.032f;
 
-    /// <summary>Hard cap on the bank angle (~8.6°) — keeps rapid
-    /// double-tap direction changes from tipping the sprite over.</summary>
+    /// <summary>Hard cap on the base bank angle (~8.6°) — keeps rapid
+    /// double-tap direction changes from tipping the sprite over. The
+    /// sprint boost multiplies past this by design.</summary>
     public const float MaxLean = 0.15f;
 
     /// <summary>Lateral stance shift in world px per radian of bank: while

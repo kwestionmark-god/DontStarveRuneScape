@@ -112,9 +112,11 @@ public sealed class GaitAnimator
     /// <paramref name="stanceShift"/> offsets every stance laterally in world
     /// px (positive = the traveler's right): the player passes the turn-lean
     /// shift so feet plant toward the bank instead of under the old
-    /// centerline.</summary>
+    /// centerline. <paramref name="trail"/> offsets every stance BACKWARD
+    /// along the travel direction in world px, so the boots settle slightly
+    /// behind (under) the body — a subtle run-bike lean forward.</summary>
     public void Update(float originX, float originY, float velX, float velY, float dt,
-        float stanceShift = 0f)
+        float stanceShift = 0f, float trail = 0f)
     {
         float speed = MathF.Sqrt(velX * velX + velY * velY);
         bool moving = speed > 1f;
@@ -150,8 +152,10 @@ public sealed class GaitAnimator
         {
             ref Foot f = ref _feet[i];
             var (lat, lon) = _cfg.FootOffsets[i];
-            float stanceX = originX + px * (lat + stanceShift) + dir.dx * lon;
-            float stanceY = originY + py * (lat + stanceShift) + dir.dy * lon;
+            // trail subtracts along the travel direction: stances settle a
+            // touch behind the body's centerline while moving.
+            float stanceX = originX + px * (lat + stanceShift) + dir.dx * (lon - trail * (moving ? 1f : 0f));
+            float stanceY = originY + py * (lat + stanceShift) + dir.dy * (lon - trail * (moving ? 1f : 0f));
             if (!f.Placed)
             {
                 f.X = stanceX; f.Y = stanceY;

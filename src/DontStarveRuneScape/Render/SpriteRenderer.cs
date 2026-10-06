@@ -241,6 +241,25 @@ public sealed class SpriteRenderer : IDisposable
     // Reference pitch = the camera's default (~30°).
     private const float BodyPitchResponseRef = 0.5f; // sin(30°)
 
+    // Boot trail (world px) — SPRINT-ONLY subtlety: stance targets sit this
+    // far behind the body's centerline along the travel direction, so the
+    // boots read as trailing (tucked under) the leaning sprite at speed.
+    // Zero at normal walk; on stop the idle replant squares the feet.
+    private const float BootTrailPx = 2.4f;
+    // Sprint envelope: 0..1, ramped with a slow rise while sprinting and a
+    // quicker release after, so the sprint extras (deeper lean, boot trail)
+    // ease IN over ~0.5s, HOLD for the whole sprint, and ease out on the
+    // return to walking — they never ride the turn-lean's fast decay.
+    private float _sprintEnv;
+    private const float SprintEnvRisePerSec = 2.0f;   // full lean-in ≈ 0.5s
+    private const float SprintEnvFallPerSec = 3.5f;  // back to walk ≈ 0.3s
+    private const float SprintLeanBoost = 1.35f;     // bank multiplier at env=1
+    // Sprint forward lean (world px at env=1): the body billboard's top
+    // edge shears this far along the on-screen travel direction — a held
+    // "pitched into the run" read for the whole sprint, easing in and out
+    // with the envelope. The boots' trail gives the counter-read under it.
+    private const float SprintForwardLeanPx = 5.5f;
+
     // Pooled cell buffers (every visible cell redraws them each frame).
     private readonly System.Collections.Generic.List<(float X, float Y, byte R, byte G, byte B, byte A)> _facePts = new(4);
     private readonly System.Collections.Generic.List<Silk.NET.Maths.Vector2D<float>> _outlinePts = new(4);
@@ -382,6 +401,16 @@ public sealed class SpriteRenderer : IDisposable
         float mwx = wx + ax * halfWidthWorld * mid, mwy = wy + ay * halfWidthWorld * mid;
         q.Depth = mwx * sinYaw + mwy * cosYaw;
         return q;
+    }
+
+    /// <summary>Shift a projected body quad's TOP edge in screen space — the
+    /// sprint forward lean pivots the silhouette visually about the base,
+    /// so only the top corners move.</summary>
+    private static void ShearQuadTop(ref BillQuad q, float dx, float dy)
+    {
+        q.TLx += dx; q.TLy += dy;
+        q.TRx += dx; q.TRy += dy;
+        q.Cx += dx * 0.5f; q.Cy += dy * 0.5f;
     }
 
     /// <summary>Project and draw one foot's dome. Each grid vertex samples
@@ -556,6 +585,14 @@ public sealed class SpriteRenderer : IDisposable
         bool swimming = waterDepth >= SwimDepth && bootTex != 0;
         float lean = swimming ? _playerLean.Update(0f, 0f, dt)
                               : _playerLean.Update(velX, velY, dt);
+        // Sprint envelope: eases in over ~0.5s on sprint start, holds while
+        // sprinting, eases out on the return to walk. Drives the deeper
+        // bank and the boot trail below, so both persist for the sprint's
+        // duration instead of following the turn-lean's quick decay.
+        float envTarget = (player.Sprinting && !swimming) ? 1f : 0f;
+        float envRate = envTarget > _sprintEnv ? SprintEnvRisePerSec : SprintEnvFallPerSec;
+        _sprintEnv += Math.Clamp(envTarget - _sprintEnv, -envRate * dt, envRate * dt);
+        lean *= 1f + (SprintLeanBoost - 1f) * _sprintEnv;
 
         // The body is a classic crossed billboard riding the travel axis:
         // two static planes at 90° to each other — one ALONG the current
@@ -583,6 +620,27 @@ public sealed class SpriteRenderer : IDisposable
         _bodyHalves[3] = ProjectBodyBillboard(camera, player.WorldX, player.WorldY,
             elevation, HalfWidth, BodyHeightWorld, lean, -gdirY, gdirX, 0f, 1f);
         Array.Sort(_bodyHalves, (a, b) => a.Depth.CompareTo(b.Depth));
+
+        // Sprint forward lean: while the envelope is up, shear the TOP edge
+        // of every body quad along the on-screen travel direction. Held for
+        // the whole sprint (unlike the turn bank, which settles) and eased
+        // back out with the envelope on the return to walking.
+        if (_sprintEnv > 0.001f && (velX != 0f || velY != 0f))
+        {
+            var g0 = camera.WorldToScreen(player.WorldX, player.WorldY, elevation);
+            var g1 = camera.WorldToScreen(player.WorldX + gdirX, player.WorldY + gdirY, elevation);
+            float dx = g1.X - g0.X, dy = g1.Y - g0.Y;
+            float len = MathF.Sqrt(dx * dx + dy * dy);
+            if (len > 0.01f)
+            {
+                float amt = SprintForwardLeanPx * _sprintEnv * camera.Zoom / len;
+                ShearQuadTop(ref quadFull, dx * amt, dy * amt);
+                ShearQuadTop(ref quadFull2, dx * amt, dy * amt);
+                for (int i = 0; i < _bodyHalves.Length; i++)
+                    ShearQuadTop(ref _bodyHalves[i], dx * amt, dy * amt);
+                bodyQuad = quadFull.HalfW >= quadFull2.HalfW ? quadFull : quadFull2;
+            }
+        }
         float lcx = bodyQuad.Cx, lcy = bodyQuad.Cy;
 
         // Carried cape renders behind the body.
@@ -608,7 +666,8 @@ public sealed class SpriteRenderer : IDisposable
             if (!swimming)
             {
                 _playerGait.Update(player.WorldX, player.WorldY, velX, velY, dt,
-                    lean * TurnLean.StanceShiftPerRad);
+                    lean * TurnLean.StanceShiftPerRad,
+                    trail: BootTrailPx * _sprintEnv);
                 // Boot base color matches the player/boot.png leather tone.
                 DrawBootDomes(_playerGait, GaitConfigs.Player, PlayerBoot,
                     batch, camera, elevation, player.WorldX, player.WorldY,
