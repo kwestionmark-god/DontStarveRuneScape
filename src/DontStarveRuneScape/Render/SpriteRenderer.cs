@@ -317,22 +317,6 @@ public sealed class SpriteRenderer : IDisposable
         }
     }
 
-    /// <summary>An axis-described projected quad: four screen corners
-    /// (bottom-left, bottom-right, top-right, top-left) plus its center and
-    /// half extents, for anchored overlays (carried gear, waterline).</summary>
-    private struct BillQuad
-    {
-        public float BLx, BLy, BRx, BRy, TRx, TRy, TLx, TLy;
-        public float Cx, Cy, HalfW, HalfH;
-        // UV horizontal range (for half-planes): full quad is 0..1.
-        public float U0 = 0f, U1 = 1f;
-        // View depth of the quad's center, for back-to-front sorting of the
-        // crossed halves (larger = closer to the camera = drawn later).
-        public float Depth;
-
-        public BillQuad() { }
-    }
-
     /// <summary>Project one plane of the body as a world-space vertical
     /// billboard quad standing on the entity's ground point, spanning
     /// ±<paramref name="halfWidthWorld"/> world px along the world axis
@@ -396,11 +380,37 @@ public sealed class SpriteRenderer : IDisposable
         // View depth of the quad center (view yaw direction in world
         // coords, matching DrawBootDomes' sorting): larger = nearer the
         // camera = paints later.
-        float sinYaw = MathF.Sin(camera.Yaw), cosYaw = MathF.Cos(camera.Yaw);
-        float mid = (span0 + span1) * 0.5f;
-        float mwx = wx + ax * halfWidthWorld * mid, mwy = wy + ay * halfWidthWorld * mid;
-        q.Depth = mwx * sinYaw + mwy * cosYaw;
+        q.Depth = CrossBillboardSorter.HalfDepth(wx, wy, ax, ay,
+            halfWidthWorld, span0, span1, camera.Yaw);
         return q;
+    }
+
+    /// <summary>Build the crossed-billboard "paper doll" for any entity:
+    /// two static world-space planes at 90° riding the gait travel axis
+    /// (side view along dir, front/back across it), each split at the fold
+    /// into half-quads, the four halves sorted back-to-front by view depth
+    /// into <paramref name="halves"/> (length ≥ 4). The more camera-facing
+    /// full quad is returned in <paramref name="anchorQuad"/> for anchored
+    /// overlays (carried gear, waterline). Entity-agnostic — NPCs and
+    /// monsters share this with the player.</summary>
+    private static void BuildCrossBillboard(Camera camera, float wx, float wy,
+        float groundElev, float halfWidthWorld, float heightWorld, float lean,
+        float dirX, float dirY, BillQuad[] halves, out BillQuad anchorQuad)
+    {
+        var quadFull = ProjectBodyBillboard(camera, wx, wy,
+            groundElev, halfWidthWorld, heightWorld, lean, dirX, dirY);
+        var quadFull2 = ProjectBodyBillboard(camera, wx, wy,
+            groundElev, halfWidthWorld, heightWorld, lean, -dirY, dirX);
+        anchorQuad = quadFull.HalfW >= quadFull2.HalfW ? quadFull : quadFull2;
+        halves[0] = ProjectBodyBillboard(camera, wx, wy,
+            groundElev, halfWidthWorld, heightWorld, lean, dirX, dirY, -1f, 0f);
+        halves[1] = ProjectBodyBillboard(camera, wx, wy,
+            groundElev, halfWidthWorld, heightWorld, lean, dirX, dirY, 0f, 1f);
+        halves[2] = ProjectBodyBillboard(camera, wx, wy,
+            groundElev, halfWidthWorld, heightWorld, lean, -dirY, dirX, -1f, 0f);
+        halves[3] = ProjectBodyBillboard(camera, wx, wy,
+            groundElev, halfWidthWorld, heightWorld, lean, -dirY, dirX, 0f, 1f);
+        CrossBillboardSorter.SortBackToFront(halves);
     }
 
     /// <summary>Shift a projected body quad's TOP edge in screen space — the
@@ -606,25 +616,16 @@ public sealed class SpriteRenderer : IDisposable
         // over the other; the camera decides which half-arm is nearest.
         // The more camera-facing full quad anchors gear and the waterline.
         var (gdirX, gdirY) = _playerGait.Dir;
-        var quadFull = ProjectBodyBillboard(camera, player.WorldX, player.WorldY,
-            elevation, HalfWidth, BodyHeightWorld, lean, gdirX, gdirY);
-        var quadFull2 = ProjectBodyBillboard(camera, player.WorldX, player.WorldY,
-            elevation, HalfWidth, BodyHeightWorld, lean, -gdirY, gdirX);
-        var bodyQuad = quadFull.HalfW >= quadFull2.HalfW ? quadFull : quadFull2;
-        _bodyHalves[0] = ProjectBodyBillboard(camera, player.WorldX, player.WorldY,
-            elevation, HalfWidth, BodyHeightWorld, lean, gdirX, gdirY, -1f, 0f);
-        _bodyHalves[1] = ProjectBodyBillboard(camera, player.WorldX, player.WorldY,
-            elevation, HalfWidth, BodyHeightWorld, lean, gdirX, gdirY, 0f, 1f);
-        _bodyHalves[2] = ProjectBodyBillboard(camera, player.WorldX, player.WorldY,
-            elevation, HalfWidth, BodyHeightWorld, lean, -gdirY, gdirX, -1f, 0f);
-        _bodyHalves[3] = ProjectBodyBillboard(camera, player.WorldX, player.WorldY,
-            elevation, HalfWidth, BodyHeightWorld, lean, -gdirY, gdirX, 0f, 1f);
-        Array.Sort(_bodyHalves, (a, b) => a.Depth.CompareTo(b.Depth));
+        BuildCrossBillboard(camera, player.WorldX, player.WorldY,
+            elevation, HalfWidth, BodyHeightWorld, lean, gdirX, gdirY,
+            _bodyHalves, out var bodyQuad);
 
         // Sprint forward lean: while the envelope is up, shear the TOP edge
         // of every body quad along the on-screen travel direction. Held for
         // the whole sprint (unlike the turn bank, which settles) and eased
-        // back out with the envelope on the return to walking.
+        // back out with the envelope on the return to walking. (The uniform
+        // shear does not move the base edge or the half extents, so the
+        // anchor-quad choice and the depth sort both still hold.)
         if (_sprintEnv > 0.001f && (velX != 0f || velY != 0f))
         {
             var g0 = camera.WorldToScreen(player.WorldX, player.WorldY, elevation);
@@ -634,11 +635,9 @@ public sealed class SpriteRenderer : IDisposable
             if (len > 0.01f)
             {
                 float amt = SprintForwardLeanPx * _sprintEnv * camera.Zoom / len;
-                ShearQuadTop(ref quadFull, dx * amt, dy * amt);
-                ShearQuadTop(ref quadFull2, dx * amt, dy * amt);
+                ShearQuadTop(ref bodyQuad, dx * amt, dy * amt);
                 for (int i = 0; i < _bodyHalves.Length; i++)
                     ShearQuadTop(ref _bodyHalves[i], dx * amt, dy * amt);
-                bodyQuad = quadFull.HalfW >= quadFull2.HalfW ? quadFull : quadFull2;
             }
         }
         float lcx = bodyQuad.Cx, lcy = bodyQuad.Cy;
