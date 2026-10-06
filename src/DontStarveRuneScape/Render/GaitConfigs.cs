@@ -23,7 +23,8 @@ public static class GaitConfigs
     };
 
     // Humanoid NPCs are player-styled; slightly smaller boots to match the
-    // smaller sprite, otherwise the same rig.
+    // smaller sprite, otherwise the same rig. Dome dims scale with the old
+    // flat foot-quad half (15·4/30 = 2.0px vs the player's 22·4/32 = 2.75px).
     public static GaitConfig Npc { get; } = new()
     {
         Pattern = GaitPattern.Biped,
@@ -33,6 +34,7 @@ public static class GaitConfigs
         TriggerDist = 3f,
         MinStride = 3f,
         FootSizeFrac = 4f / 30f,
+        DomeBoots = new(toe: 2.6f, heel: 1.9f, halfWidth: 2.1f, height: 2.8f),
     };
 
     // Quadruped walk: diagonal pairs [front-left, rear-right] then

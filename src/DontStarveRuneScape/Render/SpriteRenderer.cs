@@ -205,14 +205,10 @@ public sealed class SpriteRenderer : IDisposable
     // smoothly; and a slightly scaled dark dome drawn behind provides the
     // silhouette rim.
 
-    // Player boot: round footprint, slightly longer at the toe than the
-    // heel, about a hemisphere tall. Heights are world px; the 3D
-    // projection compresses them by sinPitch, so they read a touch
-    // chunkier on screen than the raw numbers suggest. Scaled up ~20%
-    // from the original (2.2/3.0 footprint) on user request 2026-10-04 —
-    // "make the feet a bit bigger".
-    private static readonly FootDomeDims PlayerBoot = new(
-        toe: 3.6f, heel: 2.65f, halfWidth: 2.9f, height: 3.85f);
+    // Dome-boot dims per entity come from its GaitConfig (DomeBoots);
+    // heights are world px — the 3D projection compresses them by sinPitch,
+    // so the domes read a touch chunkier on screen than the raw numbers
+    // suggest.
 
     // Silhouette rim: the dark backing dome is the boot scaled about its
     // ground point by this factor and drawn first, so it peeks a hair
@@ -668,7 +664,7 @@ public sealed class SpriteRenderer : IDisposable
                     lean * TurnLean.StanceShiftPerRad,
                     trail: BootTrailPx * _sprintEnv);
                 // Boot base color matches the player/boot.png leather tone.
-                DrawBootDomes(_playerGait, GaitConfigs.Player, PlayerBoot,
+                DrawBootDomes(_playerGait, GaitConfigs.Player, GaitConfigs.Player.DomeBoots,
                     batch, camera, elevation, player.WorldX, player.WorldY,
                     inFront: false, 139, 90, 43);
             }
@@ -706,7 +702,7 @@ public sealed class SpriteRenderer : IDisposable
             }
             else if (!swimming)
             {
-                DrawBootDomes(_playerGait, GaitConfigs.Player, PlayerBoot,
+                DrawBootDomes(_playerGait, GaitConfigs.Player, GaitConfigs.Player.DomeBoots,
                     batch, camera, elevation, player.WorldX, player.WorldY,
                     inFront: true, 139, 90, 43);
             }
@@ -966,9 +962,8 @@ public sealed class SpriteRenderer : IDisposable
         // far-side pass under the body and a near-side pass over it. NPCs are
         // stationary today, so feet stay planted on the heightmap (terrain
         // contouring); velocity plumbing is in place for future wanderers.
-        uint bootTex = GetSpriteTexture("player/boot");
         GaitAnimator? npcGait = null;
-        if (tex != 0 && bootTex != 0)
+        if (tex != 0)
         {
             npcGait = GetGaitRig(npc, GaitConfigs.Npc);
             npcGait.Update(npc.WorldX, npc.WorldY, npc.VelocityX, npc.VelocityY, dt);
@@ -977,15 +972,34 @@ public sealed class SpriteRenderer : IDisposable
         if (!npc.IsRecruited)
             DrawShadow(batch, screen.X, screen.Y, half, 200);
         if (npcGait != null)
-            DrawGaitFeet(npcGait, GaitConfigs.Npc, half * GaitConfigs.Npc.FootSizeFrac,
-                bootTex, batch, camera, elevation, screen.Y, inFront: false);
+            DrawBootDomes(npcGait, GaitConfigs.Npc, GaitConfigs.Npc.DomeBoots,
+                batch, camera, elevation, npc.WorldX, npc.WorldY,
+                inFront: false, 139, 90, 43);
         if (tex != 0)
-            batch.DrawTexturedScreenQuad(cx, cy, half, half, tex, 255, 255, 255, 255);
+        {
+            // World-space crossed billboard, same paper-doll as the player:
+            // two static planes at 90° riding the gait axis, four half-quads
+            // back-to-front by view depth. NPCs have a single sprite, so
+            // both planes share the one texture. Height follows the player's
+            // ratio convention (BodyHeightWorld = 4× half width: 60 world px
+            // reads as the legacy 30·zoom screen px at the default pitch).
+            var (gdirX, gdirY) = npcGait!.Dir;
+            BuildCrossBillboard(camera, npc.WorldX, npc.WorldY, elevation,
+                15f, 60f, 0f, gdirX, gdirY, _bodyHalves, out _);
+            foreach (var hq in _bodyHalves)
+                batch.DrawScreenQuadCornersTexturedUSpan(
+                    hq.BLx, hq.BLy, hq.BRx, hq.BRy,
+                    hq.TRx, hq.TRy, hq.TLx, hq.TLy,
+                    tex, 255, 255, 255, 255, hq.U0, hq.U1);
+        }
         else
+        {
             batch.DrawScreenQuad(cx, cy, half, half, 70, 180, 100);
+        }
         if (npcGait != null)
-            DrawGaitFeet(npcGait, GaitConfigs.Npc, half * GaitConfigs.Npc.FootSizeFrac,
-                bootTex, batch, camera, elevation, screen.Y, inFront: true);
+            DrawBootDomes(npcGait, GaitConfigs.Npc, GaitConfigs.Npc.DomeBoots,
+                batch, camera, elevation, npc.WorldX, npc.WorldY,
+                inFront: true, 139, 90, 43);
     }
 
     public void RenderProximityPrompt(Npc npc, PrimitiveBatch batch, Camera camera,

@@ -46,6 +46,15 @@ public sealed class GaitConfig
     /// <summary>Sprite key of the foot quad (boots for humanoids, paws for
     /// quadrupeds).</summary>
     public string FootTextureKey { get; init; } = "player/boot";
+
+    /// <summary>Dome-boot dimensions (world px) for the projected spherical
+    /// dome feet — the sized-to-entity counterpart of the legacy flat foot
+    /// quad (whose screen half was entityHalf · FootSizeFrac). Default is
+    /// the player boot: round footprint, slightly longer at the toe than
+    /// the heel, about a hemisphere tall, scaled up ~20% from the original
+    /// (2.2/3.0 footprint) on user request 2026-10-04.</summary>
+    public FootDomeDims DomeBoots { get; init; } = new(
+        toe: 3.6f, heel: 2.65f, halfWidth: 2.9f, height: 3.85f);
 }
 
 /// <summary>
