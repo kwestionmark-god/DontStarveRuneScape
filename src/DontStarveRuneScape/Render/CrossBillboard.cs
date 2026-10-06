@@ -9,6 +9,11 @@ internal struct BillQuad
     public float Cx, Cy, HalfW, HalfH;
     // UV horizontal range (for half-planes): full quad is 0..1.
     public float U0 = 0f, U1 = 1f;
+    // Which cross plane this half belongs to: 0 = the travel-aligned plane
+    // (axis = dir), 1 = the cross plane (axis = dir rotated 90°). Monsters
+    // use it to pick the side vs front/back texture per half after the
+    // depth sort scrambles the array order.
+    public int Plane;
     // View depth of the quad's center, for back-to-front sorting of the
     // crossed halves (larger = closer to the camera = drawn later).
     public float Depth;

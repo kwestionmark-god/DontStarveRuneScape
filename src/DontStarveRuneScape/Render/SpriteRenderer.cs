@@ -169,30 +169,6 @@ public sealed class SpriteRenderer : IDisposable
     private GaitAnimator GetGaitRig(object entity, GaitConfig cfg) =>
         _gaitRigs.GetValue(entity, _ => new GaitAnimator(cfg));
 
-    /// <summary>Draw an entity's foot quads at their gait positions: each foot
-    /// samples its own terrain elevation and lifts on the sine of its swing
-    /// arc. <paramref name="inFront"/> selects which side of the body to draw
-    /// for: feet projecting at or below the body ground point are in front
-    /// (drawn after the body), feet above it are behind (drawn before) — so a
-    /// foot on the far side never paints over the torso.</summary>
-    private void DrawGaitFeet(GaitAnimator gait, GaitConfig cfg, float footHalf, uint footTex,
-        PrimitiveBatch batch, Camera camera, float elevation, float groundScreenY, bool inFront)
-    {
-        for (int i = 0; i < gait.FootCount; i++)
-        {
-            ref var foot = ref gait.GetFoot(i);
-            float fe = BootElevation?.Invoke(foot.X, foot.Y) ?? elevation;
-            var fs = camera.WorldToScreen(foot.X, foot.Y, fe);
-            // Screen Y grows downward (toward the camera): in front = at or
-            // below the ground point. Compare before applying the lift arc.
-            if ((fs.Y >= groundScreenY) != inFront)
-                continue;
-            float lift = foot.Swinging ? MathF.Sin(foot.T * MathF.PI) * cfg.LiftPx * camera.Zoom : 0f;
-            batch.DrawTexturedScreenQuad(fs.X, fs.Y - footHalf - lift,
-                footHalf, footHalf, footTex, 255, 255, 255);
-        }
-    }
-
     // ── Spherical dome boots ─────────────────────────────────────────────
     // Each boot is a tessellated half-ellipsoid dome with a slight toe bias
     // (geometry in <see cref="BootDome"/>) — round, in place of the old
@@ -391,21 +367,25 @@ public sealed class SpriteRenderer : IDisposable
     /// monsters share this with the player.</summary>
     private static void BuildCrossBillboard(Camera camera, float wx, float wy,
         float groundElev, float halfWidthWorld, float heightWorld, float lean,
-        float dirX, float dirY, BillQuad[] halves, out BillQuad anchorQuad)
+        float dirX, float dirY, BillQuad[] halves, out BillQuad anchorQuad,
+        float? crossHalfWidthWorld = null)
     {
+        float crossW = crossHalfWidthWorld ?? halfWidthWorld;
         var quadFull = ProjectBodyBillboard(camera, wx, wy,
             groundElev, halfWidthWorld, heightWorld, lean, dirX, dirY);
         var quadFull2 = ProjectBodyBillboard(camera, wx, wy,
-            groundElev, halfWidthWorld, heightWorld, lean, -dirY, dirX);
+            groundElev, crossW, heightWorld, lean, -dirY, dirX);
         anchorQuad = quadFull.HalfW >= quadFull2.HalfW ? quadFull : quadFull2;
         halves[0] = ProjectBodyBillboard(camera, wx, wy,
             groundElev, halfWidthWorld, heightWorld, lean, dirX, dirY, -1f, 0f);
         halves[1] = ProjectBodyBillboard(camera, wx, wy,
             groundElev, halfWidthWorld, heightWorld, lean, dirX, dirY, 0f, 1f);
         halves[2] = ProjectBodyBillboard(camera, wx, wy,
-            groundElev, halfWidthWorld, heightWorld, lean, -dirY, dirX, -1f, 0f);
+            groundElev, crossW, heightWorld, lean, -dirY, dirX, -1f, 0f);
         halves[3] = ProjectBodyBillboard(camera, wx, wy,
-            groundElev, halfWidthWorld, heightWorld, lean, -dirY, dirX, 0f, 1f);
+            groundElev, crossW, heightWorld, lean, -dirY, dirX, 0f, 1f);
+        halves[0].Plane = halves[1].Plane = 0;
+        halves[2].Plane = halves[3].Plane = 1;
         CrossBillboardSorter.SortBackToFront(halves);
     }
 
@@ -878,23 +858,24 @@ public sealed class SpriteRenderer : IDisposable
         // Update the gait first: its travel direction selects the sprite
         // variant and the mirror, and feet draw after the update.
         GaitAnimator? gait = null;
-        uint footTex = 0;
         if (cfg != null)
         {
             gait = GetGaitRig(monster, cfg);
             gait.Update(monster.WorldX, monster.WorldY,
                 monster.VelocityX, monster.VelocityY, dt);
-            footTex = GetSpriteTexture(cfg.FootTextureKey);
         }
 
         // Directional sprite selection for quadrupeds: walking away (north)
         // shows the rear view, walking toward (south) the front view, and the
-        // side-on view mirrors when facing left. Missing variants fall back to
-        // the base side-on sprite.
+        // side-on view mirrors when facing left. On the crossed billboard the
+        // base side-on sprite rides the travel-aligned plane and the
+        // front/back variant rides the cross plane; missing variants fall
+        // back to the base sprite on both planes.
         bool quadruped = cfg is { Pattern: GaitPattern.QuadrupedWalk };
-        bool mirror = false;
         float bodyHalfW = quadruped ? 1.5f * half : half;
         uint tex = GetSpriteTexture(monster.SpriteKey);
+        uint crossTex = tex;
+        bool mirrorSide = false;
         if (quadruped && gait != null)
         {
             var (ddx, ddy) = gait.Dir;
@@ -903,17 +884,15 @@ public sealed class SpriteRenderer : IDisposable
             if (ddy < -0.45f)
             {
                 uint t = GetSpriteTexture(monster.SpriteKey + "_back");
-                if (t != 0) { tex = t; bodyHalfW = half; }
+                if (t != 0) crossTex = t;
             }
             else if (ddy > 0.45f)
             {
                 uint t = GetSpriteTexture(monster.SpriteKey + "_front");
-                if (t != 0) { tex = t; bodyHalfW = half; }
+                if (t != 0) crossTex = t;
             }
-            else if (ddx < 0f)
-            {
-                mirror = true;
-            }
+            if (ddx < 0f)
+                mirrorSide = true;
         }
 
         // Anchor bottom-center: feet at the ground point at any zoom/pitch.
@@ -922,20 +901,53 @@ public sealed class SpriteRenderer : IDisposable
 
         DrawShadow(batch, screen.X, screen.Y, bodyHalfW, 180);
 
-        // Far-side feet draw under the body; near-side feet after it.
-        if (gait != null && footTex != 0)
-            DrawGaitFeet(gait, cfg!, half * cfg!.FootSizeFrac, footTex,
-                batch, camera, elevation, screen.Y, inFront: false);
+        // Far-side feet (world depth behind the body plane) draw under the
+        // body; near-side feet after it. Feet are the projected spherical
+        // domes, tinted per species via the gait config.
+        if (gait != null)
+            DrawBootDomes(gait, cfg!, cfg!.DomeBoots,
+                batch, camera, elevation, monster.WorldX, monster.WorldY,
+                inFront: false, cfg.DomeColor.R, cfg.DomeColor.G, cfg.DomeColor.B);
 
-        if (tex != 0)
-            batch.DrawTexturedScreenQuad(cx, cy, bodyHalfW, half, tex, 255, 255, 255, 255,
-                mirrorX: mirror);
+        if (tex != 0 && gait != null)
+        {
+            // World-space crossed billboard, same paper-doll as the player.
+            // The side-on sprite spans 1.5× the half on the travel plane for
+            // quadrupeds; the cross plane keeps 1×. Height follows the 4×
+            // half-width ratio convention (64 world px reads as the legacy
+            // 32·zoom screen px at the default pitch). Mirroring the side
+            // view is a UV affair only: complement each travel-plane half's
+            // U span (U → 1−U) — the geometry, depth sort, and fold are
+            // untouched.
+            var (gdirX, gdirY) = gait.Dir;
+            BuildCrossBillboard(camera, monster.WorldX, monster.WorldY,
+                elevation, bodyHalfW / camera.Zoom, 64f, 0f, gdirX, gdirY,
+                _bodyHalves, out _, crossHalfWidthWorld: 16f);
+            foreach (var hq in _bodyHalves)
+            {
+                uint htex = hq.Plane == 0 ? tex : crossTex;
+                float u0 = hq.U0, u1 = hq.U1;
+                if (mirrorSide && hq.Plane == 0) { u0 = 1f - u0; u1 = 1f - u1; }
+                batch.DrawScreenQuadCornersTexturedUSpan(
+                    hq.BLx, hq.BLy, hq.BRx, hq.BRy,
+                    hq.TRx, hq.TRy, hq.TLx, hq.TLy,
+                    htex, 255, 255, 255, 255, u0, u1);
+            }
+        }
+        else if (tex != 0)
+        {
+            // Legless/floating bodies keep the flat screen-space quad.
+            batch.DrawTexturedScreenQuad(cx, cy, bodyHalfW, half, tex, 255, 255, 255, 255);
+        }
         else
+        {
             batch.DrawScreenQuad(cx, cy, bodyHalfW, half, 200, 60, 60);
+        }
 
-        if (gait != null && footTex != 0)
-            DrawGaitFeet(gait, cfg!, half * cfg!.FootSizeFrac, footTex,
-                batch, camera, elevation, screen.Y, inFront: true);
+        if (gait != null)
+            DrawBootDomes(gait, cfg!, cfg!.DomeBoots,
+                batch, camera, elevation, monster.WorldX, monster.WorldY,
+                inFront: true, cfg.DomeColor.R, cfg.DomeColor.G, cfg.DomeColor.B);
     }
 
     public void RenderNPC(Npc npc, PrimitiveBatch batch, Camera camera,

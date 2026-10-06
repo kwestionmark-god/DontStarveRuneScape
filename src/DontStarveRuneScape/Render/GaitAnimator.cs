@@ -40,19 +40,16 @@ public sealed class GaitConfig
     /// <summary>halfStride floor, world px: keeps low speeds visibly stepping.</summary>
     public float MinStride { get; init; } = 3f;
 
-    /// <summary>Foot quad size as a fraction of the entity's render half-size.</summary>
-    public float FootSizeFrac { get; init; } = 4f / 32f;
-
-    /// <summary>Sprite key of the foot quad (boots for humanoids, paws for
-    /// quadrupeds).</summary>
-    public string FootTextureKey { get; init; } = "player/boot";
+    /// <summary>Base color of the dome boots/paws; the dome shader shades it
+    /// per-vertex against the fixed light. Default is the player's boot
+    /// leather tone.</summary>
+    public (byte R, byte G, byte B) DomeColor { get; init; } = (139, 90, 43);
 
     /// <summary>Dome-boot dimensions (world px) for the projected spherical
     /// dome feet — the sized-to-entity counterpart of the legacy flat foot
-    /// quad (whose screen half was entityHalf · FootSizeFrac). Default is
-    /// the player boot: round footprint, slightly longer at the toe than
-    /// the heel, about a hemisphere tall, scaled up ~20% from the original
-    /// (2.2/3.0 footprint) on user request 2026-10-04.</summary>
+    /// quad. Default is the player boot: round footprint, slightly longer at
+    /// the toe than the heel, about a hemisphere tall, scaled up ~20% from
+    /// the original (2.2/3.0 footprint) on user request 2026-10-04.</summary>
     public FootDomeDims DomeBoots { get; init; } = new(
         toe: 3.6f, heel: 2.65f, halfWidth: 2.9f, height: 3.85f);
 }

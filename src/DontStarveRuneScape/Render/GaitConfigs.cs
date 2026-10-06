@@ -19,7 +19,6 @@ public static class GaitConfigs
         LiftPx = 4f,
         TriggerDist = 3f,
         MinStride = 3f,
-        FootSizeFrac = 4f / 32f,
     };
 
     // Humanoid NPCs are player-styled; slightly smaller boots to match the
@@ -33,15 +32,16 @@ public static class GaitConfigs
         LiftPx = 4f,
         TriggerDist = 3f,
         MinStride = 3f,
-        FootSizeFrac = 4f / 30f,
         DomeBoots = new(toe: 2.6f, heel: 1.9f, halfWidth: 2.1f, height: 2.8f),
     };
 
     // Quadruped walk: diagonal pairs [front-left, rear-right] then
     // [front-right, rear-left]. Fore/aft offsets ±6px, lateral ±3px, a slower
     // swing (0.14s), and a bigger lift for the longer strides. One config per
-    // quadruped so each gets a paw sprite tinted to its own body color.
-    private static GaitConfig Quadruped(string pawKey) => new()
+    // quadruped so each gets paw domes tinted to its own body color; the paw
+    // dims scale with the old flat paw-quad half (16·4/16 = 4.0px vs the
+    // player's 2.75px).
+    private static GaitConfig Quadruped(byte r, byte g, byte b) => new()
     {
         Pattern = GaitPattern.QuadrupedWalk,
         FootOffsets = [(-3f, 6f), (3f, -6f), (3f, 6f), (-3f, -6f)],
@@ -49,19 +49,19 @@ public static class GaitConfigs
         LiftPx = 5f,
         TriggerDist = 3f,
         MinStride = 3f,
-        FootSizeFrac = 4f / 16f,
-        FootTextureKey = pawKey,
+        DomeBoots = new(toe: 5.2f, heel: 3.85f, halfWidth: 4.2f, height: 5.6f),
+        DomeColor = (r, g, b),
     };
 
     // Gait config per monster sprite key; null = legless/floating body, no feet.
     public static GaitConfig? ForMonster(string spriteKey) => spriteKey switch
     {
-        "monster/wolf" => Quadruped("monster/paw_wolf"),
-        "monster/bear" => Quadruped("monster/paw_bear"),
-        "monster/boar" => Quadruped("monster/paw_boar"),
-        "monster/crocodile" => Quadruped("monster/paw_crocodile"),
-        "monster/crab" => Quadruped("monster/paw_crab"),
-        "monster/scorpion" => Quadruped("monster/paw_scorpion"),
+        "monster/wolf" => Quadruped(150, 150, 155),
+        "monster/bear" => Quadruped(115, 85, 60),
+        "monster/boar" => Quadruped(130, 95, 70),
+        "monster/crocodile" => Quadruped(90, 130, 70),
+        "monster/crab" => Quadruped(190, 90, 60),
+        "monster/scorpion" => Quadruped(120, 80, 50),
         "monster/goblin" => Player,
         "monster/cave_troll" => Player,
         "monster/stone_golem" => Player,
