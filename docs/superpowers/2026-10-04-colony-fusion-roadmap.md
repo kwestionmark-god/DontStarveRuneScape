@@ -340,3 +340,15 @@ Structure upgrades remain future work.
   hook; 8 new tests (249/249 green); day/night captures verified. Worker
   schedule integration (MountainCore's per-hour WORK/SLEEP/NOURISHMENT
   categories, day/night guard shifts) is the intended next slice on top.
+
+- 2026-10-06: Worker-schedules design spec written and approved in
+  discussion (docs/superpowers/specs/2026-10-06-worker-schedules-design.md):
+  behavior-template 24-slot schedules (workers get a day template; guards
+  split into DAYTIME/NIGHTTIME shift squads, alternation complement of the
+  most recent living guard), a hard night floor that refuses outdoor work
+  dispatch for non-guards regardless of template, bedtime sleep and casual
+  (schedule-gated) meals layered onto the existing rest/food needs, claims
+  released on every category change, per-worker category shown in the
+  colony dashboard roster, shift persisted on the worker snapshot.
+  Out of scope: editing UI, per-NPC overrides, darkness damage, cave
+  schedules. Implementation plan next.
