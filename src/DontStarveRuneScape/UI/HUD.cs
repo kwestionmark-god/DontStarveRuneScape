@@ -5,6 +5,7 @@ using DontStarveRuneScape.Config;
 using DontStarveRuneScape.Input;
 using DontStarveRuneScape.Render;
 using DontStarveRuneScape.Survival;
+using DontStarveRuneScape.World;
 
 /// <summary>
 /// HUD — Heads-up display: OpenTTD-style draggable/collapsible windows (vitals
@@ -17,6 +18,7 @@ public sealed class HUD
     private readonly HudWindowManager _windows = new();
     private readonly VitalsHudWindow _vitals;
     private float _damageFlash;
+    private DayNightCycle? _clock;
 
     /// <summary>User settings; null leaves every element visible at scale 1.</summary>
     public Settings? Settings { get; set; }
@@ -38,6 +40,9 @@ public sealed class HUD
     {
         _vitals.SetData(survival, stamina);
     }
+
+    /// <summary>Day/night clock shown top-right, with the sleep indicator.</summary>
+    public void SetClock(DayNightCycle? clock) => _clock = clock;
 
     /// <summary>Retained-mode input for the windows (drag, collapse, raise).</summary>
     public void UpdateInput(InputState? state, int screenW, int screenH)
@@ -81,6 +86,26 @@ public sealed class HUD
         }
 
         if (text == null) return;
+
+        // Day/night clock, top-right; "Sleeping..." sits under it.
+        if (_clock != null)
+        {
+            int hour = (int)_clock.HourOfDay;
+            int minute = (int)((_clock.HourOfDay - hour) * 60f);
+            string label = $"{(_clock.IsDay ? "Day" : "Night")} {hour:D2}:{minute:D2}";
+            var (cw, _) = text.Measure(label, 13, false);
+            float cx = screenWidth - 18f - cw * 0.5f;
+            batch.DrawScreenQuad(cx, 22f, cw * 0.5f + 5f, 9f, 12, 10, 8, 170);
+            text.DrawText(batch, label, cx, 22f, 13, 235, 225, 200);
+            if (_clock.Sleeping)
+            {
+                const string sleeping = "Sleeping...";
+                var (sw, _) = text.Measure(sleeping, 13, false);
+                float sx = screenWidth - 18f - sw * 0.5f;
+                batch.DrawScreenQuad(sx, 41f, sw * 0.5f + 5f, 9f, 12, 10, 8, 170);
+                text.DrawText(batch, sleeping, sx, 41f, 13, 150, 200, 255);
+            }
+        }
 
         // Notifications under the vitals window, fading over their last second.
         if (Settings?.ShowNotifications == false) return;

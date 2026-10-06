@@ -93,6 +93,7 @@ public sealed class SaveSystem
         RestoreFactions(saveData, game);
         RestoreWorld(saveData, game);
         RestoreSeasons(saveData, game);
+        game.DayNight?.RestoreSnapshot(saveData.DayNight);
     }
 
     /// <summary>
@@ -158,6 +159,7 @@ public sealed class SaveSystem
                 DepletedNodes = game.World?.GetDepletedNodes() ?? [],
             },
             Seasons = game.SeasonSystem?.GetSnapshot() ?? new SeasonSnapshot(),
+            DayNight = game.DayNight?.GetSnapshot() ?? new World.DayNightSnapshot(),
         };
     }
 
@@ -290,6 +292,7 @@ public sealed class SaveData
     public FactionSnapshot Factions { get; set; } = new();
     public WorldSnapshot World { get; set; } = new();
     public SeasonSnapshot Seasons { get; set; } = new();
+    public World.DayNightSnapshot DayNight { get; set; } = new();
 }
 
 /// <summary>

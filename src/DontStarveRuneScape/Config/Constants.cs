@@ -197,6 +197,14 @@ public static class Constants
     public const float NightAmbientLevel = 0.15f;           // Minimum ambient at night (0–1)
     public const float DayAmbientLevel = 0.45f;             // Maximum ambient at noon (0–1)
 
+    // Day/night cycle
+    public const float DayLengthSeconds = 600f;             // 10 real minutes of daylight
+    public const float NightLengthSeconds = 600f;           // 10 real minutes of night
+    public const float SleepTimeScale = 30f;                // Clock speed while sleeping
+    public const float SleepHungerFactor = 0.25f;           // Hunger drain multiplier asleep
+    public const float SleepHealPerSecond = 0.05f;          // HP per game second asleep
+    public const float NightOverlayMaxAlpha = 150f;         // Screen darkening at midnight (0–255)
+
     // Ambient occlusion
     public const float AoStrength = 0.35f;                  // Max AO darkening (0–1)
     public const int AoBlurRadius = 1;                      // Tiles to blur AO across (0=sharp)

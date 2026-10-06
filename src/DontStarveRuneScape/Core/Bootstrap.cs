@@ -272,6 +272,7 @@ public sealed class Bootstrap
         _game.ParticleSystem = new Render.ParticleSystem();
         _game.SeasonalRenderer = new Render.SeasonalRenderer();
         _game.LightingSystem = new Render.LightingSystem();
+        _game.DayNight = new World.DayNightCycle();
 
         // Camera
         _game.Camera = new Camera(1280, 720);
@@ -356,6 +357,17 @@ public sealed class Bootstrap
                     player.WorldY + MathF.Sin(rad) * spawnDist,
                     monsterRegistry.BiomeOf(def.MonsterId));
             }
+        }
+
+        // Smoketest hook: DSR_TIME_OF_DAY=<0..1> sets the day/night clock
+        // (0 = dawn, 0.25 = noon, 0.5 = dusk, 0.75 = midnight) for
+        // day-vs-night lighting captures.
+        var timeEnv = System.Environment.GetEnvironmentVariable("DSR_TIME_OF_DAY");
+        if (!string.IsNullOrWhiteSpace(timeEnv) && _game.DayNight != null
+            && float.TryParse(timeEnv, System.Globalization.NumberStyles.Float,
+                System.Globalization.CultureInfo.InvariantCulture, out var tod))
+        {
+            _game.DayNight.RestoreSnapshot(new World.DayNightSnapshot { TimeOfDay = tod });
         }
 
         // Smoketest hooks: DSR_CAM_PITCH/DSR_CAM_YAW/DSR_CAM_ZOOM override the

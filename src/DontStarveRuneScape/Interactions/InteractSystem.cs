@@ -75,6 +75,11 @@ public sealed class InteractSystem
             }
         }
 
+        // Sleeping at a lit fire or shelter (night only) takes precedence
+        // over resource gathering.
+        if (game.FireInteraction?.TrySleep() == true)
+            return;
+
         // Find nearest interactable resource
         var (node, tx, ty, nodeX, nodeY) = game.Player.FindInteractableResource(game.World, 128.0f);
 

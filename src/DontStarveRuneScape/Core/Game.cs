@@ -104,6 +104,7 @@ public sealed class Game
 
     // Phase 6: Lighting
     public LightingSystem? LightingSystem { get; set; }
+    public World.DayNightCycle? DayNight { get; set; }
 
     // Renderers
     public TileRenderer? TileRenderer { get; set; }
@@ -615,7 +616,14 @@ public sealed class Game
         // them too (hunger holds and food stops spoiling while paused).
         if (State is not (GameState.Paused or GameState.SettingsPanel))
         {
-            Survival?.Tick(dt);
+            // While sleeping, hunger drains for the fast-forwarded game time
+            // at a reduced rate, and sleep slowly restores HP.
+            float survivalDt = DayNight?.Sleeping == true
+                ? dt * Constants.SleepTimeScale * Constants.SleepHungerFactor
+                : dt;
+            Survival?.Tick(survivalDt);
+            if (DayNight?.Sleeping == true)
+                Survival?.Heal(dt * Constants.SleepTimeScale * Constants.SleepHealPerSecond);
 
             if (Inventory != null && Player != null)
             {
@@ -742,6 +750,14 @@ public sealed class Game
         // World update (regrowth, etc.)
         World?.Update(dt);
 
+        // While sleeping, any movement key wakes the player.
+        if (DayNight?.Sleeping == true && InputManager != null)
+        {
+            var wakeState = InputManager.InputState;
+            if (wakeState.MoveUp || wakeState.MoveDown || wakeState.MoveLeft || wakeState.MoveRight)
+                DayNight.CancelSleep();
+        }
+
         // Player movement (Playing only; keys route to panels in panel states)
         if (State == GameState.Playing && Player != null && InputManager != null)
         {
@@ -794,6 +810,7 @@ public sealed class Game
         {
             var actionSys = Player?.ActionSystem;
             HUD.SetVitals(Survival, actionSys?.Stamina);
+            HUD.SetClock(DayNight);
             if (actionSys != null)
             {
                 HUD.SetNotifications(actionSys.Notifications);
@@ -832,6 +849,9 @@ public sealed class Game
 
         // Weather
         WeatherSystem?.Tick(dt);
+
+        // Day/night clock (sleep fast-forwards it until dawn)
+        DayNight?.Tick(dt);
 
         // Seasons
         SeasonSystem?.Tick(dt);
@@ -1613,7 +1633,15 @@ public sealed class Game
                 screenWidth * .5f, screenHeight * .5f, 13, 12, 21, 78);
         else
         {
-            SeasonalRenderer?.DrawAmbientOverlay(gl, 20);
+            // Night darkness: full-screen overlay whose alpha follows the
+            // day/night ambient curve (clear day = 0, midnight = max).
+            float ambient = DayNight?.AmbientLevel ?? Constants.DayAmbientLevel;
+            float darkness = 1f - (ambient - Constants.NightAmbientLevel) /
+                (Constants.DayAmbientLevel - Constants.NightAmbientLevel);
+            if (darkness > 0.01f)
+                batch.DrawScreenQuad(screenWidth * .5f, screenHeight * .5f,
+                    screenWidth * .5f, screenHeight * .5f, 8, 10, 32,
+                    (byte)(darkness * Constants.NightOverlayMaxAlpha));
             DrawCaveCompass(batch, screenWidth, screenHeight);
         }
 

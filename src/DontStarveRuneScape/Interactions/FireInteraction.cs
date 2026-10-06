@@ -76,6 +76,43 @@ public sealed class FireInteraction
         }
     }
 
+    /// <summary>Sleep at a nearby lit fire, campfire, or shelter to skip
+    /// the night (clock fast-forwards until dawn). Returns true when the
+    /// interaction applied — including a refused daytime attempt near a
+    /// valid spot — so the caller does not fall through to gathering.</summary>
+    public bool TrySleep()
+    {
+        var game = _game;
+        if (game.Player == null || game.DayNight == null)
+            return false;
+
+        bool nearFire = game.Firemaking != null &&
+            game.Firemaking.GetFiresInRadius(
+                game.Player.WorldX, game.Player.WorldY,
+                Constants.TileSize * Constants.FireInteractionRadiusTiles).Count > 0;
+        bool nearShelter = game.BuildingSystem != null &&
+            (StructureUtils.IsStructureNearby(
+                game.BuildingSystem.GetAllStructures(),
+                game.Player.WorldX, game.Player.WorldY,
+                "campfire", Constants.CampfireSearchRadiusTiles) ||
+             StructureUtils.IsStructureNearby(
+                game.BuildingSystem.GetAllStructures(),
+                game.Player.WorldX, game.Player.WorldY,
+                "woven_shelter", Constants.CampfireSearchRadiusTiles));
+        if (!nearFire && !nearShelter)
+            return false;
+
+        if (!game.DayNight.TryStartSleep())
+        {
+            game.Player.ActionSystem?.AddNotification(
+                "You can only sleep at night.", (255, 200, 100));
+            return true;
+        }
+        game.Player.ActionSystem?.AddNotification(
+            "You drift off to sleep...", (150, 200, 255));
+        return true;
+    }
+
     /// <summary>Check if player is near a campfire structure tile.</summary>
     public bool CheckNearbyCampfire()
     {
