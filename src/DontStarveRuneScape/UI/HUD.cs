@@ -92,7 +92,8 @@ public sealed class HUD
         {
             int hour = (int)_clock.HourOfDay;
             int minute = (int)((_clock.HourOfDay - hour) * 60f);
-            string label = $"{(_clock.IsDay ? "Day" : "Night")} {hour:D2}:{minute:D2}";
+            int hour12 = hour % 12 == 0 ? 12 : hour % 12;
+            string label = $"{(_clock.IsDay ? "Day" : "Night")} {hour12}:{minute:D2} {(hour < 12 ? "AM" : "PM")}";
             var (cw, _) = text.Measure(label, 13, false);
             float cx = screenWidth - 18f - cw * 0.5f;
             batch.DrawScreenQuad(cx, 22f, cw * 0.5f + 5f, 9f, 12, 10, 8, 170);
