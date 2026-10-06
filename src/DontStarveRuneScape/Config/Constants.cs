@@ -198,8 +198,8 @@ public static class Constants
     public const float DayAmbientLevel = 0.45f;             // Maximum ambient at noon (0–1)
 
     // Day/night cycle
-    public const float DayLengthSeconds = 600f;             // 10 real minutes of daylight
-    public const float NightLengthSeconds = 600f;           // 10 real minutes of night
+    public const float DayLengthSeconds = 720f;             // 12 real minutes of daylight
+    public const float NightLengthSeconds = 720f;           // 12 real minutes of night (1 game hour = 1 real minute)
     public const float SleepTimeScale = 30f;                // Clock speed while sleeping
     public const float SleepHungerFactor = 0.25f;           // Hunger drain multiplier asleep
     public const float SleepHealPerSecond = 0.05f;          // HP per game second asleep
