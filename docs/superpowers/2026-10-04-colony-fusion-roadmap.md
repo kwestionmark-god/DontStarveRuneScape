@@ -330,3 +330,13 @@ Structure upgrades remain future work.
   instead of teleporting, deposit reclaims space incrementally, rest
   interruption releases claims without leaking, carried goods persist in NPC
   snapshots, dashboard roster shows hauling status. 226/226 tests.
+
+- 2026-10-06: Day/night cycle (commit 5cdc4e7) — prerequisite for the
+  phase-4 worker-schedules line. Conservative per user direction: 10 min
+  day + 10 min night, cosine ambient curve driving a full-screen darkness
+  overlay, HUD clock, and sleep-at-fire/shelter (E at night) that
+  fast-forwards the clock 30x until dawn with reduced hunger drain and
+  slow HP regen. Persisted via DayNightSnapshot; DSR_TIME_OF_DAY smoketest
+  hook; 8 new tests (249/249 green); day/night captures verified. Worker
+  schedule integration (MountainCore's per-hour WORK/SLEEP/NOURISHMENT
+  categories, day/night guard shifts) is the intended next slice on top.
