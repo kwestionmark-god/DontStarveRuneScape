@@ -17,6 +17,9 @@ public sealed class MerchantVisitSystem
     private readonly Game _game;
     private readonly HashSet<string> _todaysVisitors = [];
     private float _lastCheckedHour = -1f;
+    private MerchantNpc? _activeMerchant;
+
+    public MerchantNpc? ActiveMerchant => _activeMerchant;
 
     public MerchantVisitSystem(Game game) => _game = game;
 
@@ -109,7 +112,9 @@ public sealed class MerchantVisitSystem
         var anchorX = _game.ColonySystem!.AnchorTileX;
         var anchorY = _game.ColonySystem!.AnchorTileY;
 
-        var merchant = Npc.FromDef(def);
+        var merchant = Npc.FromDef(def) as MerchantNpc;
+        if (merchant == null)
+            return;
         merchant.WorldX = (anchorX + 0.5f) * Constants.TileSize;
         merchant.WorldY = (anchorY + 0.5f) * Constants.TileSize;
         merchant.FactionId = factionId;
@@ -119,6 +124,7 @@ public sealed class MerchantVisitSystem
         merchant.IsActive = true;
 
         _game.NPCSystem.NPCs.Add(merchant);
+        _activeMerchant = merchant;
     }
 
     private void DepartMerchants()
@@ -135,5 +141,6 @@ public sealed class MerchantVisitSystem
         {
             _game.NPCSystem.NPCs.Remove(merchant);
         }
+        _activeMerchant = null;
     }
 }

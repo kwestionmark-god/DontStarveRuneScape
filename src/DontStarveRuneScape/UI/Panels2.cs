@@ -1857,6 +1857,19 @@ public sealed class DashboardPanel
             }
         }
 
+        // Diplomacy tab: merchant visit status readout
+        if (ActiveTab == "diplomacy")
+        {
+            var activeMerchant = Game?.MerchantVisitSystem?.ActiveMerchant;
+            if (activeMerchant != null
+                && ui.TryClick(x + 292f, y + 230f, 240f, 22f))
+            {
+                // Walk-me-over hint; TradeSystem opens via NPC proximity
+                _colonyStatus = $"Visiting merchant {activeMerchant.Name} from {activeMerchant.FactionId}.";
+            }
+            return;
+        }
+
         if (ActiveTab != "colony" || Game?.ColonySystem == null) return;
         var colony = Game.ColonySystem;
         var inventory = Game.Player?.Inventory ?? Game.Inventory;
@@ -2349,6 +2362,19 @@ public sealed class DashboardPanel
                 Left(batch, text, $"Known factions  {game?.FactionRegistry?.Factions.Count ?? 0}", x + 292, y + 137, 14);
                 Left(batch, text, $"Recruitable companions  {recruits}", x + 292, y + 162, 14);
                 Left(batch, text, "Negotiate with faction leaders to build standing.", x + 292, y + 201, 12, 180, 170, 150);
+                
+                // Merchant visit UI
+                var activeMerchant = game?.MerchantVisitSystem?.ActiveMerchant;
+                if (activeMerchant != null)
+                {
+                    Left(batch, text, $"Visiting Merchant: {activeMerchant.Name}", x + 292, y + 230, 14, 180, 170, 150);
+                    Left(batch, text, $"Faction: {activeMerchant.FactionId} · Departs at 10:00", x + 292, y + 250, 12, 180, 170, 150);
+                    Left(batch, text, "Click 'Visit Merchant' in dashboard to trade.", x + 292, y + 270, 10, 180, 170, 150);
+                }
+                else
+                {
+                    Left(batch, text, "No merchant visiting today.", x + 292, y + 230, 12, 180, 170, 150);
+                }
                 break;
         }
         Left(batch, text, ActiveTab.ToUpperInvariant(), x + 292, y + 265, 12,
