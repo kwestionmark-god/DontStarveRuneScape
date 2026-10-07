@@ -33,6 +33,9 @@ public sealed class CaveWorldSystem
     /// <summary>Surface combat system (for raid spawning and other surface events).</summary>
     public CombatSystem? SurfaceCombat => _surfaceCombat;
 
+    /// <summary>Surface world map while inside a cave (null otherwise).</summary>
+    public TileMap? SurfaceWorld => _surface;
+
     public CaveWorldSystem(Game game) => _game = game;
 
     public void InteractWith(Tile tile)

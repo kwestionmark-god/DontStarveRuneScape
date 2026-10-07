@@ -5,6 +5,7 @@ using System.Linq;
 using DontStarveRuneScape.Core;
 using DontStarveRuneScape.Data;
 using DontStarveRuneScape.World;
+using DontStarveRuneScape.Combat;
 using DontStarveRuneScape.Config;
 
 /// <summary>
@@ -21,6 +22,12 @@ public sealed class MerchantVisitSystem
 
     public MerchantNpc? ActiveMerchant => _activeMerchant;
 
+    /// <summary>Test hook: forces the daily raid roll outcome (null = random).</summary>
+    public bool? RaidRollOverride { get; set; }
+
+    /// <summary>Seeded RNG for the raid chance roll (tests; defaults to shared).</summary>
+    public Random? RaidRandom { get; set; }
+
     public MerchantVisitSystem(Game game) => _game = game;
 
     /// <summary>Call once per frame with the current hour of day (0–24).</summary>
@@ -30,6 +37,7 @@ public sealed class MerchantVisitSystem
         if (_lastCheckedHour < 6f && hourOfDay >= 6f && hourOfDay < 7f)
         {
             SpawnDailyMerchants();
+            RollDailyRaid();
             _todaysVisitors.Clear();
         }
         
@@ -55,8 +63,8 @@ public sealed class MerchantVisitSystem
         if (_game.ColonySystem == null || !_game.ColonySystem.IsFounded)
             return;
 
-        var colonyBiome = _game.World?.GetTile(
-            _game.ColonySystem.AnchorTileX, 
+        var colonyBiome = ResolveSurfaceWorld()?.GetTile(
+            _game.ColonySystem.AnchorTileX,
             _game.ColonySystem.AnchorTileY)?.Biome?.Id;
         if (string.IsNullOrEmpty(colonyBiome))
             return;
@@ -76,9 +84,7 @@ public sealed class MerchantVisitSystem
                 continue;
 
             // Check if faction has territory in this biome
-            if (!faction.TerritoryBiomes.Contains(_game.World.GetTile(
-                _game.ColonySystem.AnchorTileX, 
-                _game.ColonySystem.AnchorTileY)?.Biome?.Id ?? ""))
+            if (!faction.TerritoryBiomes.Contains(colonyBiome))
                 continue;
 
             // Find a merchant def for this faction in this biome
@@ -89,8 +95,94 @@ public sealed class MerchantVisitSystem
             // Spawn merchant at colony anchor
             SpawnMerchant(merchantDef, faction.FactionId);
             _todaysVisitors.Add(faction.FactionId);
+            Notify($"Merchants from {faction.Name} arrived", 255, 220, 120);
         }
     }
+
+    /// <summary>Resolve the surface world map: while the player is inside a
+    /// cave, Game.World points at the cave, so use CaveWorlds' stored surface.</summary>
+    private TileMap? ResolveSurfaceWorld()
+        => _game.CaveWorlds?.IsInside == true ? _game.CaveWorlds.SurfaceWorld : _game.World;
+
+    /// <summary>Resolve the surface combat system (raids target the surface).</summary>
+    private CombatSystem? ResolveSurfaceCombat()
+        => _game.CaveWorlds?.IsInside == true ? _game.CaveWorlds.SurfaceCombat : _game.CombatSystem;
+
+    /// <summary>Daily at 06:00: hostile factions (standing < 0.25) whose
+    /// territory overlaps the colony biome roll 0.15 * (0.25 - standing)
+    /// raid chance; success spawns a 2–4 monster raid party at the colony
+    /// perimeter on the surface map.</summary>
+    private void RollDailyRaid()
+    {
+        if (_game.FactionSystem == null || _game.FactionRegistry == null)
+            return;
+        var colony = _game.ColonySystem;
+        if (colony == null || !colony.IsFounded)
+            return;
+
+        var surface = ResolveSurfaceWorld();
+        var combat = ResolveSurfaceCombat();
+        if (surface == null || combat == null)
+            return;
+
+        var colonyBiome = surface.GetTile(colony.AnchorTileX, colony.AnchorTileY)?.Biome?.Id;
+        if (string.IsNullOrEmpty(colonyBiome))
+            return;
+
+        var rand = RaidRandom ?? Random.Shared;
+        foreach (var faction in _game.FactionRegistry.Factions.Values)
+        {
+            if (faction.HostileMonsterTypes.Length == 0
+                || !faction.TerritoryBiomes.Contains(colonyBiome))
+                continue;
+
+            float standing = _game.FactionSystem.StandingOf(faction.FactionId);
+            if (standing >= 0.25f)
+                continue;
+
+            float chance = 0.15f * (0.25f - standing);
+            bool raid = RaidRollOverride ?? rand.NextDouble() < chance;
+            if (!raid)
+                continue;
+
+            // Resolve monster defs from the faction's hostile list
+            var monsterDefs = new List<MonsterDef>();
+            var registry = _game.MonsterRegistry;
+            if (registry == null)
+                continue;
+            foreach (var monsterId in faction.HostileMonsterTypes)
+            {
+                foreach (var biomeMonsters in registry.MonstersByBiome.Values)
+                {
+                    if (biomeMonsters.TryGetValue(monsterId, out var def))
+                    {
+                        monsterDefs.Add(def);
+                        break;
+                    }
+                }
+            }
+            if (monsterDefs.Count == 0)
+                continue;
+
+            int count = 2 + rand.Next(3); // 2–4 raiders
+            for (int i = 0; i < count; i++)
+            {
+                double angle = rand.NextDouble() * Math.PI * 2;
+                int spawnX = colony.AnchorTileX + (int)MathF.Round(MathF.Cos((float)angle) * 9f);
+                int spawnY = colony.AnchorTileY + (int)MathF.Round(MathF.Sin((float)angle) * 9f);
+                if (spawnX < 0 || spawnY < 0 || spawnX >= surface.Width || spawnY >= surface.Height)
+                    continue;
+                float wx = (spawnX + 0.5f) * Constants.TileSize;
+                float wy = (spawnY + 0.5f) * Constants.TileSize;
+                combat.SpawnMonster(monsterDefs[rand.Next(monsterDefs.Count)], wx, wy);
+            }
+            Notify($"Raid incoming: {faction.Name} raiders at the perimeter!", 255, 90, 90);
+        }
+    }
+
+    /// <summary>Post a player notification through the existing ActionSystem channel.</summary>
+    private void Notify(string text, byte r, byte g, byte b)
+        => _game.Player?.ActionSystem?.AddNotification(text, (r, g, b));
 
     private NpcDef? FindMerchantDef(string factionId, string biome)
     {
