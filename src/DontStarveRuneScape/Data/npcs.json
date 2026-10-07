@@ -60,6 +60,12 @@
    "health": 15,
    "max_health": 15,
    "available_quest_ids": [
+    "first_flame",
+    "hearth_and_home",
+    "full_belly",
+    "first_blood",
+    "settling_in",
+    "forest_friends",
     "timber_collection"
    ],
    "giver_faction": "forest_villagers"

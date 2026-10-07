@@ -35,7 +35,11 @@ public class NpcDataTests
 
         var giver = registry.GetNpc("quest_giver_forest_1");
         Assert.NotNull(giver);
-        Assert.Equal("timber_collection", Assert.Single(giver!.AvailableQuestIds));
+        // First Steps chain (frontier slice 4) rides ahead of the original
+        // side quest; the giver offers all seven.
+        Assert.Equal(7, giver!.AvailableQuestIds.Length);
+        Assert.Equal("first_flame", giver.AvailableQuestIds[0]);
+        Assert.Contains("timber_collection", giver.AvailableQuestIds);
 
         var leader = registry.GetNpc("goblin_chief_grak");
         Assert.NotNull(leader);
@@ -83,7 +87,7 @@ public class NpcDataTests
         var registry = new QuestRegistry();
         registry.LoadAll();
 
-        Assert.Equal(12, registry.Quests.Count);
+        Assert.Equal(18, registry.Quests.Count); // 12 originals + First Steps chain (6)
 
         var timber = registry.GetQuest("timber_collection");
         Assert.NotNull(timber);

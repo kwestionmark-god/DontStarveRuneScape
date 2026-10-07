@@ -170,7 +170,12 @@ public class QuestChainTests
         Assert.True(system.AcceptQuest(player, npc, "first_flame").Success);
         Assert.False(system.ConditionsMet(system.Registry!.GetQuest("first_flame")!, inventory));
 
+        // collect_item objectives poll live inventory (ProgressOf reads
+        // GetItemQuantity); NotifyCollect also bumps the counter, and the
+        // game fires both on every pickup — mirror that here.
+        inventory.AddItem("stick", 3);
         system.NotifyCollect("stick", 3);
+        inventory.AddItem("tree_sap", 1);
         system.NotifyCollect("tree_sap", 1);
 
         var quest = system.Registry.GetQuest("first_flame")!;

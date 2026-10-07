@@ -417,6 +417,204 @@
       "prerequisite_quests": ["mountain_pass"],
       "repeatable": false,
       "sprite_key": "quest/gem_mining"
+    },
+    {
+      "quest_id": "first_flame",
+      "name": "First Flame",
+      "description": "Old Man Hemlock wants every newcomer to survive their first night. Gather sticks and tree sap for a fire.",
+      "giver_npc_type": "quest_giver",
+      "giver_faction": "forest_villagers",
+      "min_commerce": 0,
+      "min_persuasion": 0,
+      "min_total_intelligence": 1,
+      "acceptance_threshold": 0.3,
+      "xp_reward": 30.0,
+      "skill_xp_rewards": {"firemaking": 40.0},
+      "recipe_unlocks": [],
+      "gear_unlocks": [],
+      "item_rewards": [["torch", 2]],
+      "conditions": [
+        {
+          "condition_type": "collect_item",
+          "target": "stick",
+          "required_count": 3,
+          "description": "Collect 3 sticks"
+        },
+        {
+          "condition_type": "collect_item",
+          "target": "tree_sap",
+          "required_count": 1,
+          "description": "Collect 1 tree sap"
+        }
+      ],
+      "fail_conditions": [],
+      "required_faction_status": null,
+      "prerequisite_quests": [],
+      "repeatable": false,
+      "sprite_key": "quest/first_flame"
+    },
+    {
+      "quest_id": "hearth_and_home",
+      "name": "Hearth and Home",
+      "description": "A campfire keeps the dark at bay. Hemlock needs birch logs and stone ready for the build.",
+      "giver_npc_type": "quest_giver",
+      "giver_faction": "forest_villagers",
+      "min_commerce": 0,
+      "min_persuasion": 0,
+      "min_total_intelligence": 1,
+      "acceptance_threshold": 0.3,
+      "xp_reward": 40.0,
+      "skill_xp_rewards": {"construction": 40.0},
+      "recipe_unlocks": [],
+      "gear_unlocks": [],
+      "item_rewards": [["healing_herbs", 2]],
+      "conditions": [
+        {
+          "condition_type": "collect_item",
+          "target": "birch_logs",
+          "required_count": 4,
+          "description": "Collect 4 birch logs"
+        },
+        {
+          "condition_type": "collect_item",
+          "target": "stone",
+          "required_count": 3,
+          "description": "Collect 3 stone"
+        }
+      ],
+      "fail_conditions": [],
+      "required_faction_status": null,
+      "prerequisite_quests": ["first_flame"],
+      "repeatable": false,
+      "sprite_key": "quest/hearth_and_home"
+    },
+    {
+      "quest_id": "full_belly",
+      "name": "Full Belly",
+      "description": "Hunger kills slower than wolves, but it kills all the same. Bring cooked fish and berries to the village.",
+      "giver_npc_type": "quest_giver",
+      "giver_faction": "forest_villagers",
+      "min_commerce": 0,
+      "min_persuasion": 0,
+      "min_total_intelligence": 1,
+      "acceptance_threshold": 0.35,
+      "xp_reward": 50.0,
+      "skill_xp_rewards": {"cooking": 50.0, "foraging": 25.0},
+      "recipe_unlocks": [],
+      "gear_unlocks": [],
+      "item_rewards": [["raw_meat", 2]],
+      "conditions": [
+        {
+          "condition_type": "collect_item",
+          "target": "cooked_fish",
+          "required_count": 2,
+          "description": "Collect 2 cooked fish"
+        },
+        {
+          "condition_type": "collect_item",
+          "target": "berries",
+          "required_count": 5,
+          "description": "Collect 5 berries"
+        }
+      ],
+      "fail_conditions": [],
+      "required_faction_status": null,
+      "prerequisite_quests": ["hearth_and_home"],
+      "repeatable": false,
+      "sprite_key": "quest/full_belly"
+    },
+    {
+      "quest_id": "first_blood",
+      "name": "First Blood",
+      "description": "Wolves grow bold near the village. Prove you can hold your own — Hemlock asks for one wolf's pelt.",
+      "giver_npc_type": "quest_giver",
+      "giver_faction": "forest_villagers",
+      "min_commerce": 0,
+      "min_persuasion": 1,
+      "min_total_intelligence": 1,
+      "acceptance_threshold": 0.35,
+      "xp_reward": 60.0,
+      "skill_xp_rewards": {"attack": 60.0},
+      "recipe_unlocks": [],
+      "gear_unlocks": [],
+      "item_rewards": [["gold", 15]],
+      "conditions": [
+        {
+          "condition_type": "kill_monster",
+          "target": "wolf",
+          "required_count": 1,
+          "description": "Slay 1 wolf"
+        }
+      ],
+      "fail_conditions": [],
+      "required_faction_status": null,
+      "prerequisite_quests": ["full_belly"],
+      "repeatable": false,
+      "sprite_key": "quest/first_blood"
+    },
+    {
+      "quest_id": "settling_in",
+      "name": "Settling In",
+      "description": "Hemlock says the plains east of the forest are safe ground for a settlement. Walk them, and bring gold for the first trade.",
+      "giver_npc_type": "quest_giver",
+      "giver_faction": "forest_villagers",
+      "min_commerce": 0,
+      "min_persuasion": 1,
+      "min_total_intelligence": 2,
+      "acceptance_threshold": 0.4,
+      "xp_reward": 120.0,
+      "skill_xp_rewards": {"intelligence": 40.0},
+      "recipe_unlocks": [],
+      "gear_unlocks": [],
+      "item_rewards": [["gold", 10]],
+      "conditions": [
+        {
+          "condition_type": "visit_location",
+          "target": "plains",
+          "required_count": 1,
+          "description": "Walk the plains east of the forest"
+        },
+        {
+          "condition_type": "collect_item",
+          "target": "gold",
+          "required_count": 10,
+          "description": "Hold 10 gold for your first trade"
+        }
+      ],
+      "fail_conditions": [],
+      "required_faction_status": null,
+      "prerequisite_quests": ["first_blood"],
+      "repeatable": false,
+      "sprite_key": "quest/settling_in"
+    },
+    {
+      "quest_id": "forest_friends",
+      "name": "Forest Friends",
+      "description": "The villagers watch how you treat their kin. Negotiate in good faith with the forest faction to earn their craft secrets.",
+      "giver_npc_type": "quest_giver",
+      "giver_faction": "forest_villagers",
+      "min_commerce": 1,
+      "min_persuasion": 2,
+      "min_total_intelligence": 3,
+      "acceptance_threshold": 0.5,
+      "xp_reward": 80.0,
+      "skill_xp_rewards": {"intelligence": 40.0},
+      "recipe_unlocks": ["craft_candle"],
+      "gear_unlocks": [],
+      "item_rewards": [["healing_herbs", 3]],
+      "conditions": [
+        {
+          "condition_type": "negotiate_faction",
+          "target": "forest_villagers",
+          "required_count": 1,
+          "description": "Negotiate with the forest villagers"
+        }
+      ],
+      "fail_conditions": [],
+      "required_faction_status": null,
+      "prerequisite_quests": ["settling_in"],
+      "repeatable": false,
+      "sprite_key": "quest/forest_friends"
     }
   ]
 }
