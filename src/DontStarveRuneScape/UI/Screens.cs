@@ -3,6 +3,7 @@ namespace DontStarveRuneScape.UI;
 using DontStarveRuneScape.Core;
 using DontStarveRuneScape.Input;
 using DontStarveRuneScape.Render;
+using DontStarveRuneScape.Survival;
 using Silk.NET.Input;
 using Silk.NET.OpenGL;
 using Silk.NET.SDL;
@@ -345,14 +346,26 @@ public sealed class CharacterDefinition
     public string Name { get; set; } = string.Empty;
     public int ClassId { get; set; }
     public int AppearanceId { get; set; }
+    /// <summary>Creation-time background id (character backgrounds slice);
+    /// defaults to wanderer — the no-choice behavior predates the slice.</summary>
+    public string Background { get; set; } = "wanderer";
 }
 
 public sealed class CharacterSelectPanel
 {
     public bool Visible { get; set; }
     public string Name { get; private set; } = "";
+    /// <summary>Currently highlighted background id (character backgrounds
+    /// slice); public so tests assert selection without a draw pass.</summary>
+    public string SelectedBackgroundId { get; private set; } = "wanderer";
     private Action<CharacterDefinition?>? _confirmCallback;
     private int _hover;
+
+    // Background option row geometry (character backgrounds slice): four
+    // cells spanning the panel width under the name box.
+    private const float RowInsetX = 240f;
+    private const float CellH = 42f;
+    private const float RowRelY = 140f;
 
     public void SetConfirmCallback(Action<CharacterDefinition?> callback) => _confirmCallback = callback;
     public void HandleInput(Game game, InputState inputState) { }
@@ -375,10 +388,25 @@ public sealed class CharacterSelectPanel
         {
             Name = Name[..^1];
         }
+        else if (key is Key.Right or Key.Down)
+        {
+            CycleBackground(1);
+        }
+        else if (key is Key.Left or Key.Up)
+        {
+            CycleBackground(-1);
+        }
         else if (key == Key.Enter)
         {
             Confirm();
         }
+    }
+
+    private void CycleBackground(int delta)
+    {
+        var all = Backgrounds.All;
+        int idx = Array.FindIndex(all, b => b.Id == SelectedBackgroundId);
+        SelectedBackgroundId = all[((idx < 0 ? 0 : idx) + delta + all.Length) % all.Length].Id;
     }
 
     public void Update(Game game, InputState input, int screenWidth, int screenHeight)
@@ -386,13 +414,35 @@ public sealed class CharacterSelectPanel
         float cx = screenWidth * .5f;
         float top = screenHeight * .5f - 124f;
         var ui = new UiInput(input);
+
+        // Background option cells (character backgrounds slice): the row
+        // spans the panel width under the name box, four equal cells.
+        var backgrounds = Backgrounds.All;
+        float cellW = (RowInsetX * 2f) / backgrounds.Length;
+        int hoverBackground = -1;
+        for (int i = 0; i < backgrounds.Length; i++)
+        {
+            if (ui.TryClick(cx - RowInsetX + cellW * i, top + RowRelY, cellW, CellH))
+            {
+                SelectedBackgroundId = backgrounds[i].Id;
+                hoverBackground = i;
+            }
+            else if (ui.Hovered(cx - RowInsetX + cellW * i, top + RowRelY, cellW, CellH))
+            {
+                hoverBackground = i;
+            }
+        }
+
         _hover = ui.Hovered(cx - 240, top + 78, 480, 48) ? 0
-            : ui.Hovered(cx - 132, top + 158, 124, 42) ? 1
-            : ui.Hovered(cx + 8, top + 158, 124, 42) ? 2 : -1;
-        if (ui.TryClick(cx - 132, top + 158, 124, 42)) Confirm();
-        else if (ui.TryClick(cx + 8, top + 158, 124, 42)) game.SetState(GameState.Title);
+            : ui.Hovered(cx - 132, top + 210, 124, 42) ? 1
+            : ui.Hovered(cx + 8, top + 210, 124, 42) ? 2 : -1;
+        if (ui.TryClick(cx - 132, top + 210, 124, 42)) Confirm();
+        else if (ui.TryClick(cx + 8, top + 210, 124, 42)) game.SetState(GameState.Title);
         input.MouseLeftClick = false;
+        _hoverBackground = hoverBackground;
     }
+
+    private int _hoverBackground;
 
     public void Render(PrimitiveBatch batch, TextRenderer? text, int screenWidth, int screenHeight, float time)
     {
@@ -410,16 +460,44 @@ public sealed class CharacterSelectPanel
             Name.Length == 0 ? (byte)145 : PanelChrome.TextR,
             Name.Length == 0 ? (byte)135 : PanelChrome.TextG,
             Name.Length == 0 ? (byte)120 : PanelChrome.TextB);
-        DrawButton(batch, text, cx - 132, top + 158, 124, 42, "BEGIN", _hover == 1, _hover == 1);
-        DrawButton(batch, text, cx + 8, top + 158, 124, 42, "BACK", _hover == 2, _hover == 2);
-        text.DrawText(batch, "Type to enter a name  ·  Enter begin  ·  Backspace edit  ·  Esc back",
-            cx, top + 233, 12, 158, 148, 127);
+        DrawButton(batch, text, cx - 132, top + 210, 124, 42, "BEGIN", _hover == 1, _hover == 1);
+        DrawButton(batch, text, cx + 8, top + 210, 124, 42, "BACK", _hover == 2, _hover == 2);
+
+        // Background option row (character backgrounds slice): four equal
+        // cells under the name box; the selected cell highlights and the
+        // hovered one brightens.
+        var backgrounds = Backgrounds.All;
+        float cellW = (RowInsetX * 2f) / backgrounds.Length;
+        for (int i = 0; i < backgrounds.Length; i++)
+        {
+            float bx = cx - RowInsetX + cellW * i;
+            bool selected = backgrounds[i].Id == SelectedBackgroundId;
+            bool hovered = _hoverBackground == i;
+            batch.DrawScreenQuad(bx + cellW * .5f, top + RowRelY + CellH * .5f,
+                cellW * .5f - 2f, CellH * .5f - 2f,
+                selected ? (byte)205 : hovered ? (byte)170 : (byte)150, 124, 67);
+            batch.DrawScreenQuad(bx + cellW * .5f, top + RowRelY + CellH * .5f,
+                cellW * .5f - 5f, CellH * .5f - 5f, 54, 39, 24);
+            text.DrawText(batch, backgrounds[i].Name, bx + cellW * .5f,
+                top + RowRelY + CellH * .5f - 7f, 12,
+                selected ? (byte)240 : (byte)200, selected ? (byte)225 : (byte)190,
+                selected ? (byte)205 : (byte)165);
+            text.DrawText(batch, backgrounds[i].Hint, bx + cellW * .5f,
+                top + RowRelY + CellH * .5f + 8f, 8, 165, 150, 120);
+        }
+
+        text.DrawText(batch, "Type to enter a name  ·  Arrows pick a background  ·  Enter begin  ·  Esc back",
+            cx, top + 272, 12, 158, 148, 127);
     }
 
     private void Confirm()
     {
         string clean = Name.Trim();
-        _confirmCallback?.Invoke(new CharacterDefinition { Name = string.IsNullOrWhiteSpace(clean) ? "Survivor" : clean });
+        _confirmCallback?.Invoke(new CharacterDefinition
+        {
+            Name = string.IsNullOrWhiteSpace(clean) ? "Survivor" : clean,
+            Background = SelectedBackgroundId,
+        });
     }
 
     private static void DrawButton(PrimitiveBatch batch, TextRenderer text, float x, float y,

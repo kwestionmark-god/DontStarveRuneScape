@@ -134,6 +134,7 @@ law shapes it.
      Pillars held: RS progression (levels earned through real dispatched
      work, never on the clock), DS pressure (recruits start weak at
      level 1), MC readability (levels read like characters).
+<<<<<<< HEAD
    - **Static resource sprites** — draw resource nodes statically like
      the begun entity-sprite work (reuse existing art for a first pass).
      Done 2026-10-07 (`164585b`): resource nodes render as world-fixed
@@ -141,7 +142,17 @@ law shapes it.
      per-tile facing, the entity paper-doll machinery applied to
      inanimate world dressing. Spec:
      `docs/superpowers/specs/2026-10-07-world-fixed-resource-billboards-design.md`.
-   - **More characters** — new starting character defs/choices.
+   - **More characters** — **done 2026-10-07 (character backgrounds).**
+     Creation offers Wanderer/Forester/Prospector/Scavenger, mapped to
+     the three starter packs that already existed but were unreachable;
+     mouse + arrow-key selection, the choice flows panel → StartNewGame
+     → PendingCharacterDef → Bootstrap's ApplyStarterPack, and persists
+     as SaveData.CharacterBackground (missing field = wanderer — old
+     saves load unchanged). Playstyle, not power: one tool, one torch,
+     one food, no stat bonuses. Spec:
+     `docs/superpowers/specs/2026-10-07-character-backgrounds-design.md`.
+     Pillars held: RS (the start shapes the grind), DS (every background
+     starts vulnerable), MC (wired the existing packs, no new systems).
    - **More quests** — expand QuestSystem content.
    - **Starting companion/follower** — an early-game first follower.
    - **Colony-building skill structure** — player skills shaping what

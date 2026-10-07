@@ -205,10 +205,14 @@ public sealed class Bootstrap
         _game.Inventory.StackSizes = Inventory.StackSizesFromData(dataLoader.ItemsData);
 
         // Apply starter pack; the gear slots are created first so the starter
-        // tool/torch sync into PlayerGear and render on the character.
+        // tool/torch sync into PlayerGear and render on the character. The
+        // pack follows the creation-time background (character backgrounds
+        // slice); a missing def or field falls back to the default pack —
+        // the pre-slice behavior for old saves and tests.
         var starterGear = new Data.PlayerGear();
         player.Gear = starterGear;
-        StarterPack.ApplyStarterPack(_game.Inventory, "default", starterGear);
+        StarterPack.ApplyStarterPack(_game.Inventory,
+            _game.PendingCharacterDef?.StarterPackId ?? "default", starterGear);
 
         // Crafting
         _game.Crafting = new CraftingSystem();

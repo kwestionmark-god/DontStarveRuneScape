@@ -1,7 +1,7 @@
 # Character Backgrounds — design
 
 Date: 2026-10-07
-Status: draft
+Status: implemented (GREEN 357/358; panel row + Bootstrap pack wiring live)
 Slice: post-roadmap frontier, item 3 (dev-map "Ordered next work" item 6)
 
 ## Design law

@@ -23,6 +23,44 @@ public sealed class CharacterDefinition
 }
 
 /// <summary>
+/// CharacterBackground — One selectable creation-time background.
+/// </summary>
+public sealed class CharacterBackground
+{
+    public string Id { get; set; } = string.Empty;
+    public string Name { get; set; } = string.Empty;
+    public string PackId { get; set; } = string.Empty;
+    public string Hint { get; set; } = string.Empty;
+}
+
+/// <summary>
+/// Backgrounds — The creation-time background catalog (character
+/// backgrounds slice). Each maps to an existing starter pack: the
+/// choice is playstyle, not power — one tool, one torch, one food.
+/// </summary>
+public static class Backgrounds
+{
+    public sealed record Entry(string Id, string Name, string PackId, string Hint);
+
+    public static readonly Entry Wanderer =
+        new("wanderer", "Wanderer", "default", "A blank slate. Torch, berries, fish.");
+
+    /// <summary>All backgrounds in display order.</summary>
+    public static readonly Entry[] All =
+    [
+        Wanderer,
+        new("forester", "Forester", "forester", "Starts with an axe — woodcutting first."),
+        new("prospector", "Prospector", "prospector", "Starts with a pickaxe — mining first."),
+        new("scavenger", "Scavenger", "scavenger", "Extra food — foraging first."),
+    ];
+
+    /// <summary>Resolve by id with a Wanderer fallback (old saves, corrupt
+    /// data, typos). Never null.</summary>
+    public static Entry ById(string? id) =>
+        All.FirstOrDefault(b => b.Id == id) ?? Wanderer;
+}
+
+/// <summary>
 /// StarterPack — Predefined equipment bundles and application logic.
 /// </summary>
 public static class StarterPack

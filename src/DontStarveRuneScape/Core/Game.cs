@@ -287,7 +287,8 @@ public sealed class Game
                 if (CharacterSelectPanel == null)
                 {
                     CharacterSelectPanel = new CharacterSelectPanel();
-                    CharacterSelectPanel.SetConfirmCallback(def => StartNewGame(def?.Name ?? "Survivor"));
+                    CharacterSelectPanel.SetConfirmCallback(def =>
+                        StartNewGame(def?.Name ?? "Survivor", def?.Background ?? "wanderer"));
                 }
                 CharacterSelectPanel.Visible = true;
                 break;
@@ -418,9 +419,23 @@ public sealed class Game
         SetState(GameState.LoadingSave);
     }
 
-    private void StartNewGame(string name)
+    public void StartNewGame(string name)
+        => StartNewGame(name, "wanderer");
+
+    /// <summary>Begin a new game with a creation-time background (character
+    /// backgrounds slice): resolves the background's starter pack through
+    /// the Backgrounds catalog and stages it on PendingCharacterDef for
+    /// Bootstrap to apply at world build. Old callers default to wanderer
+    /// — the pre-slice no-choice behavior.</summary>
+    public void StartNewGame(string name, string backgroundId)
     {
-        PendingCharacterDef = new SurvCharDef { Name = name };
+        var bg = Backgrounds.ById(backgroundId);
+        PendingCharacterDef = new SurvCharDef
+        {
+            Name = name,
+            Background = bg.Id,
+            StarterPackId = bg.PackId,
+        };
         Seed = Random.Shared.Next(1, int.MaxValue);
         // Smoketest hook: DSR_SEED=<n> pins the world seed so multiple
         // headless runs (height dumps, position captures) see one world.
@@ -441,6 +456,12 @@ public sealed class Game
         PlayTime = data.PlayTime;
         DeathCount = data.DeathCount;
         if (Player != null) Player.Name = string.IsNullOrWhiteSpace(data.CharacterName) ? "Survivor" : data.CharacterName;
+        // Character backgrounds slice: keep the saved identity on the def so
+        // a resumed session (and any later re-save) carries the background.
+        var bg = Backgrounds.ById(data.CharacterBackground);
+        PendingCharacterDef ??= new SurvCharDef { Name = Player?.Name ?? "Survivor" };
+        PendingCharacterDef.Background = bg.Id;
+        PendingCharacterDef.StarterPackId = bg.PackId;
     }
 
     /// <summary>

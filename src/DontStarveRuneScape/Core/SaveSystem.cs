@@ -148,6 +148,7 @@ public sealed class SaveSystem
             Version = 1,
             Seed = game.Seed,
             CharacterName = game.Player?.Name ?? "Survivor",
+            CharacterBackground = game.PendingCharacterDef?.Background ?? "wanderer",
             DeathCount = game.DeathCount,
             PlayTime = game.PlayTime,
             Timestamp = DateTime.UtcNow,
@@ -288,6 +289,9 @@ public sealed class SaveData
     public int Version { get; set; }
     public int Seed { get; set; }
     public string CharacterName { get; set; } = "Survivor";
+    /// <summary>Creation-time background id (character backgrounds slice).
+    /// Missing in pre-slice saves — reads as "wanderer".</summary>
+    public string CharacterBackground { get; set; } = "wanderer";
     public int DeathCount { get; set; }
     public float PlayTime { get; set; }
     public DateTime Timestamp { get; set; }

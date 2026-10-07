@@ -87,10 +87,12 @@ public class CharacterBackgroundTests
 
         panel.HandleTextInput('R');
         panel.HandleTextInput('i');
-        // Click the forester option (region 2), then BEGIN.
+        // Click the forester option, then BEGIN (center 570,415: the button
+        // spans x 508..632 at top+158 = 394..436).
         var (cx, cy) = CharacterBackgroundRegions().Single(r => r.id == "forester").region;
         panel.Update(game, new InputState { MouseX = cx, MouseY = cy, MouseLeftClick = true }, 1280, 720);
-        panel.Update(game, new InputState { MouseX = 640f, MouseY = 425f, MouseLeftClick = true }, 1280, 720);
+        // BEGIN moved below the background row: top+210 → y 446..488.
+        panel.Update(game, new InputState { MouseX = 570f, MouseY = 467f, MouseLeftClick = true }, 1280, 720);
 
         Assert.NotNull(captured);
         Assert.Equal("Ri", captured!.Name);
@@ -154,6 +156,9 @@ public class CharacterBackgroundTests
 
         var game = new Game();
         game.StartNewGame("Riri", "prospector");
+        // The save snapshot reads the name from Player (Bootstrap creates it
+        // in a real session); stage it the way a booted game would look.
+        game.Player = new DontStarveRuneScape.Core.Player(100f, 100f) { Name = "Riri" };
         save.Save(game, 0);
 
         var loaded = save.Load(0);
@@ -171,20 +176,22 @@ public class CharacterBackgroundTests
         game.StartNewGame("OldTimer");
         save.Save(game, 0);
 
-        // Strip the field the way a pre-slice save would look.
+        // Strip the field the way a pre-slice save would look (truncate:
+        // OpenWrite alone would leave the old tail behind).
         var path = Path.Combine(dir, "slot_0.json");
         var json = File.ReadAllText(path);
         var doc = System.Text.Json.JsonDocument.Parse(json);
-        var writer = new System.Text.Json.Utf8JsonWriter(File.OpenWrite(path));
-        // Remove CharacterBackground by rewriting without it.
-        writer.WriteStartObject();
-        foreach (var prop in doc.RootElement.EnumerateObject())
+        using (var stream = new FileStream(path, FileMode.Create, FileAccess.Write))
+        using (var writer = new System.Text.Json.Utf8JsonWriter(stream))
         {
-            if (prop.Name != "CharacterBackground")
-                prop.WriteTo(writer);
+            writer.WriteStartObject();
+            foreach (var prop in doc.RootElement.EnumerateObject())
+            {
+                if (prop.Name != "CharacterBackground")
+                    prop.WriteTo(writer);
+            }
+            writer.WriteEndObject();
         }
-        writer.WriteEndObject();
-        writer.Dispose();
 
         var loaded = save.Load(0);
         Assert.NotNull(loaded);
