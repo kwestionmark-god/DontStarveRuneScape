@@ -153,7 +153,16 @@ law shapes it.
      `docs/superpowers/specs/2026-10-07-character-backgrounds-design.md`.
      Pillars held: RS (the start shapes the grind), DS (every background
      starts vulnerable), MC (wired the existing packs, no new systems).
-   - **More quests** — expand QuestSystem content.
+   - **More quests** — **done 2026-10-07 (First Steps chain).** A six-quest
+     early-game chain (first_flame → hearth_and_home → full_belly →
+     first_blood → settling_in → forest_friends) from the forest quest
+     giver: pure data on the existing condition hooks (collect/craft/kill/
+     visit/negotiate), prerequisite-chained, ends pointing at the colony
+     and commerce arc; timber_collection kept as a side quest. Data-
+     integrity and chain-order tests included. Spec:
+     `docs/superpowers/specs/2026-10-07-first-steps-quest-chain-design.md`.
+     Pillars held: RS (guided grind teaches one skill per step), DS
+     (survival-first objectives — fire, food, roof), MC (zero new systems).
    - **Starting companion/follower** — an early-game first follower.
    - **Colony-building skill structure** — player skills shaping what
      colonies can build and do.

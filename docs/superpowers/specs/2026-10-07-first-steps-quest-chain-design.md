@@ -1,7 +1,8 @@
 # More Quests — First Steps chain — design
 
 Date: 2026-10-07
-Status: draft
+Status: implemented (GREEN 364/365; six chain quests live in quests.json
++ forest giver wiring)
 Slice: post-roadmap frontier, item 4 (dev-map "Ordered next work" item 6)
 
 ## Design law
