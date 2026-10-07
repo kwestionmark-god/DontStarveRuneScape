@@ -82,15 +82,19 @@ law shapes it.
    2026-10-04 (`c7a9b6d`).** First cut of the open phase-4 schedules line.
    Pillar: MC. Per the design law, hauling moves stock the colony already
    owns; it does not spawn resources or replace player gathering.
-2. **Structure upgrades** — NEXT. Closes the last phase-3 checkbox. Pillars: RS
-   (player-gated recipes and skill) and DS (materials the player helped
-   gather). The design law: upgrades track player progression; shelter
-   mitigates weather, it does not erase it.
-3. **Worker schedules and task-selection fallbacks.** Finishes the
-   phase-4 schedules line after the task board exists to schedule.
-   Pillars: MC readability, DS night and season pressure. The design
-   law: schedules give the settlement rhythm; they do not maximize
-   output past survival pressure.
+2. **Structure upgrades** — done 2026-10-06. Closes the last phase-3
+   checkbox. Pillars: RS (player-gated recipes and skill) and DS (materials
+   the player helped gather). The design law held: upgrades track player
+   progression via the construction skill gate; the new shelter tiers
+   mitigate weather (stronger recovery, more HP) but never nullify it.
+   Spec: `docs/superpowers/specs/2026-10-06-structure-upgrades-design.md`.
+3. **Worker schedules and task-selection fallbacks** — done 2026-10-06.
+   Finishes the phase-4 schedules line: 24-slot schedule templates (worker
+   day, guard shift squads, bedtime, meals, night floor) plus fallbacks
+   (FREE_TIME never dispatches work; idle WORK-slot workers wander near camp,
+   labeled Idle). Pillars held: MC readability, DS night/season pressure
+   shape when work is safe. Spec:
+   `docs/superpowers/specs/2026-10-06-worker-schedules-design.md`.
 4. **Threats, caves, factions, diplomacy — the remainder.** After
    residents reliably work and rest. Pillars: DS danger, RS faction
    world. The design law, already in the roadmap wording: wire defense

@@ -176,22 +176,26 @@ public sealed class HudWindowManager
 
 /// <summary>
 /// VitalsHudWindow — HP / hunger / stamina bars with labels, numeric values,
-/// and quarter ticks, in the panels' chrome.
+/// and quarter ticks, in the panels' chrome. The stamina row doubles as the
+/// sprint readout ("Sprint" while running, "Winded" during the exhausted
+/// rest).
 /// </summary>
 public sealed class VitalsHudWindow : HudWindow
 {
     private SurvivalSystem? _survival;
     private StaminaPool? _stamina;
+    private bool _sprinting;
 
     private const float BarH = 9f;
     private const float RowH = 16f;
 
     public VitalsHudWindow(float x, float y) : base("VITALS", x, y, 168f, RowH * 3f + 2f) { }
 
-    public void SetData(SurvivalSystem? survival, StaminaPool? stamina)
+    public void SetData(SurvivalSystem? survival, StaminaPool? stamina, bool sprinting = false)
     {
         _survival = survival;
         _stamina = stamina;
+        _sprinting = sprinting;
     }
 
     protected override void RenderContent(PrimitiveBatch batch, TextRenderer? text,
@@ -207,7 +211,17 @@ public sealed class VitalsHudWindow : HudWindow
 
         DrawRow(batch, text, contentX, contentY, "HP", hp, _survival?.Hp ?? 0f, _survival?.MaxHp ?? 0f, 180, 50, 50);
         DrawRow(batch, text, contentX, contentY + rowH, "Hunger", hunger, _survival?.Hunger ?? 0f, _survival?.MaxHunger ?? 0f, 200, 140, 40);
-        DrawRow(batch, text, contentX, contentY + rowH * 2f, "Stamina", stamina, _stamina?.Current ?? 0f, _stamina?.MaxStamina ?? 0f, 100, 190, 90);
+        // Stamina row doubles as the sprint readout: bright while sprinting,
+        // warning color through the pool's forced exhausted rest.
+        string staminaLabel = _sprinting ? "Sprint"
+            : _stamina?.IsExhausted == true ? "Winded" : "Stamina";
+        (byte sr, byte sg, byte sb) staminaColor = _sprinting
+            ? ((byte)170, (byte)230, (byte)110)
+            : _stamina?.IsExhausted == true ? ((byte)235, (byte)110, (byte)60)
+                : ((byte)100, (byte)190, (byte)90);
+        DrawRow(batch, text, contentX, contentY + rowH * 2f, staminaLabel, stamina,
+            _stamina?.Current ?? 0f, _stamina?.MaxStamina ?? 0f,
+            staminaColor.sr, staminaColor.sg, staminaColor.sb);
     }
 
     private void DrawRow(PrimitiveBatch batch, TextRenderer? text, float x, float y,

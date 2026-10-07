@@ -36,9 +36,9 @@ public sealed class HUD
         _notifications = notifications;
     }
 
-    public void SetVitals(SurvivalSystem? survival, StaminaPool? stamina)
+    public void SetVitals(SurvivalSystem? survival, StaminaPool? stamina, bool sprinting = false)
     {
-        _vitals.SetData(survival, stamina);
+        _vitals.SetData(survival, stamina, sprinting);
     }
 
     /// <summary>Day/night clock shown top-right, with the sleep indicator.</summary>

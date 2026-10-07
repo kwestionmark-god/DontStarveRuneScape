@@ -24,6 +24,9 @@ public sealed class WeatherSystem
         }
     }
 
+    /// <summary>Force a weather state (tests, smoketests, save restore).</summary>
+    public void SetWeather(string weather) => CurrentWeather = weather;
+
     /// <summary>Get current weather gameplay effects.</summary>
     public Dictionary<string, float> GetEffects()
     {

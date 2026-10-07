@@ -136,6 +136,8 @@ public static class Constants
     // ─── Player ───────────────────────────────────────────────────────────
 
     public const float PlayerMovementSpeed = 150.0f;  // Pixels per second
+    public const float SprintSpeedMultiplier = 1.5f;  // Speed boost while sprinting
+    public const float SprintStaminaDrainPerSecond = 4.0f;  // Stamina/s drained while sprinting
 
     // ─── XP & Progression ────────────────────────────────────────────────
 

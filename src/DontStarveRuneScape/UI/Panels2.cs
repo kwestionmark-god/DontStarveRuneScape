@@ -2103,7 +2103,22 @@ public sealed class DashboardPanel
         }
         var selected = structures.FirstOrDefault(s => WorkplaceKey(s) == _selectedWorkplaceKey);
         var recipes = CompatibleWorkRecipes(selected).ToArray();
-        if (selected == null || recipes.Length == 0) return;
+        if (selected == null) return;
+
+        // Structure-upgrades slice: enqueue the successor-tier upgrade as a
+        // worker construction job (materials charged from the stockpile).
+        if (selected.StructureDef.UpgradesTo != null
+            && ui.TryClick(x + 300f, y + 320f, 240f, 16f))
+        {
+            var (ok, message) = Game?.BuildingSystem != null && Game.Player != null
+                ? Game.BuildingSystem.UpgradeStructure(
+                    selected, selected.StructureDef.UpgradesTo,
+                    Game.Player.SkillManager, Game.ColonySystem)
+                : (false, "Building system unavailable.");
+            _colonyStatus = message;
+            return;
+        }
+        if (recipes.Length == 0) return;
         if (ui.TryClick(x + 300f, y + 292f, 32f, 16f)) _workRecipeIndex = (_workRecipeIndex + recipes.Length - 1) % recipes.Length;
         else if (ui.TryClick(x + 566f, y + 292f, 32f, 16f)) _workRecipeIndex = (_workRecipeIndex + 1) % recipes.Length;
         else if (ui.TryClick(x + 338f, y + 292f, 70f, 16f))
@@ -2144,6 +2159,16 @@ public sealed class DashboardPanel
             selected.WorkStatus = "Work orders paused";
             _colonyStatus = $"Cleared and paused orders at {selected.StructureId}.";
         }
+        else if (selected.StructureDef.UpgradesTo != null
+            && ui.TryClick(x + 300f, y + 320f, 90f, 16f))
+        {
+            // Structure-upgrades slice: enqueue the successor-tier upgrade as
+            // a worker construction job (materials charged from the stockpile).
+            var (ok, message) = Game!.BuildingSystem!.UpgradeStructure(
+                selected, selected.StructureDef.UpgradesTo,
+                Game.Player.SkillManager, Game.ColonySystem);
+            _colonyStatus = message;
+        }
     }
 
     private void RenderColonyWorkOrders(PrimitiveBatch batch, TextRenderer text, Game? game, float x, float y)
@@ -2169,6 +2194,17 @@ public sealed class DashboardPanel
         {
             Left(batch, text, "Build a production station to create work orders.", x + 300, y + 257, 10, 180, 170, 150);
             return;
+        }
+        // Structure-upgrades slice: show the successor-tier upgrade action.
+        if (selected.StructureDef.UpgradesTo is { } upgradeTarget)
+        {
+            var targetDef = game?.BuildingSystem?.Registry?.GetStructure(upgradeTarget);
+            bool midUpgrade = selected.IsUnderConstruction;
+            string label = midUpgrade ? $"UPGRADING · {selected.WorkStatus}"
+                : $"UPGRADE TO {(targetDef?.Name ?? upgradeTarget).ToUpperInvariant()}";
+            batch.DrawScreenQuad(x + 300, y + 320, 240, 16, 74, 55, 24);
+            text.DrawText(batch, label, x + 420, y + 320, 9,
+                PanelChrome.TextR, PanelChrome.TextG, PanelChrome.TextB, bold: true);
         }
         if (recipes.Length == 0)
         {

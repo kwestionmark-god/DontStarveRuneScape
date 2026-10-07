@@ -119,6 +119,47 @@ public sealed class BuildingSystem
         return Structures.Remove(structure);
     }
 
+    /// <summary>
+    /// Enqueue an in-place upgrade of a built structure to its declared
+    /// successor tier. Validates the successor against the def's upgrades_to
+    /// chain, the player's construction skill, and mid-build state; the
+    /// structure then becomes a construction job exactly like a blueprint
+    /// (workers charge stockpile materials and build it up). Does not consume
+    /// materials here — the worker charge path does, once the stockpile can
+    /// pay (matching blueprint flow).
+    /// </summary>
+    public (bool Success, string Message) UpgradeStructure(Structure structure,
+        string targetId, SkillManager skillManager, ColonySystem? colony)
+    {
+        if (!structure.IsActive)
+            return (false, "Structure is inactive.");
+        if (structure.IsUnderConstruction)
+            return (false, "Structure is already under construction.");
+        if (structure.UpgradingToId != null)
+            return (false, "An upgrade is already queued.");
+        var def = Registry?.GetStructure(structure.StructureId);
+        if (def == null)
+            return (false, "Unknown structure.");
+        if (def.UpgradesTo == null)
+            return (false, $"{def.Name} is already the top tier.");
+        if (targetId != def.UpgradesTo)
+            return (false, $"{def.Name} can't be upgraded to {targetId}.");
+        var target = Registry?.GetStructure(targetId);
+        if (target == null)
+            return (false, "Unknown upgrade target.");
+        if (skillManager.GetSkillLevel("construction") < target.RequiresSkillLevel)
+            return (false, $"Requires construction level {target.RequiresSkillLevel}.");
+        if (colony?.IsFounded != true)
+            return (false, "Upgrades need a founded colony stockpile.");
+
+        structure.UpgradingToId = targetId;
+        structure.IsUnderConstruction = true;
+        structure.ConstructionMaterialsPaid = false;
+        structure.WorkProgress = 0f;
+        structure.WorkStatus = $"Upgrading to {target.Name}";
+        return (true, $"Upgrading to {target.Name}");
+    }
+
     /// <summary>Assign an NPC to a structure.</summary>
     public (bool Success, string Message) AssignNpcToStructure(string npcId, string structureId)
     {
@@ -150,6 +191,7 @@ public sealed class BuildingSystem
                 IsDependencyOrder = s.IsDependencyOrder,
                 IsUnderConstruction = s.IsUnderConstruction,
                 ConstructionMaterialsPaid = s.ConstructionMaterialsPaid,
+                UpgradingToId = s.UpgradingToId,
                 WorkProgress = s.WorkProgress,
                 WorkStatus = s.WorkStatus,
             })
@@ -188,6 +230,7 @@ public sealed class BuildingSystem
                 IsDependencyOrder = s.IsDependencyOrder,
                 IsUnderConstruction = s.IsUnderConstruction,
                 ConstructionMaterialsPaid = s.ConstructionMaterialsPaid,
+                UpgradingToId = s.UpgradingToId,
                 WorkProgress = s.WorkProgress,
                 WorkStatus = string.IsNullOrEmpty(s.WorkStatus) ? "Idle" : s.WorkStatus,
             });

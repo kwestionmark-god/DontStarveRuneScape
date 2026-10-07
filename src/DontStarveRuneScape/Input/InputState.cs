@@ -11,6 +11,7 @@ public sealed class InputState
     public bool MoveDown { get; set; }
     public bool MoveLeft { get; set; }
     public bool MoveRight { get; set; }
+    public bool Sprint { get; set; } // Shift — drains stamina for a speed boost
 
     // Camera orbit (held)
     public bool OrbitCCW { get; set; }

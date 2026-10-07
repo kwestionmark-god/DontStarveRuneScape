@@ -534,9 +534,9 @@ public sealed class Game
     // Held-key script from DSR_TEST_MOVE ("right:20;up+orbit_cw:10" or the
     // legacy whole-run "up,orbit_cw"): held flags with an exclusive end
     // render-frame (int.MaxValue for the legacy form). Re-applied every
-    // smoketest frame so captures can move, orbit the camera, and switch
-    // keys mid-run.
-    private (bool Up, bool Down, bool Left, bool Right, bool OrbitCCW, bool OrbitCW, int EndFrame)[]? _movePhases;
+    // smoketest frame so captures can move, sprint, orbit the camera, and
+    // switch keys mid-run.
+    private (bool Up, bool Down, bool Left, bool Right, bool OrbitCCW, bool OrbitCW, bool Sprint, int EndFrame)[]? _movePhases;
     // Most recent render size; panels need it for hit-testing during Update.
     private int _lastScreenW = 1280, _lastScreenH = 720;
 
@@ -763,7 +763,12 @@ public sealed class Game
         {
             float cameraYaw = Camera?.Yaw ?? 0f;
             float prevX = Player.WorldX, prevY = Player.WorldY;
-            Player.ApplyKeyInput(InputManager.InputState, dt, cameraYaw);
+            // Sprint gate runs BEFORE movement so this frame already carries
+            // the boost; "moving" is read from the held WASD flags.
+            var st = InputManager.InputState;
+            Player.UpdateSprint(st.Sprint,
+                st.MoveUp || st.MoveDown || st.MoveLeft || st.MoveRight, dt);
+            Player.ApplyKeyInput(st, dt, cameraYaw);
             Player.Update(dt);
             // Net velocity across all movement paths (WASD + click-to-move) —
             // drives the stepping gait, so feet track real body motion.
@@ -809,7 +814,7 @@ public sealed class Game
         if (HUD != null)
         {
             var actionSys = Player?.ActionSystem;
-            HUD.SetVitals(Survival, actionSys?.Stamina);
+            HUD.SetVitals(Survival, actionSys?.Stamina, Player?.Sprinting ?? false);
             HUD.SetClock(DayNight);
             if (actionSys != null)
             {
@@ -1003,6 +1008,7 @@ public sealed class Game
                 var st = InputManager.InputState;
                 st.MoveUp = st.MoveDown = st.MoveLeft = st.MoveRight = false;
                 st.OrbitCCW = st.OrbitCW = false;
+                st.Sprint = false;
                 foreach (var ph in _movePhases)
                 {
                     if (_smokeFrames >= ph.EndFrame) continue;
@@ -1012,6 +1018,7 @@ public sealed class Game
                     st.MoveRight = ph.Right;
                     st.OrbitCCW = ph.OrbitCCW;
                     st.OrbitCW = ph.OrbitCW;
+                    st.Sprint = ph.Sprint;
                     break;
                 }
             }
@@ -1030,12 +1037,13 @@ public sealed class Game
     }
 
     /// <summary>Parse one DSR_TEST_MOVE key list ("up+orbit_cw", "up,right")
-    /// into held flags: the four WASD directions plus the camera-yaw orbit
-    /// keys. Unknown keys are ignored so a phase can be a pure pause.</summary>
-    private static (bool Up, bool Down, bool Left, bool Right, bool OrbitCCW, bool OrbitCW)
+    /// into held flags: the four WASD directions, the camera-yaw orbit keys,
+    /// and sprint (Shift). Unknown keys are ignored so a phase can be a pure
+    /// pause.</summary>
+    private static (bool Up, bool Down, bool Left, bool Right, bool OrbitCCW, bool OrbitCW, bool Sprint)
         ParseMoveKeys(string list)
     {
-        bool up = false, down = false, left = false, right = false, occw = false, ocw = false;
+        bool up = false, down = false, left = false, right = false, occw = false, ocw = false, sprint = false;
         foreach (var dir in list.Split(new[] { ',', '+' },
             StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries))
         {
@@ -1047,9 +1055,10 @@ public sealed class Game
                 case "right": right = true; break;
                 case "orbit_ccw": occw = true; break;
                 case "orbit_cw": ocw = true; break;
+                case "sprint": sprint = true; break;
             }
         }
-        return (up, down, left, right, occw, ocw);
+        return (up, down, left, right, occw, ocw, sprint);
     }
 
     /// <summary>
@@ -1205,10 +1214,11 @@ public sealed class Game
         // Held keys: DSR_TEST_MOVE="up,orbit_cw" holds those flags so
         // mid-stride gait frames can be captured headlessly (clicks do not
         // move the player — click-to-move is unwired). Keys: up/down/left/
-        // right (WASD movement) plus orbit_ccw/orbit_cw (the left/right
-        // camera-yaw keys). The Move*/Orbit* flags are not one-shots:
-        // ClearFrame leaves them alone, and the smoketest frame loop
-        // re-applies the script every frame.
+        // right (WASD movement), sprint (Shift — stamina-drained speed
+        // boost), plus orbit_ccw/orbit_cw (the left/right camera-yaw keys).
+        // The Move*/Orbit*/Sprint flags are not one-shots: ClearFrame leaves
+        // them alone, and the smoketest frame loop re-applies the script
+        // every frame.
         // Phased form DSR_TEST_MOVE="right:20;up+orbit_cw:40" switches the
         // held keys mid-run instead: each phase holds its keys (several at
         // once via ',' or '+') for that many render frames, the last phase
@@ -1218,7 +1228,7 @@ public sealed class Game
         var moveEnv = Environment.GetEnvironmentVariable("DSR_TEST_MOVE");
         if (!string.IsNullOrWhiteSpace(moveEnv) && InputManager != null)
         {
-            var phases = new List<(bool, bool, bool, bool, bool, bool, int)>();
+            var phases = new List<(bool, bool, bool, bool, bool, bool, bool, int)>();
             if (moveEnv.Contains(';'))
             {
                 int endFrame = 0;
@@ -1228,16 +1238,16 @@ public sealed class Game
                     var parts = phase.Split(':');
                     if (parts.Length != 2 || !int.TryParse(parts[1].Trim(), out var frames) || frames < 1)
                         continue;
-                    var (up, down, left, right, occw, ocw) = ParseMoveKeys(parts[0]);
+                    var (up, down, left, right, occw, ocw, sprint) = ParseMoveKeys(parts[0]);
                     endFrame += frames;
-                    phases.Add((up, down, left, right, occw, ocw, endFrame));
+                    phases.Add((up, down, left, right, occw, ocw, sprint, endFrame));
                 }
             }
             else
             {
                 // Legacy whole-run hold: one unbounded phase.
-                var (up, down, left, right, occw, ocw) = ParseMoveKeys(moveEnv);
-                phases.Add((up, down, left, right, occw, ocw, int.MaxValue));
+                var (up, down, left, right, occw, ocw, sprint) = ParseMoveKeys(moveEnv);
+                phases.Add((up, down, left, right, occw, ocw, sprint, int.MaxValue));
             }
             if (phases.Count > 0)
                 _movePhases = phases.ToArray();

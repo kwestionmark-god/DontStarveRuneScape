@@ -137,6 +137,8 @@ public sealed class InputManager
         else if (key == Key.S) InputState.MoveDown = pressed;
         else if (key == Key.A) InputState.MoveLeft = pressed;
         else if (key == Key.D) InputState.MoveRight = pressed;
+        // Sprint (held) — either Shift key
+        else if (key == Key.ShiftLeft || key == Key.ShiftRight) InputState.Sprint = pressed;
 
         // Camera orbit (held)
         if (key == Key.Left) InputState.OrbitCCW = pressed;

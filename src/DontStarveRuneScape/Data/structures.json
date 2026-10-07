@@ -465,7 +465,8 @@
     ],
     "sprite_key": "structure/wooden_gate",
     "occupies_tile": true,
-    "burnable": true
+    "burnable": true,
+    "upgrades_to": "iron_gate"
    },
    "iron_gate": {
     "structure_id": "iron_gate",
@@ -555,7 +556,8 @@
     ],
     "sprite_key": "structure/wooden_trap",
     "occupies_tile": false,
-    "burnable": true
+    "burnable": true,
+    "upgrades_to": "iron_trap"
    },
    "iron_trap": {
     "structure_id": "iron_trap",
@@ -805,7 +807,69 @@
     ],
     "sprite_key": "structure/woven_shelter",
     "occupies_tile": true,
-    "burnable": true
+    "burnable": true,
+    "upgrades_to": "timber_shelter"
+   },
+   "timber_shelter": {
+    "structure_id": "timber_shelter",
+    "name": "Timber Shelter",
+    "structure_type": "fixed",
+    "construction_sub_stat": "decorative",
+    "hp": 50,
+    "materials": [
+     [
+      "planks",
+      8
+     ],
+     [
+      "cobblestone",
+      6
+     ]
+    ],
+    "requires_structure_level": 3,
+    "requires_skill_level": 4,
+    "upgrades_to": "stone_shelter",
+    "biome_compatible": [
+     "forest",
+     "plains",
+     "coastal",
+     "swamp",
+     "mountains",
+     "desert"
+    ],
+    "sprite_key": "structure/woven_shelter",
+    "occupies_tile": true,
+    "burnable": false
+   },
+   "stone_shelter": {
+    "structure_id": "stone_shelter",
+    "name": "Stone Shelter",
+    "structure_type": "fixed",
+    "construction_sub_stat": "decorative",
+    "hp": 120,
+    "materials": [
+     [
+      "cobblestone",
+      12
+     ],
+     [
+      "smelted_iron_ingot",
+      2
+     ]
+    ],
+    "requires_structure_level": 4,
+    "requires_skill_level": 7,
+    "biome_compatible": [
+     "forest",
+     "plains",
+     "coastal",
+     "swamp",
+     "mountains",
+     "desert"
+    ],
+    "sprite_key": "structure/stone_bench",
+    "occupies_tile": true,
+    "burnable": false
    }
   }
  }

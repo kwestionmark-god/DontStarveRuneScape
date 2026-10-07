@@ -22,6 +22,7 @@ public static class Keybindings
         ["move_down"] = Key.S,
         ["move_left"] = Key.A,
         ["move_right"] = Key.D,
+        ["sprint"] = Key.ShiftLeft,
 
         // Panels
         ["open_inventory"] = Key.C,
@@ -159,6 +160,7 @@ public static class Keybindings
         ["move_down"] = "S",
         ["move_left"] = "A",
         ["move_right"] = "D",
+        ["sprint"] = "SHIFT",
         ["open_inventory"] = "C",
         ["open_skill_panel"] = "TAB",
         ["open_crafting"] = "H",

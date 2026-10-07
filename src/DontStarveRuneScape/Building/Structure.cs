@@ -25,6 +25,9 @@ public sealed class Structure
     public bool WorkOrdersPaused { get; set; }
     public bool HasManualWorkOrder { get; set; }
     public bool IsDependencyOrder { get; set; }
+    /// <summary>Target tier for an in-progress upgrade (null = none).</summary>
+    public string? UpgradingToId { get; set; }
+
     /// <summary>Blueprint site awaiting stockpile materials and worker time.</summary>
     public bool IsUnderConstruction { get; set; }
     /// <summary>Required materials have been charged to this construction job.</summary>

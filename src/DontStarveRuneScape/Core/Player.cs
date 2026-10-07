@@ -34,6 +34,11 @@ public sealed class Player
     public float TargetY { get; set; }
     public bool Moving { get; set; }
 
+    /// <summary>True while sprinting this frame (Shift held + moving + the
+    /// stamina pool is paying for it). Owned by <see cref="UpdateSprint"/>;
+    /// EffectiveSpeed applies the boost while this is set.</summary>
+    public bool Sprinting { get; private set; }
+
     /// <summary>Horizontal facing for the carried-equipment visual:
     /// +1 right, -1 left. Follows the last horizontal move direction and the
     /// attack target.</summary>
@@ -146,6 +151,29 @@ public sealed class Player
     }
 
     /// <summary>
+    /// Sprint gate — call once per frame BEFORE ApplyKeyInput so movement
+    /// this frame already carries the boost. Holding Shift while moving
+    /// drains the shared gathering StaminaPool continuously for a
+    /// SprintSpeedMultiplier speed boost; an empty pool trips the pool's
+    /// exhausted rest, which gates sprinting until it lifts. Standing still
+    /// or releasing the key costs nothing.
+    /// </summary>
+    public void UpdateSprint(bool sprintHeld, bool moving, float dt)
+    {
+        var pool = ActionSystem?.Stamina;
+        bool wasSprinting = Sprinting;
+        Sprinting = sprintHeld && moving && dt > 0f
+            && pool is { IsExhausted: false }
+            && pool.Consume(Constants.SprintStaminaDrainPerSecond * dt);
+        // The sprint ran the pool dry → forced rest. Fire once on the
+        // sprinting→exhausted edge only, so a held key does not spam it
+        // every frame.
+        if (wasSprinting && !Sprinting && pool is { IsExhausted: true })
+            ActionSystem!.AddNotification("You are too exhausted to sprint. Rest a moment.",
+                (255, 170, 60));
+    }
+
+    /// <summary>
     /// Move toward click-to-move target position.
     /// Called every frame. Does nothing if not moving.
     /// Stops when within 2px of target.
@@ -185,13 +213,15 @@ public sealed class Player
     }
 
     /// <summary>
-    /// Return movement speed with weather modifier applied.
+    /// Return movement speed with the sprint boost and weather modifier applied.
     /// </summary>
     public float EffectiveSpeed
     {
         get
         {
             float baseSpeed = Speed;
+            if (Sprinting)
+                baseSpeed *= Constants.SprintSpeedMultiplier;
             if (WeatherSystem != null)
             {
                 var effects = WeatherSystem.GetEffects();

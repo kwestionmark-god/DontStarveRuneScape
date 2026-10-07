@@ -136,7 +136,13 @@ Structure upgrades remain future work.
 - [x] Turn settlement placements into saved construction sites supplied from
   the colony stockpile and completed by assistant workers.
 - [x] Plan lower-tier material production for construction sites.
-- [ ] Add structure upgrades.
+- [x] Add structure upgrades. Done 2026-10-06: `upgrades_to` def chains
+  (wooden_gate→iron_gate, wooden_trap→iron_trap, and a new three-tier shelter
+  line woven_shelter→timber_shelter→stone_shelter), `BuildingSystem.
+  UpgradeStructure` enqueue with skill/chain/mid-build gates, worker charge of
+  successor materials from the stockpile, in-place tier swap preserving
+  position and tile occupancy, save/restore round-trip including mid-upgrade
+  state. 304/304 tests.
 
 ### 4. Simulate colony life and pressure
 
@@ -144,7 +150,12 @@ Structure upgrades remain future work.
 - [x] Add a persistent rest need with bench/fire recovery affected by season and
   weather.
 - [x] Add a buildable shelter that protects residents from harsh weather.
-- Give workers schedules and simple task selection, with sensible fallbacks.
+- [x] Give workers schedules and simple task selection, with sensible
+  fallbacks. Done 2026-10-06 in two slices: worker schedules (24-slot
+  templates: worker day, guard day/night shift squads, bedtime sleep, casual
+  meals, night floor) and task-selection fallbacks (FREE_TIME slots never
+  dispatch work; a WORK-slot worker with no available job wanders near the
+  anchor with an Idle label instead of freezing). 310/310 tests.
 - Connect threats, caves, factions, and diplomacy to settlement defense and
   trade without making ordinary play feel like an RTS management chore.
 - [x] Let faction hostility and diplomatic standing affect which faction-linked

@@ -23,6 +23,10 @@ public sealed class StructureDef : DataRecord
     public int RequiresStructureLevel { get; init; } = 1;
     public int RequiresSkillLevel { get; init; } = 1;
 
+    /// <summary>Successor tier this structure can be upgraded into
+    /// (data key: upgrades_to); null = terminal tier.</summary>
+    public string? UpgradesTo { get; init; }
+
     public StructureMaterial[] Materials { get; init; } = [];
 
     /// <summary>Biome ids this structure can be built on; empty = anywhere.</summary>
@@ -110,6 +114,7 @@ public sealed class StructureDefRegistry
             SubStat = GetStr(e, "construction_sub_stat") ?? group,
             RequiresStructureLevel = GetInt(e, "requires_structure_level") ?? 1,
             RequiresSkillLevel = GetInt(e, "requires_skill_level") ?? 1,
+            UpgradesTo = GetStr(e, "upgrades_to"),
             Materials = ParseMaterials(e),
             BiomeCompatibility = ParseStrings(e, "biome_compatible"),
             OccupiesTile = GetBool(e, "occupies_tile"),

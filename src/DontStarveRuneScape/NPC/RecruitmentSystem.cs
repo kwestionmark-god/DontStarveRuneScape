@@ -29,6 +29,10 @@ public sealed class RecruitmentSystem
     private float _unreachableRetryTimer;
     private readonly Dictionary<string, int> _patrolPoints = [];
     private readonly Dictionary<string, float> _patrolTimers = [];
+    // Worker-schedules slice: guard-shift parity (recruit order alternates day/
+    // night) and per-NPC free-time wander targets with a short repick timer.
+    private readonly Dictionary<string, bool> _nightShiftGuards = [];
+    private readonly Dictionary<string, ((int X, int Y)? Tile, float RepickTimer)> _wanderTargets = [];
     private static readonly (int X, int Y)[] PatrolOffsets = [(-3, 0), (0, -3), (3, 0), (0, 3)];
 
     private sealed class WorkerPathState
@@ -51,7 +55,8 @@ public sealed class RecruitmentSystem
         SkillManager? skills = null, CombatSystem? combat = null, FoodRegistry? foods = null,
         FactionRegistry? factions = null, FactionSystem? factionSystem = null,
         DontStarveRuneScape.Seasons.WeatherSystem? weather = null,
-        DontStarveRuneScape.Skills.Firemaking.FiremakingSkill? firemaking = null)
+        DontStarveRuneScape.Skills.Firemaking.FiremakingSkill? firemaking = null,
+        DontStarveRuneScape.World.DayNightCycle? clock = null)
     {
         if (dt <= 0f || npcSystem == null || player?.Inventory == null || world == null)
             return;
@@ -120,7 +125,59 @@ public sealed class RecruitmentSystem
             else
                 home = (workerX, workerY);
             _homes[npc.NpcId] = home;
-            if (TickResidentRest(npc, home, dt, world, colony, buildings, combat, weather, firemaking))
+
+            // ── Worker-schedules slice ──────────────────────────────────────
+            // Resolve the current schedule category. Null clock → Work (today's
+            // behaviour). Guard shift alternates by recruit order: first guard
+            // is Daytime, second Nighttime, third Daytime…
+            ScheduleCategory? category = null;
+            if (clock != null)
+            {
+                float hour = clock.HourOfDay;
+                if (npc.RecruitBehavior == "guard")
+                {
+                    if (!_nightShiftGuards.TryGetValue(npc.NpcId, out bool night))
+                    {
+                        int guardIndex = _nightShiftGuards.Count;
+                        night = guardIndex % 2 == 1;
+                        _nightShiftGuards[npc.NpcId] = night;
+                    }
+                    var sched = ScheduleTemplates.For("guard",
+                        night ? WorkShift.Nighttime : WorkShift.Daytime);
+                    category = sched?.SlotFor(hour) ?? ScheduleCategory.MilitaryDuty;
+                }
+                else // assistant
+                {
+                    var sched = ScheduleTemplates.For("assistant", null);
+                    category = sched?.SlotFor(hour) ?? ScheduleCategory.Work;
+                }
+            }
+
+            // Bedtime: SLEEP slots take rest even at full rest meter (the
+            // urgent-threat gate inside TickResidentRest still aborts).
+            bool bedtime = category == ScheduleCategory.Sleep;
+            // Casual meals: during a NOURISHMENT slot eat at 45 hunger instead
+            // of the urgent 20 threshold handled in TickColonyNeeds.
+            bool casualMeal = category == ScheduleCategory.Nourishment
+                              && npc.ColonyHunger < WorkerSchedule.CasualHungerThreshold
+                              && npc.ColonyHunger > 0f;
+
+            if (casualMeal && colony?.IsFounded == true && foods != null)
+            {
+                var meal = foods.All()
+                    .Where(food => food.HungerRestoration > 0 && colony.GetItemQuantity(food.ItemId) > 0)
+                    .OrderBy(food => food.IsRaw)
+                    .ThenByDescending(food => food.HungerRestoration)
+                    .FirstOrDefault();
+                if (meal != null && colony.RemoveItem(meal.ItemId, 1))
+                {
+                    npc.ColonyHunger = Math.Min(100f, npc.ColonyHunger + meal.HungerRestoration);
+                    npc.ColonyNeedStatus = npc.ColonyHunger <= 15f ? "Starving"
+                        : npc.ColonyHunger <= 35f ? "Hungry" : "Fed";
+                }
+            }
+
+            if (TickResidentRest(npc, home, dt, world, colony, buildings, combat, weather, firemaking, bedtime))
             {
                 // Resting releases the worker's claims so others can take
                 // them; carried goods stay with the worker.
@@ -133,6 +190,25 @@ public sealed class RecruitmentSystem
                 continue;
             }
             bool needsFood = colony?.IsFounded == true && npc.ColonyHunger <= 0f;
+            // Night floor: during a Work slot at night (22:00–05:00), outdoor
+            // worker dispatch is refused; the worker wanders near the anchor
+            // or sleeps instead.
+            bool nightFloor = category == ScheduleCategory.Work
+                              && clock != null && clock.IsNight;
+            if (nightFloor)
+            {
+                // Refuse outdoor dispatch. Fall back to free-time wander near
+                // the anchor (or rest if tired — handled above).
+                TickWander(npc, home, dt, world, colony);
+                continue;
+            }
+            // FREE_TIME slots (the short evening at camp): no production,
+            // gather, or construction dispatch — wander and socialize.
+            if (category == ScheduleCategory.FreeTime)
+            {
+                TickWander(npc, home, dt, world, colony);
+                continue;
+            }
             int workRadius = inCave ? Math.Max(world.Width, world.Height)
                 : colony?.IsFounded == true
                 ? colony.WorkRadiusTiles
@@ -150,17 +226,24 @@ public sealed class RecruitmentSystem
             if (constructionSite != null && colony != null)
             {
                 constructionSite.AssignedNpcId = npc.NpcId;
-                missingInputs = GetMissingConstructionInputs(constructionSite, colony);
+                missingInputs = GetMissingConstructionInputs(constructionSite, colony, buildings);
                 if (missingInputs.Count == 0 && !constructionSite.ConstructionMaterialsPaid)
                 {
-                    foreach (var material in constructionSite.StructureDef.Materials
+                    // An in-progress upgrade charges the SUCCESSOR tier's
+                    // materials; a blueprint charges its own def's materials.
+                    var materialSource = constructionSite.UpgradingToId != null
+                        ? buildings!.Registry!.GetStructure(constructionSite.UpgradingToId)!.Materials
+                        : constructionSite.StructureDef.Materials;
+                    foreach (var material in materialSource
                                  .GroupBy(row => row.ItemId, StringComparer.Ordinal))
                         if (!colony.RemoveItem(material.Key, material.Sum(row => row.Quantity)))
                             throw new InvalidOperationException("Construction materials changed during job start.");
                     constructionSite.ConstructionMaterialsPaid = true;
                 }
-                constructionSite.WorkStatus = constructionSite.ConstructionMaterialsPaid
-                    ? "Builder en route" : "Waiting for materials";
+                constructionSite.WorkStatus = !constructionSite.ConstructionMaterialsPaid
+                    ? "Waiting for materials"
+                    : constructionSite.UpgradingToId != null ? "Upgrading (builder en route)"
+                    : "Builder en route";
             }
             if (constructionSite?.ConstructionMaterialsPaid == true && colony != null)
             {
@@ -182,14 +265,39 @@ public sealed class RecruitmentSystem
                 }
                 npc.VelocityX = npc.VelocityY = 0f;
                 constructionSite.WorkProgress += Math.Min(dt, 0.25f);
-                constructionSite.WorkStatus = $"Building ({Math.Min(99, (int)(constructionSite.WorkProgress / 20f * 100f))}%)";
+                bool upgrading = constructionSite.UpgradingToId != null;
+                constructionSite.WorkStatus = upgrading
+                    ? $"Upgrading ({Math.Min(99, (int)(constructionSite.WorkProgress / 20f * 100f))}%)"
+                    : $"Building ({Math.Min(99, (int)(constructionSite.WorkProgress / 20f * 100f))}%)";
                 if (constructionSite.WorkProgress >= 20f)
                 {
-                    constructionSite.IsUnderConstruction = false;
-                    constructionSite.ConstructionMaterialsPaid = false;
-                    constructionSite.WorkProgress = 0f;
-                    constructionSite.AssignedNpcId = null;
-                    constructionSite.WorkStatus = "Construction complete";
+                    if (upgrading && buildings?.Registry?.GetStructure(constructionSite.UpgradingToId) is { } successor)
+                    {
+                        // Swap the placed structure to the successor tier in
+                        // place: id, def, HP, and tile occupancy follow the new
+                        // def; position is preserved.
+                        constructionSite.StructureId = successor.Id;
+                        constructionSite.StructureDef = successor;
+                        constructionSite.Health = (int)successor.Hp;
+                        constructionSite.MaxHealth = (int)successor.Hp;
+                        constructionSite.UpgradingToId = null;
+                        constructionSite.IsUnderConstruction = false;
+                        constructionSite.ConstructionMaterialsPaid = false;
+                        constructionSite.WorkProgress = 0f;
+                        constructionSite.AssignedNpcId = null;
+                        var upgradedTile = world.GetTile(constructionSite.TileX, constructionSite.TileY);
+                        if (upgradedTile != null)
+                            upgradedTile.Structure = successor.OccupiesTile ? successor : null;
+                        constructionSite.WorkStatus = $"Upgraded to {successor.Name}";
+                    }
+                    else
+                    {
+                        constructionSite.IsUnderConstruction = false;
+                        constructionSite.ConstructionMaterialsPaid = false;
+                        constructionSite.WorkProgress = 0f;
+                        constructionSite.AssignedNpcId = null;
+                        constructionSite.WorkStatus = "Construction complete";
+                    }
                     skills?.AddXp("construction", 10f);
                 }
                 continue;
@@ -359,7 +467,18 @@ public sealed class RecruitmentSystem
             if (!target.HasValue)
             {
                 _targets.Remove(npc.NpcId);
-                npc.VelocityX = npc.VelocityY = 0f;
+                // No gatherable work this tick — fall back to an idle wander
+                // near the anchor instead of freezing in place. The worker
+                // stays readable ("Idle") and re-scans for work next tick.
+                if (colony?.IsFounded == true)
+                {
+                    TickWander(npc, home, dt, world, colony);
+                    npc.CarryStatus = "Idle";
+                }
+                else
+                {
+                    npc.VelocityX = npc.VelocityY = 0f;
+                }
                 if (needsFood)
                 {
                     var hungryStation = buildings?.Structures.FirstOrDefault(s => s.AssignedNpcId == npc.NpcId);
@@ -570,7 +689,8 @@ public sealed class RecruitmentSystem
     private bool TickResidentRest(Npc npc, (int X, int Y) home, float dt, TileMap world,
         ColonySystem? colony, BuildingSystem? buildings, CombatSystem? combat,
         DontStarveRuneScape.Seasons.WeatherSystem? weather,
-        DontStarveRuneScape.Skills.Firemaking.FiremakingSkill? firemaking)
+        DontStarveRuneScape.Skills.Firemaking.FiremakingSkill? firemaking,
+        bool bedtime = false)
     {
         if (colony?.IsFounded != true)
         {
@@ -593,13 +713,14 @@ public sealed class RecruitmentSystem
         string conditions = weather?.CurrentWeather ?? "clear";
         float shelterRadius = Constants.TileSize * 1.5f;
         bool sheltered = buildings?.Structures.Any(structure => structure.IsActive
-            && !structure.IsUnderConstruction && structure.StructureId == "woven_shelter"
+            && !structure.IsUnderConstruction
+            && structure.StructureId is "woven_shelter" or "timber_shelter" or "stone_shelter"
             && MathF.Pow(structure.WorldX - npc.WorldX, 2)
                 + MathF.Pow(structure.WorldY - npc.WorldY, 2) <= shelterRadius * shelterRadius) == true;
         bool harshWeather = !sheltered && conditions is "rain" or "storm" or "snow";
         float elapsed = Math.Min(dt, 0.25f);
         bool resting = npc.ColonyRestStatus is "Resting" or "Seeking rest";
-        if (!resting)
+        if (!resting && !bedtime)
         {
             float fatigueRate = 0.03f * (season == "winter" ? 1.25f : 1f)
                 * (harshWeather ? 1.25f : 1f);
@@ -613,12 +734,13 @@ public sealed class RecruitmentSystem
         }
 
         int workRadius = colony.WorkRadiusTiles;
-        var candidates = new List<(int X, int Y, bool NearFire, bool NearBench, float Distance)>();
+        var candidates = new List<(int X, int Y, bool NearFire, bool NearBench, string? ShelterTier, float Distance)>();
         if (buildings != null)
         {
             foreach (var bench in buildings.Structures.Where(s => s.IsActive
                          && !s.IsUnderConstruction
-                         && s.StructureId is "stone_bench" or "woven_shelter"))
+                         && s.StructureId is "stone_bench" or "woven_shelter"
+                             or "timber_shelter" or "stone_shelter"))
             {
                 int dxHome = bench.TileX - home.X, dyHome = bench.TileY - home.Y;
                 if (dxHome * dxHome + dyHome * dyHome > workRadius * workRadius) continue;
@@ -626,7 +748,10 @@ public sealed class RecruitmentSystem
                 if (approach == null) continue;
                 float dx = (approach.Value.X + 0.5f) * Constants.TileSize - npc.WorldX;
                 float dy = (approach.Value.Y + 0.5f) * Constants.TileSize - npc.WorldY;
-                candidates.Add((approach.Value.X, approach.Value.Y, false, true, dx * dx + dy * dy));
+                candidates.Add((approach.Value.X, approach.Value.Y, false, true,
+                    bench.StructureId is "woven_shelter" or "timber_shelter" or "stone_shelter"
+                        ? bench.StructureId : null,
+                    dx * dx + dy * dy));
             }
         }
         if (firemaking != null)
@@ -639,14 +764,14 @@ public sealed class RecruitmentSystem
                 if (dxHome * dxHome + dyHome * dyHome > workRadius * workRadius
                     || !WorkerPathfinder.CanStand(world, tileX, tileY)) continue;
                 float dx = fire.WorldX - npc.WorldX, dy = fire.WorldY - npc.WorldY;
-                candidates.Add((tileX, tileY, true, false, dx * dx + dy * dy));
+                candidates.Add((tileX, tileY, true, false, null, dx * dx + dy * dy));
             }
         }
         if (WorkerPathfinder.CanStand(world, home.X, home.Y))
         {
             float dx = (home.X + 0.5f) * Constants.TileSize - npc.WorldX;
             float dy = (home.Y + 0.5f) * Constants.TileSize - npc.WorldY;
-            candidates.Add((home.X, home.Y, false, false, dx * dx + dy * dy));
+            candidates.Add((home.X, home.Y, false, false, null, dx * dx + dy * dy));
         }
         else
         {
@@ -656,7 +781,7 @@ public sealed class RecruitmentSystem
                 if (!WorkerPathfinder.CanStand(world, x, y)) continue;
                 float dx = (x + 0.5f) * Constants.TileSize - npc.WorldX;
                 float dy = (y + 0.5f) * Constants.TileSize - npc.WorldY;
-                candidates.Add((x, y, false, false, dx * dx + dy * dy));
+                candidates.Add((x, y, false, false, null, dx * dx + dy * dy));
             }
         }
 
@@ -691,11 +816,22 @@ public sealed class RecruitmentSystem
         }
 
         npc.VelocityX = npc.VelocityY = 0f;
-        float recovery = target.NearFire ? 0.22f : target.NearBench ? 0.16f : 0.08f;
+        // Shelter-tier recovery (design law: mitigate, never nullify — fire
+        // stays the best rest spot at 0.22/s): bench 0.16, woven 0.16,
+        // timber 0.18, stone 0.20, bare ground 0.08.
+        float recovery = target.NearFire ? 0.22f
+            : target.ShelterTier switch
+            {
+                "stone_shelter" => 0.20f,
+                "timber_shelter" => 0.18f,
+                _ => target.NearBench ? 0.16f : 0.08f,
+            };
         if (harshWeather && !target.NearFire) recovery *= 0.5f;
         if (season == "winter" && !target.NearFire) recovery *= 0.75f;
         npc.ColonyRest = Math.Min(100f, npc.ColonyRest + elapsed * recovery);
-        if (npc.ColonyRest >= 90f)
+        // During a bedtime SLEEP slot, stay asleep through the night and wake
+        // only when the schedule leaves SLEEP (caller passes bedtime=false).
+        if (npc.ColonyRest >= 90f && !bedtime)
         {
             npc.ColonyRestStatus = RestStatus(npc.ColonyRest);
             return false;
@@ -818,6 +954,56 @@ public sealed class RecruitmentSystem
 
         npc.VelocityX = npc.VelocityY = 0f;
         return true;
+    }
+
+    /// <summary>
+    /// Free-time / night-floor wander: pick a random standable tile within
+    /// WanderRadiusTiles of the home anchor, walk to it, pause 2–4 s, repick.
+    /// Reservation-free and dispatch-free; nothing is claimed or produced.
+    /// </summary>
+    private void TickWander(Npc npc, (int X, int Y) home, float dt, TileMap world,
+        ColonySystem? colony)
+    {
+        _wanderTargets.TryGetValue(npc.NpcId, out var state);
+        npc.VelocityX = npc.VelocityY = 0f; // default; moving overwrites below
+
+        if (state.Tile.HasValue)
+        {
+            (int tx, int ty) = state.Tile.Value;
+            float txWorld = (tx + 0.5f) * Constants.TileSize;
+            float tyWorld = (ty + 0.5f) * Constants.TileSize;
+            float dx = txWorld - npc.WorldX, dy = tyWorld - npc.WorldY;
+            if (dx * dx + dy * dy > 16f)
+            {
+                MoveAlongPath(npc, world, tx, ty, dt, WalkSpeed * 0.6f);
+                return;
+            }
+            // Arrived: count down the repick pause.
+            state.RepickTimer -= Math.Min(dt, 0.25f);
+            if (state.RepickTimer > 0f)
+            {
+                _wanderTargets[npc.NpcId] = state;
+                return;
+            }
+        }
+
+        // Pick a fresh standable tile inside the wander radius.
+        var rng = new Random(npc.NpcId.GetHashCode() ^ Environment.TickCount);
+        for (int attempt = 0; attempt < 8; attempt++)
+        {
+            int ox = rng.Next(-WorkerSchedule.WanderRadiusTiles, WorkerSchedule.WanderRadiusTiles + 1);
+            int oy = rng.Next(-WorkerSchedule.WanderRadiusTiles, WorkerSchedule.WanderRadiusTiles + 1);
+            int x = home.X + ox, y = home.Y + oy;
+            if (x < 0 || y < 0 || x >= world.Width || y >= world.Height) continue;
+            if (!WorkerPathfinder.CanStand(world, x, y)) continue;
+            float repick = WorkerSchedule.WanderRepickMinSeconds
+                + (float)rng.NextDouble()
+                * (WorkerSchedule.WanderRepickMaxSeconds - WorkerSchedule.WanderRepickMinSeconds);
+            _wanderTargets[npc.NpcId] = ((x, y), repick);
+            return;
+        }
+        // No standable tile nearby — idle in place.
+        _wanderTargets[npc.NpcId] = (null, WorkerSchedule.WanderRepickMinSeconds);
     }
 
     private void TickGuard(Npc guard, (int X, int Y) home, float dt, TileMap world,
@@ -1150,8 +1336,12 @@ public sealed class RecruitmentSystem
             .FirstOrDefault();
     }
 
-    private static HashSet<string> GetMissingConstructionInputs(Structure site, ColonySystem colony)
-        => site.StructureDef.Materials
+    private static HashSet<string> GetMissingConstructionInputs(Structure site, ColonySystem colony,
+        BuildingSystem? buildings = null)
+        // An upgrading site needs its SUCCESSOR tier's materials.
+        => (site.UpgradingToId != null && buildings != null
+                ? buildings.Registry!.GetStructure(site.UpgradingToId)!.Materials
+                : site.StructureDef.Materials)
             .GroupBy(material => material.ItemId, StringComparer.Ordinal)
             .Where(group => colony.GetItemQuantity(group.Key) < group.Sum(material => material.Quantity))
             .Select(group => group.Key)

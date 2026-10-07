@@ -384,6 +384,7 @@ public sealed class StructureSnapshot
     public bool IsDependencyOrder { get; set; }
     public bool IsUnderConstruction { get; set; }
     public bool ConstructionMaterialsPaid { get; set; }
+    public string? UpgradingToId { get; set; }
     public float WorkProgress { get; set; }
     public string WorkStatus { get; set; } = "Idle";
 }
