@@ -94,6 +94,18 @@ public sealed class SaveSystem
         RestoreWorld(saveData, game);
         RestoreSeasons(saveData, game);
         game.DayNight?.RestoreSnapshot(saveData.DayNight);
+        RestoreCave(saveData, game);
+    }
+
+    /// <summary>Restore the cave expedition: re-enters the cave when the save
+    /// was taken underground (deterministic rebuild from seed + entrance).</summary>
+    private void RestoreCave(SaveData data, Game game)
+    {
+        if (game.CaveWorlds == null || game.World == null || game.CombatSystem == null)
+            return;
+        if (!data.Cave.IsInside)
+            return;
+        game.CaveWorlds.RestoreSnapshot(data.Cave, game.World, game.CombatSystem);
     }
 
     /// <summary>
@@ -160,6 +172,7 @@ public sealed class SaveSystem
             },
             Seasons = game.SeasonSystem?.GetSnapshot() ?? new SeasonSnapshot(),
             DayNight = game.DayNight?.GetSnapshot() ?? new World.DayNightSnapshot(),
+            Cave = game.CaveWorlds?.GetSnapshot() ?? new World.CaveSnapshot(),
         };
     }
 
@@ -293,6 +306,7 @@ public sealed class SaveData
     public WorldSnapshot World { get; set; } = new();
     public SeasonSnapshot Seasons { get; set; } = new();
     public World.DayNightSnapshot DayNight { get; set; } = new();
+    public World.CaveSnapshot Cave { get; set; } = new();
 }
 
 /// <summary>

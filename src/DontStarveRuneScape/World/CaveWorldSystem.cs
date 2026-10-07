@@ -85,13 +85,91 @@ public sealed class CaveWorldSystem
         bool hasGuards = HasSurfaceGuards();
         Console.WriteLine($"AdvanceSurfaceTimer: inside={inside}, hasGuards={hasGuards}, seconds={seconds}");
         if (!inside || hasGuards) 
-        {
+        { 
             Console.WriteLine($"AdvanceSurfaceTimer: SKIPPED - inside={inside}, hasGuards={hasGuards}");
             return; 
         }
         _surfaceUnguardedTimer += seconds;
         Console.WriteLine($"AdvanceSurfaceTimer: ADVANCED by {seconds}, timer={_surfaceUnguardedTimer}");
         TryRollRaid();
+    }
+
+    /// <summary>Whether the named guard is currently on the cave expedition.</summary>
+    public bool IsGuardOnExpedition(string npcId) => _guardsOnExpedition.Contains(npcId);
+
+    /// <summary>Snapshot the expedition state for saving (spec section 6).</summary>
+    public CaveSnapshot GetSnapshot() => new()
+    {
+        IsInside = IsInside,
+        EntranceX = _entranceX,
+        EntranceY = _entranceY,
+        SurfaceWorkerPositions = [.. _surfaceWorkerPositions.Select(kv => new CaveWorkerPositionSnapshot
+        {
+            NpcId = kv.Key,
+            X = kv.Value.X,
+            Y = kv.Value.Y,
+        })],
+        GuardsOnExpedition = [.. _guardsOnExpedition],
+        SurfaceUnguardedTimer = _surfaceUnguardedTimer,
+    };
+
+    /// <summary>Restore expedition state. Rebuilds the cave (deterministic
+    /// from seed + entrance), re-points Game.World/CombatSystem at the cave,
+    /// and marks expedition guards. Worker surface positions are stored so
+    /// Exit() returns everyone correctly. No-op when the snapshot says the
+    /// player was on the surface.</summary>
+    public void RestoreSnapshot(CaveSnapshot snapshot, TileMap surface, CombatSystem surfaceCombat)
+    {
+        _guardsOnExpedition.Clear();
+        _surfaceWorkerPositions.Clear();
+        foreach (var guard in snapshot.GuardsOnExpedition)
+            _guardsOnExpedition.Add(guard);
+        foreach (var pos in snapshot.SurfaceWorkerPositions)
+            _surfaceWorkerPositions[pos.NpcId] = (pos.X, pos.Y);
+
+        if (!snapshot.IsInside)
+        {
+            _surface = null;
+            _surfaceCombat = null;
+            _surfaceUnguardedTimer = 0f;
+            return;
+        }
+
+        // Re-enter: rebuild the cave from the seed at the saved entrance
+        _surface = surface;
+        _surfaceCombat = surfaceCombat;
+        _entranceX = snapshot.EntranceX;
+        _entranceY = snapshot.EntranceY;
+        var seed = unchecked(_game.Seed * 397 ^ _entranceX * 31 ^ _entranceY);
+        _cave = Generate(seed, _game.ResourceRegistry, _game.SeasonSystem);
+        _caveCombat = CreateCaveCombat(_game.MonsterRegistry, _game.QuestSystem, _cave);
+        _game.World = _cave;
+        _game.CombatSystem = _caveCombat;
+        _surfaceUnguardedTimer = snapshot.SurfaceUnguardedTimer;
+
+        // Expedition guards teleport to the cave spawn with the player
+        if (_game.NPCSystem != null)
+        {
+            foreach (var guardId in _guardsOnExpedition)
+            {
+                var guard = _game.NPCSystem.NPCs.FirstOrDefault(n => n.NpcId == guardId);
+                if (guard == null) continue;
+                guard.WorldX = (_cave.SpawnX + 0.5f) * Constants.TileSize;
+                guard.WorldY = (_cave.SpawnY + 0.5f) * Constants.TileSize;
+                guard.VelocityX = guard.VelocityY = 0f;
+            }
+        }
+
+        var player = _game.Player;
+        if (player != null)
+        {
+            player.WorldX = (_cave!.SpawnX + 0.5f) * Constants.TileSize;
+            player.WorldY = (_cave.SpawnY + 0.5f) * Constants.TileSize;
+            player.TargetX = player.WorldX;
+            player.TargetY = player.WorldY;
+            player.ActionSystem?.SetTileMap(_cave);
+        }
+        _game.Camera?.SetWorld(_cave!);
     }
 
     private void Enter(int x, int y)
@@ -349,4 +427,23 @@ public sealed class CaveWorldSystem
         }
         return combat;
     }
+}
+
+/// <summary>Cave expedition state for saving (spec section 6).</summary>
+public sealed class CaveSnapshot
+{
+    public bool IsInside { get; set; }
+    public int EntranceX { get; set; }
+    public int EntranceY { get; set; }
+    public CaveWorkerPositionSnapshot[] SurfaceWorkerPositions { get; set; } = [];
+    public string[] GuardsOnExpedition { get; set; } = [];
+    public float SurfaceUnguardedTimer { get; set; }
+}
+
+/// <summary>A worker's saved surface position (restored on cave exit).</summary>
+public sealed class CaveWorkerPositionSnapshot
+{
+    public string NpcId { get; set; } = string.Empty;
+    public float X { get; set; }
+    public float Y { get; set; }
 }
