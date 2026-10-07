@@ -1917,6 +1917,18 @@ public sealed class DashboardPanel
             AssignSelectedRecruit("assistant");
         else if (_selectedColonistId != null && ui.TryClick(x + 148f, y + 284f, 112f, 30f))
             AssignSelectedRecruit("guard");
+        else if (_selectedColonistId != null && Game?.CaveWorlds?.IsInside == true
+            && ui.TryClick(x + 276f, y + 284f, 118f, 30f))
+        {
+            // Cave expedition: move the selected guard underground with the player
+            var recruit = GetRecruits().FirstOrDefault(npc => npc.NpcId == _selectedColonistId);
+            if (recruit != null && recruit.RecruitBehavior != "guard")
+                _colonyStatus = $"{recruit.Name} must be a guard to join the expedition.";
+            else if (recruit != null && Game!.CaveWorlds!.BringGuard(recruit.NpcId))
+                _colonyStatus = $"{recruit.Name} joined the cave expedition.";
+            else if (recruit != null)
+                _colonyStatus = $"{recruit.Name} is already on the expedition.";
+        }
 
         var itemIds = GetColonyItemIds(colony, inventory);
         _colonyItemScroll = Math.Clamp(_colonyItemScroll - Math.Sign(ui.GetScroll()), 0,
@@ -2055,6 +2067,13 @@ public sealed class DashboardPanel
                 PanelChrome.TextR, PanelChrome.TextG, PanelChrome.TextB, bold: true);
             text.DrawText(batch, "GUARD", x + 204, y + 299, 10,
                 PanelChrome.TextR, PanelChrome.TextG, PanelChrome.TextB, bold: true);
+            if (Game?.CaveWorlds?.IsInside == true)
+            {
+                // Cave expedition button — visible only while inside a cave
+                batch.DrawScreenQuad(x + 335, y + 299, 80, 14, 74, 55, 24);
+                text.DrawText(batch, "CAVE EXPEDITION", x + 335, y + 299, 9,
+                    (byte)200, (byte)160, (byte)90, bold: true);
+            }
         }
 
         batch.DrawScreenQuad(x + 464, y + 194, 180, 116, 24, 17, 11, 210);

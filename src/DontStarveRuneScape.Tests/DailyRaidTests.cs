@@ -174,17 +174,18 @@ public class DailyRaidTests
         var raidMonsters = h.Combat.Monsters
             .Where(m => m.MonsterId == "wolf")
             .ToList();
-        // 2-4 spawn attempts; edge clipping (anchor 5,5, ring 9 on 24x24 map)
-        // can skip out-of-bounds points, so at least one raider lands.
-        Assert.InRange(raidMonsters.Count, 1, 4);
+        // 2-4 raiders; ring points are clamped to the map so the party
+        // always materializes even near a map edge.
+        Assert.InRange(raidMonsters.Count, 2, 4);
 
         // Spawn ring: ~9 tiles from the anchor (5,5), on the surface map
+        // (clamped edge points may sit closer than the nominal 9-tile ring)
         foreach (var m in raidMonsters)
         {
             float dx = m.WorldX / Constants.TileSize - 5.5f;
             float dy = m.WorldY / Constants.TileSize - 5.5f;
             float dist = MathF.Sqrt(dx * dx + dy * dy);
-            Assert.InRange(dist, 5f, 13f);
+            Assert.InRange(dist, 4f, 13f);
         }
     }
 

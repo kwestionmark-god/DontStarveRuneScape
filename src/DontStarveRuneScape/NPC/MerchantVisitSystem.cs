@@ -168,10 +168,9 @@ public sealed class MerchantVisitSystem
             for (int i = 0; i < count; i++)
             {
                 double angle = rand.NextDouble() * Math.PI * 2;
-                int spawnX = colony.AnchorTileX + (int)MathF.Round(MathF.Cos((float)angle) * 9f);
-                int spawnY = colony.AnchorTileY + (int)MathF.Round(MathF.Sin((float)angle) * 9f);
-                if (spawnX < 0 || spawnY < 0 || spawnX >= surface.Width || spawnY >= surface.Height)
-                    continue;
+                // Ring point clamped to map bounds: the party always materializes.
+                int spawnX = Math.Clamp(colony.AnchorTileX + (int)MathF.Round(MathF.Cos((float)angle) * 9f), 0, surface.Width - 1);
+                int spawnY = Math.Clamp(colony.AnchorTileY + (int)MathF.Round(MathF.Sin((float)angle) * 9f), 0, surface.Height - 1);
                 float wx = (spawnX + 0.5f) * Constants.TileSize;
                 float wy = (spawnY + 0.5f) * Constants.TileSize;
                 combat.SpawnMonster(monsterDefs[rand.Next(monsterDefs.Count)], wx, wy);

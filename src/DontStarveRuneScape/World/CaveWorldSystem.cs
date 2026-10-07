@@ -258,9 +258,10 @@ public sealed class CaveWorldSystem
         {
             var def = monsterDefs[rand.Next(monsterDefs.Count)];
             double angle = rand.NextDouble() * Math.PI * 2;
-            int spawnX = anchorX + (int)MathF.Round(MathF.Cos((float)angle) * 9f);
-            int spawnY = anchorY + (int)MathF.Round(MathF.Sin((float)angle) * 9f);
-            if (spawnX < 0 || spawnY < 0 || spawnX >= _surface.Width || spawnY >= _surface.Height) continue;
+            // Ring point, clamped to the map: a raid party always materializes
+            // even when the colony sits near a map edge.
+            int spawnX = Math.Clamp(anchorX + (int)MathF.Round(MathF.Cos((float)angle) * 9f), 0, _surface.Width - 1);
+            int spawnY = Math.Clamp(anchorY + (int)MathF.Round(MathF.Sin((float)angle) * 9f), 0, _surface.Height - 1);
             float wx = (spawnX + 0.5f) * Constants.TileSize;
             float wy = (spawnY + 0.5f) * Constants.TileSize;
             var combat = _surfaceCombat;
