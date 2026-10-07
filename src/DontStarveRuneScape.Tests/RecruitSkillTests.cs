@@ -23,11 +23,13 @@ using Xunit;
 /// </summary>
 public sealed class RecruitSkillTests
 {
-    private static Harness NewWorld(out Harness harness)
+    private static Harness NewColony()
     {
-        harness = new Harness();
-        harness.Colony.FoundAt(10, 10, harness.World);
-        return harness;
+        var h = new Harness();
+        // Anchor at tile (10,10) — FoundAt takes world pixels.
+        Assert.True(h.Colony.FoundAt(
+            10.5f * Constants.TileSize, 10.5f * Constants.TileSize, h.World));
+        return h;
     }
 
     // -- 1. Gather XP accrues to the working recruit ----------------------
@@ -35,8 +37,7 @@ public sealed class RecruitSkillTests
     [Fact]
     public void Worker_GainsForagingXp_FromGatheringResources()
     {
-        var h = NewWorld(out _);
-
+        var h = NewColony();
         var def = new ResourceDef
         {
             Id = "test_berry_bush",
@@ -49,7 +50,7 @@ public sealed class RecruitSkillTests
         h.PlaceNode(12, 11, def, 1000f);
 
         var worker = h.AddWorker("forager", 12, 10, "assistant");
-        h.Tick(40);
+        h.Tick(80);
 
         Assert.True(worker.Skills.GetSkill("foraging").Xp >= def.Xp,
             $"Expected foraging xp >= {def.Xp}, got {worker.Skills.GetSkill("foraging").Xp}");
@@ -60,13 +61,13 @@ public sealed class RecruitSkillTests
     [Fact]
     public void Builder_GainsConstructionXp_OnCompletion()
     {
-        var h = NewWorld(out _);
+        var h = NewColony();
         var worker = h.AddWorker("builder", 12, 10, "assistant");
-        var site = h.AddStructure("small_fire_pit", 14, 10);
+        var site = h.AddStructure("campfire", 14, 10);
         site.IsUnderConstruction = true;
         site.ConstructionMaterialsPaid = true;
 
-        h.Tick(200); // 80 ticks of progress + approach + buffer
+        h.Tick(200); // 80 ticks of build progress + approach + buffer
 
         Assert.False(site.IsUnderConstruction);
         Assert.True(worker.Skills.GetSkill("construction").Xp >= 10f,
@@ -83,7 +84,7 @@ public sealed class RecruitSkillTests
     [Fact]
     public void Recruit_LevelsUp_WithEnoughXp()
     {
-        var h = NewWorld(out _);
+        var h = NewColony();
         var worker = h.AddWorker("lvl", 12, 10, "assistant");
 
         worker.Skills.AddXpWithNotification("foraging", SkillManager.XpForLevel(4) + 1f);
@@ -96,8 +97,8 @@ public sealed class RecruitSkillTests
     [Fact]
     public void Recruit_Skills_Persist_ThroughSnapshot()
     {
-        var h = NewWorld(out _);
-        var worker = h.AddRegistryWorker("saver", 12, 10, "assistant");
+        var h = NewColony();
+        var worker = h.AddRegistryWorker(12, 10, "assistant");
         worker.Skills.AddXpWithNotification("woodcutting", SkillManager.XpForLevel(5) + 1f);
 
         var snapshot = h.Npcs.GetSnapshot();
@@ -114,8 +115,8 @@ public sealed class RecruitSkillTests
     [Fact]
     public void OldSave_WithoutSkills_LoadsFresh()
     {
-        var h = NewWorld(out _);
-        var worker = h.AddRegistryWorker("olds", 12, 10, "assistant");
+        var h = NewColony();
+        var worker = h.AddRegistryWorker(12, 10, "assistant");
         var snapshot = h.Npcs.GetSnapshot();
         foreach (var row in snapshot.NPCs)
             row.Skills = null; // simulate a pre-slice save
@@ -134,7 +135,7 @@ public sealed class RecruitSkillTests
     [Fact]
     public void HigherLevelGatherer_YieldsMore()
     {
-        var h = NewWorld(out _);
+        var h = NewColony();
         var def = new ResourceDef
         {
             Id = "test_berry_bush2",
@@ -145,12 +146,14 @@ public sealed class RecruitSkillTests
             DepletionCount = 100000,
         };
 
-        var low = h.AddWorker("low", 12, 10, "assistant");
-        var high = h.AddWorker("high", 12, 14, "assistant");
+        var low = h.AddWorker("low", 12, 8, "assistant");
+        var high = h.AddWorker("high", 12, 12, "assistant");
         high.Skills.AddXpWithNotification("foraging", SkillManager.XpForLevel(12) + 1f);
 
+        // Mirror-symmetric around the anchor: identical haul distances so
+        // only the skill level differs between the two gatherers.
+        h.PlaceNode(12, 9, def, 100000f);
         h.PlaceNode(12, 11, def, 100000f);
-        h.PlaceNode(12, 15, def, 100000f);
 
         h.Tick(600);
 
@@ -177,7 +180,6 @@ public sealed class RecruitSkillTests
         public CraftingSystem Crafting = MakeCrafting();
         public FoodRegistry Foods = MakeFoods();
         public RecruitmentSystem Recruits = new();
-        public DayNightCycle Clock = MakeClock();
         public NpcRegistry NpcRegistry = MakeNpcRegistry();
 
         private static NpcRegistry MakeNpcRegistry()
@@ -215,13 +217,6 @@ public sealed class RecruitSkillTests
             var loader = new DataLoader();
             loader.LoadAll();
             return new FoodRegistry(loader.ItemsData);
-        }
-
-        private static DayNightCycle MakeClock()
-        {
-            var clock = new DayNightCycle();
-            clock.RestoreSnapshot(new DayNightSnapshot { TimeOfDay = 0.25f }); // ~12:00
-            return clock;
         }
 
         public void PlaceNode(int tx, int ty, ResourceDef def, float reserve)
@@ -270,12 +265,12 @@ public sealed class RecruitSkillTests
         }
 
         /// <summary>A recruit built from the real npcs.json registry — the
-        /// path persistence restore takes (it skips NPCs with no def).</summary>
-        public RecruitNpc AddRegistryWorker(string id, int tileX, int tileY, string behavior)
+        /// path persistence restore takes (it skips NPCs with no def). Keeps
+        /// the def's NpcId so the registry lookup on restore succeeds.</summary>
+        public RecruitNpc AddRegistryWorker(int tileX, int tileY, string behavior)
         {
             var def = NpcRegistry.Npcs["recruit_forest_assistant"];
             var npc = (RecruitNpc)Npc.FromDef(def);
-            npc.NpcId = id;
             npc.IsRecruited = true;
             npc.RecruitBehavior = behavior;
             npc.WorldX = (tileX + 0.5f) * Constants.TileSize;
@@ -290,7 +285,7 @@ public sealed class RecruitSkillTests
         {
             for (int i = 0; i < n; i++)
                 Recruits.Tick(0.25f, Npcs, Player, World, Colony, Buildings,
-                    Crafting, Player.SkillManager, null, Foods, null, null, null, null, Clock);
+                    Crafting, Player.SkillManager, null, Foods);
         }
     }
 }

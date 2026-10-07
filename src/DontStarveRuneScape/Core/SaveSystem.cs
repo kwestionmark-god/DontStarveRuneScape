@@ -436,6 +436,10 @@ public sealed class NPCDataSnapshot
     public float ColonyRest { get; set; } = 100f;
     public string? CarriedItemId { get; set; }
     public int CarriedQuantity { get; set; }
+    /// <summary>Per-recruit skill progression (per-recruit skill stats
+    /// slice). Null in pre-slice saves — restore then leaves a fresh
+    /// level-1 manager.</summary>
+    public SkillSnapshot? Skills { get; set; }
 }
 
 public sealed class QuestSnapshot

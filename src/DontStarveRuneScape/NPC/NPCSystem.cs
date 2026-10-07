@@ -139,6 +139,7 @@ public sealed class NPCSystem
                 ColonyRest = n.ColonyRest,
                 CarriedItemId = n.CarriedItemId,
                 CarriedQuantity = n.CarriedQuantity,
+                Skills = (n as RecruitNpc)?.Skills.GetSnapshot(),
             })
             .ToArray();
         return snapshot;
@@ -176,6 +177,10 @@ public sealed class NPCSystem
                 npc.CarriedItemId = string.IsNullOrWhiteSpace(n.CarriedItemId) ? null : n.CarriedItemId;
                 npc.CarriedQuantity = Math.Max(0, n.CarriedQuantity);
                 if (npc.CarriedQuantity == 0) npc.CarriedItemId = null;
+                // Per-recruit skills: absent in pre-slice saves (null) —
+                // the recruit then keeps its fresh level-1 manager.
+                if (npc is RecruitNpc recruit && n.Skills != null)
+                    recruit.Skills.RestoreSnapshot(n.Skills);
                 NPCs.Add(npc);
             }
         }

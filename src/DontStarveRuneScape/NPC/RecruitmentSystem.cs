@@ -299,6 +299,10 @@ public sealed class RecruitmentSystem
                         constructionSite.WorkStatus = "Construction complete";
                     }
                     skills?.AddXp("construction", 10f);
+                    // Per-recruit XP: the builder who finished the site
+                    // trains construction alongside the player.
+                    if (npc is RecruitNpc builderRecruit)
+                        builderRecruit.Skills.AddXpWithNotification("construction", 10f);
                 }
                 continue;
             }
@@ -553,6 +557,26 @@ public sealed class RecruitmentSystem
             }
 
             var (itemId, quantity, xp) = resource.Harvest(1f, world.SeasonSystem);
+            // Per-recruit yield feedback: a gatherer whose skill level is L
+            // yields one doubled harvest every max(1, 20-2*L) intervals,
+            // deterministic per recruit (counter, no RNG). This is the
+            // recruit-side mirror of the player's gathering sub-stats.
+            if (quantity > 0 && npc is RecruitNpc yieldRecruit)
+            {
+                string gatherSkill = GatherSkillFor(resource.ResourceDef);
+                int level = yieldRecruit.Skills.GetSkillLevel(gatherSkill);
+                yieldRecruit.GatherIntervalsSinceBonus++;
+                int interval = Math.Max(1, 20 - 2 * level);
+                if (yieldRecruit.GatherIntervalsSinceBonus >= interval)
+                {
+                    yieldRecruit.GatherIntervalsSinceBonus = 0;
+                    bool bonusFits = colony?.IsFounded == true && !inCave
+                        ? colony.CanStore(itemId, quantity)
+                        : player.Inventory.CanAdd(itemId, quantity);
+                    if (bonusFits)
+                        quantity *= 2;
+                }
+            }
             if (quantity > 0)
             {
                 if (!inCave && colony?.IsFounded == true)
@@ -581,6 +605,16 @@ public sealed class RecruitmentSystem
                 }
                 if (inCave && resource.RequiresTool)
                     skills?.AddXp("mining", xp);
+                // Per-recruit XP: the worker trains the node's gathering
+                // skill on every successful harvest, wherever the goods
+                // land. AddXpWithNotification messages are discarded —
+                // progression surfaces on the dashboard instead.
+                if (npc is RecruitNpc workerRecruit)
+                {
+                    workerRecruit.TotalGathered += quantity;
+                    workerRecruit.Skills.AddXpWithNotification(
+                        GatherSkillFor(resource.ResourceDef), xp);
+                }
             }
             if (resource.IsDepleted)
             {
@@ -600,6 +634,17 @@ public sealed class RecruitmentSystem
             _patrolTimers.Remove(id);
             colony?.TaskBoard.ReleaseAllFor(id);
         }
+    }
+
+    /// <summary>Which gathering skill a resource node trains: tool-required
+    /// nodes train mining (the convention the cave-mining path already
+    /// uses), wood-yield nodes train woodcutting, everything else
+    /// foraging.</summary>
+    private static string GatherSkillFor(ResourceDef? def)
+    {
+        if (def == null) return "foraging";
+        if (def.RequiresTool) return "mining";
+        return def.YieldItem is "wood" or "log" or "logs" ? "woodcutting" : "foraging";
     }
 
     /// <summary>True when the worker holds the board reservation for a tile.

@@ -2,6 +2,7 @@ namespace DontStarveRuneScape.NPC;
 
 using System.Collections.Generic;
 using DontStarveRuneScape.Data;
+using DontStarveRuneScape.Skills;
 
 /// <summary>
 /// Npc — Base NPC class.
@@ -106,10 +107,27 @@ public sealed class MerchantNpc : Npc
 }
 
 /// <summary>
-/// RecruitNpc — NPC that can be recruited.
+/// RecruitNpc — NPC that can be recruited into the colony.
+/// Per-recruit skill stats: carries its own SkillManager, mirroring the
+/// player's (same OSRS XP curve), so a recruit reads like a character.
 /// </summary>
 public sealed class RecruitNpc : Npc
 {
+    /// <summary>Per-recruit skill progression — gatherers level the node's
+    /// gathering skill, builders level construction, guards level attack.
+    /// Same SkillManager class the player uses.</summary>
+    public SkillManager Skills { get; } = new();
+
+    /// <summary>Total units gathered by this recruit as a colony worker over
+    /// its life — the yardstick the yield-feedback loop measures. Not
+    /// persisted; a save keeps the skills, not the odometer.</summary>
+    public int TotalGathered { get; set; }
+
+    /// <summary>Harvest intervals since this recruit last earned a bonus
+    /// yield — the deterministic counter for the gather-level feedback.
+    /// Runtime-only; a save/load resets the cadence, not the skill.</summary>
+    public int GatherIntervalsSinceBonus { get; set; }
+
     public RecruitNpc()
     {
         NpcType = "recruit";
