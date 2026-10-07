@@ -1837,6 +1837,32 @@ public sealed class DashboardPanel
     public string? SelectedColonistId => _selectedColonistId;
     /// <summary>Visible-row scroll offset for the colonist list.</summary>
     public int ColonistScroll => _colonistScroll;
+
+    /// <summary>Headline skill for a colonist row (per-recruit skill stats
+    /// slice): guards read their attack level, everyone else their highest
+    /// trained work skill; a recruit with no training reads "untrained".
+    /// Public so tests assert the label without a draw pass.</summary>
+    public static string ColonistSkillLabel(RecruitNpc recruit)
+    {
+        if (recruit.RecruitBehavior == "guard")
+        {
+            int attack = recruit.Skills.GetSkillLevel("attack");
+            return attack > 1 ? $"attack {attack}" : "untrained";
+        }
+        string[] workSkills = ["foraging", "woodcutting", "mining", "construction"];
+        string best = "";
+        int bestLevel = 1;
+        foreach (var skill in workSkills)
+        {
+            int level = recruit.Skills.GetSkillLevel(skill);
+            if (level > bestLevel)
+            {
+                bestLevel = level;
+                best = skill;
+            }
+        }
+        return best.Length > 0 ? $"{best} {bestLevel}" : "untrained";
+    }
     public Action<string>? OnTabSelected { get; set; }
     public void SetActive(string tab) { if (Tabs.Contains(tab)) ActiveTab = tab; }
     public void HandleKey(Key key)
@@ -2059,6 +2085,11 @@ public sealed class DashboardPanel
                     : npc.ColonyNeedStatus == "Hungry" ? (byte)210 : (byte)150;
                 string needAndHealth = $"{(npc.ColonyNeedStatus == "Fed" ? "fed" : npc.ColonyNeedStatus.ToLowerInvariant())} {npc.Health}hp";
                 text.DrawText(batch, needAndHealth, x + 164, rowY, 9, needColor, 150, 120);
+                // Per-recruit skills: headline skill rides the row, right of
+                // the need/health readout, dim so the job label stays primary.
+                if (npc is RecruitNpc recruitNpc)
+                    text.DrawText(batch, ColonistSkillLabel(recruitNpc), x + 236, rowY, 9,
+                        165, 150, 120);
                 byte restColor = npc.ColonyRest <= 25f ? (byte)210
                     : npc.ColonyRest <= 50f ? (byte)190
                     : npc.ColonyRest <= 75f ? (byte)165 : (byte)110;

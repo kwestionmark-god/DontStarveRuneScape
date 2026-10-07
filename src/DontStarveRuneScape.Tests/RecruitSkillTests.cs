@@ -9,6 +9,7 @@ using DontStarveRuneScape.Data;
 using DontStarveRuneScape.NPC;
 using DontStarveRuneScape.Skills;
 using DontStarveRuneScape.Survival;
+using DontStarveRuneScape.UI;
 using DontStarveRuneScape.World;
 using Inv = DontStarveRuneScape.Inventory.Inventory;
 using Xunit;
@@ -160,6 +161,61 @@ public sealed class RecruitSkillTests
         Assert.True(high.TotalGathered > low.TotalGathered,
             $"level-12 gatherer ({high.TotalGathered}) should out-yield level-1 ({low.TotalGathered})");
         Assert.True(low.TotalGathered > 0, "low gatherer should still produce");
+    }
+
+    // -- 8. Dashboard surface: headline skill on the colonist row ----------
+
+    [Fact]
+    public void Dashboard_RowShowsRecruitHeadlineSkill()
+    {
+        // Game-shaped harness (the dashboard reads from Game, not bare systems).
+        var game = new Game();
+        var world = new TileMap(24, 24);
+        for (int tx = 0; tx < 24; tx++)
+            for (int ty = 0; ty < 24; ty++)
+            {
+                world.Tiles[tx, ty].Elevation = Constants.SeaLevel + 5f;
+                world.Tiles[tx, ty].Biome = new BiomeDef { Id = "plains", Name = "Plains" };
+            }
+        game.World = world;
+        game.Player = new Player(100f, 100f)
+        {
+            Gear = new PlayerGear(),
+            SkillManager = new SkillManager(),
+            Inventory = new Inv(),
+            Survival = new SurvivalSystem(),
+        };
+        game.NPCSystem = new NPCSystem();
+        game.ColonySystem = new ColonySystem();
+        game.BuildingSystem = new BuildingSystem { Registry = new StructureDefRegistry() };
+        Assert.True(game.ColonySystem.FoundAt(100f, 100f, world));
+
+        var guard = new RecruitNpc
+        {
+            NpcId = "g1", Name = "Guard", IsRecruited = true, IsActive = true,
+            RecruitBehavior = "guard",
+        };
+        guard.Skills.AddXpWithNotification("attack", SkillManager.XpForLevel(6) + 1f);
+        game.NPCSystem.NPCs.Add(guard);
+        var forager = new RecruitNpc
+        {
+            NpcId = "f1", Name = "Forager", IsRecruited = true, IsActive = true,
+            RecruitBehavior = "assistant",
+        };
+        forager.Skills.AddXpWithNotification("foraging", SkillManager.XpForLevel(3) + 1f);
+        game.NPCSystem.NPCs.Add(forager);
+        var fresh = new RecruitNpc
+        {
+            NpcId = "n1", Name = "Newcomer", IsRecruited = true, IsActive = true,
+            RecruitBehavior = "assistant",
+        };
+        game.NPCSystem.NPCs.Add(fresh);
+
+        var panel = new DashboardPanel { Game = game };
+
+        Assert.Equal("attack 6", DashboardPanel.ColonistSkillLabel(guard));
+        Assert.Equal("foraging 3", DashboardPanel.ColonistSkillLabel(forager));
+        Assert.Equal("untrained", DashboardPanel.ColonistSkillLabel(fresh));
     }
 
     // -- Harness -----------------------------------------------------------
