@@ -116,6 +116,24 @@ law shapes it.
    the job with visible status and the worker backs off (`9124bba`).
    Cadence/readability: the colonist list scrolls past its 3 visible
    rows and the header shows the population count (`9efe566`).
+6. **New frontier — post-roadmap features (opened 2026-10-07).** The
+   original arc above is done; development continues with fresh feature
+   slices the user scoped 2026-10-07. Draft a spec per the house style
+   (see specs/) before implementing each. Candidates in the order the
+   user raised them — **per-recruit skill stats got the loudest
+   enthusiasm** and is likely the best first big slice:
+   - **Per-recruit skill stats** — every colony recruit carries its own
+     skills/XP that grow through work, mirroring the player's
+     SkillManager (gatherers level gathering, guards level combat).
+   - **Static resource sprites** — draw resource nodes statically like
+     the begun entity-sprite work (reuse existing art for a first pass).
+   - **More characters** — new starting character defs/choices.
+   - **More quests** — expand QuestSystem content.
+   - **Starting companion/follower** — an early-game first follower.
+   - **Colony-building skill structure** — player skills shaping what
+     colonies can build and do.
+   - The fusion is **not bound to the inspiration titles**: entirely
+     new logic of our own is welcome and encouraged.
 
 ## Distributable track
 
