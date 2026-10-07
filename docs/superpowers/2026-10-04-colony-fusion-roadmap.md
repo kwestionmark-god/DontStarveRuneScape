@@ -164,10 +164,10 @@ Structure upgrades remain future work.
 
 ### 5. Persistence and polish
 
-- Save and restore settlement anchors, stockpiles, job assignments, work orders,
+- [x] Save and restore settlement anchors, stockpiles, job assignments, work orders,
   and resident state with backwards-compatible defaults.
-- Add feedback for blocked work, missing materials, full storage, and danger.
-- Tune simulation cadence and rendering for larger populations.
+- [x] Add feedback for blocked work, missing materials, full storage, and danger.
+- [x] Tune simulation cadence and rendering for larger populations.
 
 ## Progress log
 

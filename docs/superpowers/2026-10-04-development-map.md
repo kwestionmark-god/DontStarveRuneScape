@@ -106,15 +106,16 @@ law shapes it.
    Pillars held: DS danger arrives at the settlement from the RS faction
    world; the player never clicks through an RTS menu — reactions flow
    from standing the player already shaped by negotiating and trading.
-5. **Phase 5 persistence, blocked-work feedback, cadence.** In progress
-   2026-10-07. Save/restore remainder closed: SettlementPersistenceTests
-   proves the full round-trip end-to-end (anchor, stockpile, assignments,
-   queued orders, residents; `2246a2b`), and cave expeditions persist
-   (`3cb8652`). Blocked-work feedback: missing materials, full storage,
-   unreachable jobs, and paused orders were already visible; danger now
-   too — a hostile near a workplace pauses the job with visible status
-   and the worker backs off (`9124bba`). Remaining on this line:
-   simulation cadence and rendering for larger populations.
+5. **Phase 5 persistence, blocked-work feedback, cadence.** Done
+   2026-10-07 — all three lines closed. Save/restore:
+   SettlementPersistenceTests proves the full round-trip end-to-end
+   (anchor, stockpile, assignments, queued orders, residents; `2246a2b`),
+   and cave expeditions persist (`3cb8652`). Blocked-work feedback:
+   missing materials, full storage, unreachable jobs, and paused orders
+   were already visible; danger too — a hostile near a workplace pauses
+   the job with visible status and the worker backs off (`9124bba`).
+   Cadence/readability: the colonist list scrolls past its 3 visible
+   rows and the header shows the population count (`9efe566`).
 
 ## Distributable track
 
@@ -127,6 +128,12 @@ only more features. Phase 5 is that track:
   jobs, and danger are visible.
 - Simulation cadence and rendering — the colony stays readable as the
   population grows.
+
+All three landed 2026-10-07 (see Ordered next work item 5): full
+round-trip proven by test, danger feedback in the dispatch, scrollable
+colonist list with population counter. The colony-fusion feature arc is
+feature-complete; what remains before a distributable is packaging and
+play QA, not features.
 
 Feature work (items 1–4) and this track stay distinct. Phase 5 does not
 wait for parked arcs. Parked cave atmosphere and sprite polish are not
