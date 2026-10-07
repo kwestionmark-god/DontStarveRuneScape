@@ -1,7 +1,7 @@
 # Per-Recruit Skill Stats — design
 
 Date: 2026-10-07
-Status: draft
+Status: implemented (GREEN 338/339, 1 skipped guard-XP placeholder; `ef1f8b4`)
 Slice: post-roadmap frontier, item 1 (dev-map "Ordered next work" item 6)
 
 ## Design law

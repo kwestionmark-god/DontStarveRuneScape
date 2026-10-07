@@ -122,9 +122,18 @@ law shapes it.
    (see specs/) before implementing each. Candidates in the order the
    user raised them — **per-recruit skill stats got the loudest
    enthusiasm** and is likely the best first big slice:
-   - **Per-recruit skill stats** — every colony recruit carries its own
-     skills/XP that grow through work, mirroring the player's
-     SkillManager (gatherers level gathering, guards level combat).
+   - **Per-recruit skill stats** — **done 2026-10-07 (`ef1f8b4`).** Every
+     recruit carries its own SkillManager on the player's OSRS curve;
+     harvests train the node's gathering skill, construction trains
+     construction, and gatherers earn a doubled harvest every
+     max(1, 20−2·level) intervals (deterministic). Skills persist through
+     NPCDataSnapshot; pre-slice saves load a fresh level-1 manager.
+     Guard attack-XP is recorded as a deferred hook for the combat
+     scaling slice. Spec:
+     `docs/superpowers/specs/2026-10-07-per-recruit-skill-stats-design.md`.
+     Pillars held: RS progression (levels earned through real dispatched
+     work, never on the clock), DS pressure (recruits start weak at
+     level 1), MC readability (levels read like characters).
    - **Static resource sprites** — draw resource nodes statically like
      the begun entity-sprite work (reuse existing art for a first pass).
      Done 2026-10-07 (`164585b`): resource nodes render as world-fixed
