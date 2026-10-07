@@ -57,6 +57,12 @@ public sealed class FactionSystem
         };
     }
 
+    /// <summary>Set standing for a faction directly (tests, save restore).</summary>
+    public void SetStanding(string factionId, float standing)
+    {
+        _standings[factionId] = Math.Clamp(standing, 0f, 1f);
+    }
+
     /// <summary>Get snapshot for saving.</summary>
     public FactionSnapshot GetSnapshot()
     {

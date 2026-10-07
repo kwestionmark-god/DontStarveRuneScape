@@ -56,6 +56,7 @@ public sealed class Game
     // World & Player
     public TileMap? World { get; set; }
     public CaveWorldSystem? CaveWorlds { get; set; }
+    public MerchantVisitSystem? MerchantVisitSystem { get; set; }
     public Player? Player { get; set; }
 
     // Subsystems
@@ -749,6 +750,9 @@ public sealed class Game
     {
         // World update (regrowth, etc.)
         World?.Update(dt);
+
+        // Merchant visit system (ticks hourly logic)
+        MerchantVisitSystem?.Tick(DayNight?.HourOfDay ?? 0f);
 
         // While sleeping, any movement key wakes the player.
         if (DayNight?.Sleeping == true && InputManager != null)

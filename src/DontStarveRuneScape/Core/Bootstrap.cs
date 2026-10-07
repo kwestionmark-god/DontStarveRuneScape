@@ -234,6 +234,7 @@ public sealed class Bootstrap
         _game.RecruitmentSystem = new RecruitmentSystem();
         _game.QuestSystem = new QuestSystem();
         _game.FactionSystem = new FactionSystem();
+        _game.MerchantVisitSystem = new MerchantVisitSystem(_game);
 
         // NPC-domain data registries + world spawning
         var npcRegistry = new Data.NpcRegistry();

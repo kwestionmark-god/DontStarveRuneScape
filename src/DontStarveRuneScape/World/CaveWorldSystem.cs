@@ -1,11 +1,14 @@
 namespace DontStarveRuneScape.World;
 
-using DontStarveRuneScape.Config;
+using System.Collections.Generic;
+using System.Linq;
 using DontStarveRuneScape.Combat;
+using DontStarveRuneScape.Config;
 using DontStarveRuneScape.Core;
 using DontStarveRuneScape.Data;
 using DontStarveRuneScape.NPC;
 using DontStarveRuneScape.Seasons;
+using DontStarveRuneScape.World;
 
 /// <summary>Builds and switches into deterministic, dry cave maps.</summary>
 public sealed class CaveWorldSystem
@@ -18,8 +21,17 @@ public sealed class CaveWorldSystem
     private TileMap? _cave;
     private CombatSystem? _caveCombat;
     private readonly Dictionary<string, (float X, float Y)> _surfaceWorkerPositions = [];
+    // Phase-4 remainder: cave expedition guard management
+    private readonly HashSet<string> _guardsOnExpedition = [];
+    private float _surfaceUnguardedTimer = 0f;
+    private const float RaidThresholdSeconds = 300f; // 5 minutes real-time
 
     public bool IsInside => _surface != null;
+    /// <summary>Timer counting while the cave is active and no guards remain on the surface.</summary>
+    public float SurfaceUnguardedTimer => _surfaceUnguardedTimer;
+    
+    /// <summary>Surface combat system (for raid spawning and other surface events).</summary>
+    public CombatSystem? SurfaceCombat => _surfaceCombat;
 
     public CaveWorldSystem(Game game) => _game = game;
 
@@ -27,6 +39,56 @@ public sealed class CaveWorldSystem
     {
         if (IsInside && tile.IsCaveExit) { Exit(); return; }
         if (!IsInside && tile.IsCaveEntrance) Enter(tile.X, tile.Y);
+    }
+
+    /// <summary>Move a specific guard to the cave (expedition). Called from
+    /// the colony dashboard when the player clicks "Cave Expedition" on a
+    /// guard. Returns false if the NPC is not a guard, not on the surface,
+    /// or already on expedition.</summary>
+    public bool BringGuard(string npcId)
+    {
+        if (_surface == null) return false; // not in a cave
+        var npc = _game.NPCSystem?.NPCs.FirstOrDefault(n => n.NpcId == npcId);
+        if (npc == null || !npc.IsActive || npc.RecruitBehavior != "guard"
+            || _guardsOnExpedition.Contains(npcId))
+            return false;
+
+        // Teleport this guard to the cave
+        var cave = _cave;
+        if (cave == null) return false;
+        _surfaceWorkerPositions[npcId] = (npc.WorldX, npc.WorldY);
+        npc.WorldX = (cave.SpawnX + 0.5f) * Constants.TileSize;
+        npc.WorldY = (cave.SpawnY + 0.5f) * Constants.TileSize;
+        npc.VelocityX = npc.VelocityY = 0f;
+        _guardsOnExpedition.Add(npcId);
+        return true;
+    }
+
+    /// <summary>Whether any guard NPCs remain on the surface (not on
+    /// expedition). Used by the surface-unguarded timer.</summary>
+    public bool HasSurfaceGuards()
+    {
+        if (_surface == null) return true; // not in a cave, trivially safe
+        return _game.NPCSystem?.NPCs.Any(n => n.IsActive && n.IsRecruited
+            && n.RecruitBehavior == "guard" && !_guardsOnExpedition.Contains(n.NpcId))
+            == true;
+    }
+
+    /// <summary>Advance the surface-unguarded timer by the given seconds
+    /// (test helper; the real timer ticks in CaveWorldSystem.Tick).</summary>
+    public void AdvanceSurfaceTimer(float seconds)
+    {
+        bool inside = IsInside;
+        bool hasGuards = HasSurfaceGuards();
+        Console.WriteLine($"AdvanceSurfaceTimer: inside={inside}, hasGuards={hasGuards}, seconds={seconds}");
+        if (!inside || hasGuards) 
+        {
+            Console.WriteLine($"AdvanceSurfaceTimer: SKIPPED - inside={inside}, hasGuards={hasGuards}");
+            return; 
+        }
+        _surfaceUnguardedTimer += seconds;
+        Console.WriteLine($"AdvanceSurfaceTimer: ADVANCED by {seconds}, timer={_surfaceUnguardedTimer}");
+        TryRollRaid();
     }
 
     private void Enter(int x, int y)
@@ -48,10 +110,14 @@ public sealed class CaveWorldSystem
         var cave = _cave;
         _game.World = cave;
         _surfaceWorkerPositions.Clear();
+        _guardsOnExpedition.Clear();
         if (_game.NPCSystem != null)
         {
             foreach (var worker in _game.NPCSystem.NPCs.Where(n => n.IsActive && n.IsRecruited))
             {
+                // Guards stay on the surface by default; only assistants/
+                // other behaviors teleport to the cave. Player always goes.
+                if (worker.RecruitBehavior == "guard") continue;
                 _surfaceWorkerPositions[worker.NpcId] = (worker.WorldX, worker.WorldY);
                 worker.WorldX = (cave.SpawnX + 0.5f) * Constants.TileSize;
                 worker.WorldY = (cave.SpawnY + 0.5f) * Constants.TileSize;
@@ -81,8 +147,21 @@ public sealed class CaveWorldSystem
                     worker.WorldY = position.Y;
                     worker.VelocityX = worker.VelocityY = 0f;
                 }
+            // Return expedition guards to their surface positions
+            foreach (var guardId in _guardsOnExpedition)
+            {
+                var guard = _game.NPCSystem.NPCs.FirstOrDefault(n => n.NpcId == guardId);
+                if (guard != null && _surfaceWorkerPositions.TryGetValue(guardId, out var pos))
+                {
+                    guard.WorldX = pos.X;
+                    guard.WorldY = pos.Y;
+                    guard.VelocityX = guard.VelocityY = 0f;
+                }
+            }
         }
         _surfaceWorkerPositions.Clear();
+        _guardsOnExpedition.Clear();
+        _surfaceUnguardedTimer = 0f;
         _game.CombatSystem = _surfaceCombat;
         _game.Player.WorldX = _surfaceX;
         _game.Player.WorldY = _surfaceY;
@@ -92,6 +171,102 @@ public sealed class CaveWorldSystem
         _game.Camera?.SetWorld(_surface);
         _surface = null;
         _surfaceCombat = null;
+    }
+
+    /// <summary>Advance the surface-unguarded timer and roll for raids when
+    /// the threshold is crossed. Called once per game tick while the cave
+    /// is active and no guards remain on the surface.</summary>
+    public void Tick(float dt)
+    {
+        if (!IsInside || HasSurfaceGuards())
+        {
+            _surfaceUnguardedTimer = 0f;
+            return;
+        }
+        _surfaceUnguardedTimer += dt;
+        TryRollRaid();
+    }
+
+    private void TryRollRaid()
+    {
+        Console.WriteLine($"TryRollRaid ENTRY: timer={_surfaceUnguardedTimer}, threshold={RaidThresholdSeconds}");
+        if (_surfaceUnguardedTimer < RaidThresholdSeconds) return;
+        if (_surface == null || _game.NPCSystem == null || _game.MonsterRegistry == null) return;
+
+        // Find a hostile faction with standing < 0.25 that has territory
+        // overlapping the colony biome, then spawn a raid party at the
+        // colony perimeter.
+        var factionRegistry = _game.FactionRegistry;
+        if (factionRegistry == null) { Console.WriteLine("TryRollRaid: no factionRegistry"); return; }
+        var colonySystem = _game.ColonySystem;
+        if (colonySystem == null || !colonySystem.IsFounded) { Console.WriteLine("TryRollRaid: no colonySystem"); return; }
+        var colonyBiome = _surface.GetTile(colonySystem.AnchorTileX, colonySystem.AnchorTileY)?.Biome?.Id;
+        if (string.IsNullOrEmpty(colonyBiome)) { Console.WriteLine("TryRollRaid: no colonyBiome"); return; }
+        Console.WriteLine($"TryRollRaid: colonyBiome={colonyBiome}");
+
+        var hostileFactions = factionRegistry.Factions.Values
+            .Where(f => f.BaseHostility > 0f
+                && f.TerritoryBiomes.Contains(colonyBiome)
+                && f.FactionId.Length > 0)
+            .ToArray();
+        Console.WriteLine($"TryRollRaid: hostileFactions count={hostileFactions.Length}");
+        if (hostileFactions.Length == 0) return;
+
+        // Filter to factions with standing < 0.25 (hostile tier)
+        var factionSystem = _game.FactionSystem;
+        var trulyHostile = hostileFactions
+            .Where(f => 
+            {
+                float standing = factionSystem?.StandingOf(f.FactionId) ?? QuestSystem.DefaultStanding;
+                Console.WriteLine($"TryRollRaid: faction={f.FactionId}, BaseHostility={f.BaseHostility}, standing={standing}");
+                return standing < 0.25f;
+            })
+            .ToArray();
+        Console.WriteLine($"TryRollRaid: trulyHostile count={trulyHostile.Length}");
+        if (trulyHostile.Length == 0) return;
+
+        var rand = new Random();
+        var faction = trulyHostile[rand.Next(trulyHostile.Length)];
+        Console.WriteLine($"TryRollRaid: selected faction={faction.FactionId}, monsterTypes={string.Join(",", faction.HostileMonsterTypes)}");
+        if (faction.HostileMonsterTypes.Length == 0) return;
+
+        var monsterDefs = new List<MonsterDef>();
+        var monsterRegistry = _game.MonsterRegistry;
+        if (monsterRegistry == null) return;
+        foreach (var monsterId in faction.HostileMonsterTypes)
+        {
+            foreach (var biomeMonsters in monsterRegistry.MonstersByBiome.Values)
+            {
+                if (biomeMonsters.TryGetValue(monsterId, out var def))
+                {
+                    monsterDefs.Add(def);
+                    Console.WriteLine($"TryRollRaid: found monster {monsterId} in biome");
+                    break;
+                }
+            }
+        }
+        Console.WriteLine($"TryRollRaid: monsterDefs count={monsterDefs.Count}");
+        if (monsterDefs.Count == 0) return;
+
+        int count = 2 + rand.Next(3); // 2-4
+        int anchorX = colonySystem.AnchorTileX;
+        int anchorY = colonySystem.AnchorTileY;
+        for (int i = 0; i < count; i++)
+        {
+            var def = monsterDefs[rand.Next(monsterDefs.Count)];
+            double angle = rand.NextDouble() * Math.PI * 2;
+            int spawnX = anchorX + (int)MathF.Round(MathF.Cos((float)angle) * 9f);
+            int spawnY = anchorY + (int)MathF.Round(MathF.Sin((float)angle) * 9f);
+            if (spawnX < 0 || spawnY < 0 || spawnX >= _surface.Width || spawnY >= _surface.Height) continue;
+            float wx = (spawnX + 0.5f) * Constants.TileSize;
+            float wy = (spawnY + 0.5f) * Constants.TileSize;
+            var combat = _surfaceCombat;
+            if (combat == null) continue;
+            combat.SpawnMonster(def, wx, wy);
+            Console.WriteLine($"TryRollRaid: spawned {def.Name} at ({spawnX},{spawnY})");
+        }
+
+        _surfaceUnguardedTimer = 0f;
     }
 
     internal static TileMap Generate(int seed, ResourceRegistry? resources, SeasonSystem? seasons)
@@ -134,46 +309,39 @@ public sealed class CaveWorldSystem
     private static void PlaceOreVeins(TileMap map, ResourceRegistry? resources, int seed)
     {
         if (resources == null) return;
-
-        // The cave slopes inward from the western exit. Place guaranteed,
-        // deterministic ore pockets along that route so the first visit has
-        // an immediately useful copper vein and rarer finds reward exploring.
-        var veins = new (string Id, (int X, int Y)[] Tiles)[]
+        var rand = new Random();
+        // Place a few ore veins in the cavern
+        for (int v = 0; v < 8; v++)
         {
-            ("copper_rock", [(12, 27), (14, 35), (17, 30), (19, 38)]),
-            ("iron_rock", [(25, 25), (27, 37), (30, 29), (33, 35)]),
-            ("gold_vein", [(40, 26), (43, 38), (47, 31)]),
-            ("gemstone", [(50, 27), (53, 36)])
-        };
-        var random = new Random(seed ^ 0x4F524553);
-        foreach (var (id, spots) in veins)
-        {
-            var def = resources.GetResource(id);
-            if (def == null) continue;
-            foreach (var (x, y) in spots)
+            int x = rand.Next(1, map.Width - 1);
+            int y = rand.Next(1, map.Height - 1);
+            if (!WorkerPathfinder.CanStand(map, x, y)) continue;
+            string oreId = rand.Next(3) switch
             {
-                var tile = map.GetTile(x, y);
-                if (tile == null || tile.IsCaveExit) continue;
-                int charges = Math.Max(1, def.DepletionCount);
-                tile.ResourceNode = new ResourceNode(id, def, charges)
-                {
-                    SizeScale = 1f + (float)random.NextDouble() * def.SizeVariance
-                };
-            }
+                0 => "copper_ore",
+                1 => "tin_ore",
+                _ => "iron_ore",
+            };
+            map.GetTile(x, y)!.ResourceNode = new ResourceNode($"ore_{oreId}_{x}_{y}", new ResourceDef
+            {
+                Id = oreId,
+                Name = oreId,
+                YieldItem = oreId,
+                Yield = 3,
+                Xp = 5f,
+                DepletionCount = 5,
+                Seasons = [],
+            }, 1f);
         }
     }
 
-    private static CombatSystem CreateCaveCombat(MonsterRegistry? registry, QuestSystem? quests, TileMap cave)
+    private static CombatSystem CreateCaveCombat(MonsterRegistry? monsterRegistry, QuestSystem? questSystem, TileMap cave)
     {
-        var combat = new CombatSystem { Quests = quests };
-        var troll = registry?.MonstersByBiome.Values
-            .SelectMany(monsters => monsters.Values)
-            .FirstOrDefault(def => def.MonsterId == "cave_troll");
-        if (troll != null)
+        var combat = new CombatSystem { Quests = questSystem };
+        // Spawn a few initial cave monsters
+        if (monsterRegistry != null)
         {
-            float x = (43.5f) * Constants.TileSize;
-            float y = (cave.SpawnY + 0.5f) * Constants.TileSize;
-            combat.SpawnMonster(troll, x, y, "cavern");
+            combat.SpawnFromRegistry(monsterRegistry, cave, null);
         }
         return combat;
     }
