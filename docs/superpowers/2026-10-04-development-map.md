@@ -47,11 +47,9 @@ roadmap is unchecked.
   interruption-safe release, carried-goods persistence. Remaining on the
   line: schedules themselves (time-of-day work rhythms) and the broader
   task-selection fallbacks beyond gather/haul.
-- **Phase 4 — defense and trade wiring, remainder.** Roadmap line, still
-  open: "Connect threats, caves, factions, and diplomacy to settlement
-  defense and trade without making ordinary play feel like an RTS."
-  Faction hostility for guards and faction merchant prices are already
-  checked off; caves, broader threats, and diplomacy are not.
+- **Phase 4 — defense and trade wiring, remainder.** Done 2026-10-07 —
+  caves, broader threats, and diplomacy are now wired (see Ordered next
+  work item 4). No phase-4 lines remain open.
 - **Phase 5 — persistence and polish.** Three open lines: save/restore of
   anchors, stockpiles, assignments, orders, and resident state;
   blocked-work feedback; simulation cadence and rendering for larger
@@ -95,11 +93,19 @@ law shapes it.
    labeled Idle). Pillars held: MC readability, DS night/season pressure
    shape when work is safe. Spec:
    `docs/superpowers/specs/2026-10-06-worker-schedules-design.md`.
-4. **Threats, caves, factions, diplomacy — the remainder.** After
-   residents reliably work and rest. Pillars: DS danger, RS faction
-   world. The design law, already in the roadmap wording: wire defense
-   and trade without turning play into an RTS chore. The player still
-   explores caves and fights.
+4. **Threats, caves, factions, diplomacy — the remainder.** Done
+   2026-10-07. Closes the phase-4 defense-and-trade line: daily merchant
+   visits at 06:00 (standing ≥ 0.65, 4-hour window), diplomacy tab with
+   live standing rows and trade click-through, daily hostile-faction raid
+   roll (standing < 0.25, territory overlap, 2–4 monster party at the
+   perimeter) with "Raid incoming" notifications, cave-expedition guard
+   button in the colony dashboard, deterministic raid parties (map-edge
+   clamp — fixed a latent RNG flake), and cave expedition save/restore
+   (deterministic cave rebuild from seed + entrance). Spec:
+   `docs/superpowers/specs/2026-10-06-threats-caves-factions-diplomacy-design.md`.
+   Pillars held: DS danger arrives at the settlement from the RS faction
+   world; the player never clicks through an RTS menu — reactions flow
+   from standing the player already shaped by negotiating and trading.
 5. **Phase 5 persistence, blocked-work feedback, cadence.** See the
    distributable track. Do the save/restore remainder before tuning
    cadence, so larger populations persist correctly.

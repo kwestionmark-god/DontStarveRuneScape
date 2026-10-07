@@ -1,7 +1,11 @@
 # Threats, Caves, Factions, Diplomacy — Design Spec
 
 - **Date:** 2026-10-06
-- **Status:** draft; awaiting review before implementation plan
+- **Status:** implemented 2026-10-07 — cycles 1–5 landed (566ed8b, fa46aaa,
+  5c4ee7d, a468db0, 4dfa0a0, 3cb8652): merchant visits, diplomacy tab
+  (standing rows + trade click-through), daily raid roll + status
+  notifications, cave-expedition guard button, deterministic raid-party
+  spawn (map-edge clamp), and cave expedition save/restore.
 - **Slice line:** roadmap phase-4 final open line — "Connect threats, caves,
   factions, and diplomacy to settlement defense and trade without making
   ordinary play feel like an RTS management chore."
