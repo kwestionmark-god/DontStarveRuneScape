@@ -106,9 +106,15 @@ law shapes it.
    Pillars held: DS danger arrives at the settlement from the RS faction
    world; the player never clicks through an RTS menu — reactions flow
    from standing the player already shaped by negotiating and trading.
-5. **Phase 5 persistence, blocked-work feedback, cadence.** See the
-   distributable track. Do the save/restore remainder before tuning
-   cadence, so larger populations persist correctly.
+5. **Phase 5 persistence, blocked-work feedback, cadence.** In progress
+   2026-10-07. Save/restore remainder closed: SettlementPersistenceTests
+   proves the full round-trip end-to-end (anchor, stockpile, assignments,
+   queued orders, residents; `2246a2b`), and cave expeditions persist
+   (`3cb8652`). Blocked-work feedback: missing materials, full storage,
+   unreachable jobs, and paused orders were already visible; danger now
+   too — a hostile near a workplace pauses the job with visible status
+   and the worker backs off (`9124bba`). Remaining on this line:
+   simulation cadence and rendering for larger populations.
 
 ## Distributable track
 
