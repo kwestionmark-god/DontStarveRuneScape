@@ -558,9 +558,12 @@ public sealed class SpriteRenderer : IDisposable
         var screen = camera.WorldToScreen(player.WorldX, player.WorldY, elevation);
         const float HalfWidth = 22f;
         float half = HalfWidth * camera.Zoom;
+        // Jump hop: lift the whole silhouette off the ground by the arc
+        // height while airborne (screen-space, zoom-scaled like the rest).
+        float jumpLift = player.JumpVisualOffset * camera.Zoom;
         // Anchor bottom-center: feet at the ground point at any zoom/pitch.
         float cx = screen.X;
-        float cy = screen.Y - half;
+        float cy = screen.Y - half - jumpLift;
 
         // Bank into left/right turns while running: the body and its carried
         // gear pivot about the ground point, so the torso leans into the turn;

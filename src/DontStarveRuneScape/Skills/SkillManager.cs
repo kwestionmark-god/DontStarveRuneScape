@@ -16,7 +16,8 @@ public sealed class SkillManager
         var skillIds = new[]
         {
             "attack", "woodcutting", "mining", "foraging", "cooking",
-            "firemaking", "crafting", "metallurgy", "construction", "intelligence"
+            "firemaking", "crafting", "metallurgy", "construction", "intelligence",
+            "agility"
         };
 
         foreach (var id in skillIds)

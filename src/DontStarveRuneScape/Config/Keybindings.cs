@@ -23,6 +23,7 @@ public static class Keybindings
         ["move_left"] = Key.A,
         ["move_right"] = Key.D,
         ["sprint"] = Key.ShiftLeft,
+        ["jump"] = Key.Space,
 
         // Panels
         ["open_inventory"] = Key.C,

@@ -772,6 +772,7 @@ public sealed class Game
             var st = InputManager.InputState;
             Player.UpdateSprint(st.Sprint,
                 st.MoveUp || st.MoveDown || st.MoveLeft || st.MoveRight, dt);
+            Player.UpdateJump(dt);
             Player.ApplyKeyInput(st, dt, cameraYaw);
             Player.Update(dt);
             // Net velocity across all movement paths (WASD + click-to-move) —

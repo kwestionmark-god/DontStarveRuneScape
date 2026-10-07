@@ -491,6 +491,7 @@ public sealed class SkillPanel
         ("crafting",     "Crafting",     "Cr", 186, 152,  96),
         ("metallurgy",   "Metallurgy",   "Mt", 176, 116,  74),
         ("construction", "Construction", "Cs", 168, 124,  82),
+        ("agility",      "Agility",      "Ag",  90, 200, 190),
         ("intelligence", "Intelligence", "In", 122, 148, 196),
     };
 
@@ -516,7 +517,7 @@ public sealed class SkillPanel
         skillId == "intelligence" ? [.. SubStats, .. IntelExtraStats] : SubStats;
 
     private const float ContentW = 780f;
-    private const float ContentH = 470f;
+    private const float ContentH = 520f; // 10 skill rows (RowH 42 + gap 4) + header
     private const float RowH = 42f;
     private const float RowGap = 4f;
     private const float HeaderH = 26f;

@@ -152,6 +152,8 @@ public sealed class InputRouter
             _interactSystem.HandleInteract();
         else if (key == Key.F)
             _fireInteraction.HandleLightFire();
+        else if (key == Key.Space)
+            _game.Player?.TryJump();
         else if (key == Key.J)
             _game.HandleAttackInput();
         else if (key == Key.O)

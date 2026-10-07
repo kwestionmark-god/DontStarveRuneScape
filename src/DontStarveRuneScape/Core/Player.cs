@@ -39,6 +39,16 @@ public sealed class Player
     /// EffectiveSpeed applies the boost while this is set.</summary>
     public bool Sprinting { get; private set; }
 
+    /// <summary>True while airborne in a jump hop. Owned by <see cref="UpdateJump"/>.</summary>
+    public bool IsJumping => _jumpTimeRemaining > 0f;
+
+    /// <summary>Visual arc height this frame (0 on the ground, peak
+    /// <see cref="Constants.JumpHeightPx"/> mid-jump). Screen-space pixels;
+    /// the renderer lifts the body billboard by this amount.</summary>
+    public float JumpVisualOffset { get; private set; }
+
+    private float _jumpTimeRemaining;
+
     /// <summary>Horizontal facing for the carried-equipment visual:
     /// +1 right, -1 left. Follows the last horizontal move direction and the
     /// attack target.</summary>
@@ -171,6 +181,54 @@ public sealed class Player
         if (wasSprinting && !Sprinting && pool is { IsExhausted: true })
             ActionSystem!.AddNotification("You are too exhausted to sprint. Rest a moment.",
                 (255, 170, 60));
+
+        // Agility XP trickles in per second of actual sprinting (RS-style
+        // movement skilling; the OSRS curve keeps early levels quick and
+        // late levels a long-haul earned climb).
+        if (Sprinting)
+            AwardAgilityXp(Constants.AgilityXpPerSprintSecond * dt);
+    }
+
+    /// <summary>Try a jump hop: pays <see cref="Constants.JumpStaminaCost"/>
+    /// from the shared stamina pool, starts the visual arc, and awards agility
+    /// XP. Fails (no cost, no XP) while already airborne or when the pool is
+    /// exhausted.</summary>
+    public bool TryJump()
+    {
+        if (IsJumping) return false;
+        var pool = ActionSystem?.Stamina;
+        if (pool == null || !pool.Consume(Constants.JumpStaminaCost))
+            return false;
+
+        _jumpTimeRemaining = Constants.JumpDuration;
+        JumpVisualOffset = 0f;
+        AwardAgilityXp(Constants.AgilityXpPerJump);
+        return true;
+    }
+
+    /// <summary>Advance the jump arc. Call once per frame while playing.</summary>
+    public void UpdateJump(float dt)
+    {
+        if (!IsJumping) return;
+        _jumpTimeRemaining -= dt;
+        if (_jumpTimeRemaining <= 0f)
+        {
+            _jumpTimeRemaining = 0f;
+            JumpVisualOffset = 0f;
+            return;
+        }
+        // Sine arc: 0 → JumpHeightPx → 0 across the jump duration.
+        float t = 1f - _jumpTimeRemaining / Constants.JumpDuration; // 0..1
+        JumpVisualOffset = MathF.Sin(t * MathF.PI) * Constants.JumpHeightPx;
+    }
+
+    /// <summary>Forward agility XP through the leveling path and push any
+    /// level-up messages to the notification channel.</summary>
+    private void AwardAgilityXp(float xp)
+    {
+        if (SkillManager == null || xp <= 0f) return;
+        foreach (var message in SkillManager.AddXpWithNotification("agility", xp))
+            ActionSystem?.AddNotification(message, (255, 215, 0));
     }
 
     /// <summary>
@@ -222,6 +280,11 @@ public sealed class Player
             float baseSpeed = Speed;
             if (Sprinting)
                 baseSpeed *= Constants.SprintSpeedMultiplier;
+            // Agility: +1% movement speed per level above 1 — the
+            // long-term earned bonus for all the sprinting and jumping.
+            int agility = SkillManager?.GetSkillLevel("agility") ?? 1;
+            if (agility > 1)
+                baseSpeed *= 1f + (agility - 1) * Constants.AgilitySprintSpeedBonusPerLevel;
             if (WeatherSystem != null)
             {
                 var effects = WeatherSystem.GetEffects();

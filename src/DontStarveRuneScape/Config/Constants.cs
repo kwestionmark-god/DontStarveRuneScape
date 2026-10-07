@@ -139,6 +139,15 @@ public static class Constants
     public const float SprintSpeedMultiplier = 1.5f;  // Speed boost while sprinting
     public const float SprintStaminaDrainPerSecond = 4.0f;  // Stamina/s drained while sprinting
 
+    // ─── Agility & jump ───────────────────────────────────────────────────
+
+    public const float JumpStaminaCost = 5.0f;            // Stamina per jump attempt
+    public const float JumpDuration = 0.45f;             // Seconds airborne
+    public const float JumpHeightPx = 26.0f;              // Peak visual arc (screen px at zoom 1)
+    public const float AgilityXpPerSprintSecond = 1.0f;   // Agility XP per second of sprinting
+    public const float AgilityXpPerJump = 2.0f;           // Agility XP per successful jump
+    public const float AgilitySprintSpeedBonusPerLevel = 0.01f; // +1% move speed per agility level above 1
+
     // ─── XP & Progression ────────────────────────────────────────────────
 
     public const float XpScaleFactor = 4.0f;          // Denominator in OSRS XP formula
