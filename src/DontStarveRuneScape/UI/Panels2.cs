@@ -1826,11 +1826,16 @@ public sealed class DashboardPanel
     private string? _selectedColonyItemId;
     private string? _selectedColonistId;
     private int _colonyItemScroll;
+    private int _colonistScroll;
     private string _colonyStatus = "Select a stockpile item, then transfer it.";
     public bool Visible { get; set; } = false;
     public Game? Game { get; set; }
     public string[] Tabs { get; } = ["inventory", "skills", "crafting", "quests", "diplomacy", "colony"];
     public string ActiveTab { get; private set; } = "inventory";
+    /// <summary>Currently selected colonist id (read-only view for tests/HUD).</summary>
+    public string? SelectedColonistId => _selectedColonistId;
+    /// <summary>Visible-row scroll offset for the colonist list.</summary>
+    public int ColonistScroll => _colonistScroll;
     public Action<string>? OnTabSelected { get; set; }
     public void SetActive(string tab) { if (Tabs.Contains(tab)) ActiveTab = tab; }
     public void HandleKey(Key key)
@@ -1905,11 +1910,15 @@ public sealed class DashboardPanel
         var recruits = GetRecruits();
         if (_selectedColonistId == null || recruits.All(n => n.NpcId != _selectedColonistId))
             _selectedColonistId = recruits.FirstOrDefault()?.NpcId;
-        for (int i = 0; i < Math.Min(3, recruits.Length); i++)
+        // Colonist list scroll (mouse wheel): 3 visible rows, keep the
+        // selection in view when the population outgrows the panel.
+        _colonistScroll = Math.Clamp(_colonistScroll - Math.Sign(ui.GetScroll()), 0,
+            Math.Max(0, recruits.Length - 3));
+        for (int i = 0; i < Math.Min(3, recruits.Length - _colonistScroll); i++)
         {
             if (ui.TryClick(x + 16f, y + 215f + i * 22f, 250f, 21f))
             {
-                _selectedColonistId = recruits[i].NpcId;
+                _selectedColonistId = recruits[_colonistScroll + i].NpcId;
                 return;
             }
         }
@@ -2020,12 +2029,13 @@ public sealed class DashboardPanel
             Left(batch, text, $"Anchor  {colony.AnchorTileX}, {colony.AnchorTileY}", x + 16, y + 138, 13);
             Left(batch, text, $"Work radius  {colony.WorkRadiusTiles} tiles", x + 16, y + 164, 13);
             Left(batch, text, $"Stores  {colony.StoredUnits} / {colony.StorageCapacity} units", x + 16, y + 190, 12);
-            Left(batch, text, "COLONISTS · select one, then assign a job", x + 16, y + 211, 10,
-                PanelChrome.BorderR, PanelChrome.BorderG, PanelChrome.BorderB, true);
             var recruits = GetRecruits();
-            for (int i = 0; i < Math.Min(3, recruits.Length); i++)
+            Left(batch, text, $"COLONISTS · {recruits.Length} residents · select one, then assign a job",
+                x + 16, y + 211, 10,
+                PanelChrome.BorderR, PanelChrome.BorderG, PanelChrome.BorderB, true);
+            for (int i = 0; i < Math.Min(3, recruits.Length - _colonistScroll); i++)
             {
-                var npc = recruits[i];
+                var npc = recruits[_colonistScroll + i];
                 float rowY = y + 225 + i * 22;
                 bool selected = npc.NpcId == _selectedColonistId;
                 if (selected) batch.DrawScreenQuad(x + 131, rowY, 115, 10, 68, 48, 23, 210);
