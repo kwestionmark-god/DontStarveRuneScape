@@ -1864,8 +1864,13 @@ public sealed class DashboardPanel
             if (activeMerchant != null
                 && ui.TryClick(x + 292f, y + 230f, 240f, 22f))
             {
-                // Walk-me-over hint; TradeSystem opens via NPC proximity
-                _colonyStatus = $"Visiting merchant {activeMerchant.Name} from {activeMerchant.FactionId}.";
+                // Open the existing trade panel via the canonical NPC flow
+                if (Game != null)
+                {
+                    var flows = new Interactions.NPCFlows(Game);
+                    flows.OpenTradePanel(activeMerchant);
+                    _colonyStatus = $"Trading with {activeMerchant.Name}.";
+                }
             }
             return;
         }
@@ -2361,19 +2366,34 @@ public sealed class DashboardPanel
             case "diplomacy":
                 Left(batch, text, $"Known factions  {game?.FactionRegistry?.Factions.Count ?? 0}", x + 292, y + 137, 14);
                 Left(batch, text, $"Recruitable companions  {recruits}", x + 292, y + 162, 14);
-                Left(batch, text, "Negotiate with faction leaders to build standing.", x + 292, y + 201, 12, 180, 170, 150);
-                
+
+                // Per-faction standing rows (up to 4 shown)
+                var factions = game?.FactionRegistry?.Factions.Values.ToArray() ?? [];
+                float rowY = y + 192f;
+                int shown = 0;
+                foreach (var f in factions)
+                {
+                    if (shown >= 4) break;
+                    float standing = game?.FactionSystem?.StandingOf(f.FactionId) ?? 0.5f;
+                    string tier = FactionSystem.TierName(standing);
+                    Left(batch, text, $"{f.Name}  {tier} ({standing:P0})", x + 292, rowY, 12,
+                        standing >= 0.65f ? (byte)120 : standing < 0.25f ? (byte)200 : PanelChrome.TextR,
+                        standing >= 0.65f ? (byte)220 : standing < 0.25f ? (byte)90 : PanelChrome.TextG,
+                        standing >= 0.65f ? (byte)120 : standing < 0.25f ? (byte)90 : PanelChrome.TextB);
+                    rowY += 17;
+                    shown++;
+                }
+
                 // Merchant visit UI
                 var activeMerchant = game?.MerchantVisitSystem?.ActiveMerchant;
                 if (activeMerchant != null)
                 {
-                    Left(batch, text, $"Visiting Merchant: {activeMerchant.Name}", x + 292, y + 230, 14, 180, 170, 150);
-                    Left(batch, text, $"Faction: {activeMerchant.FactionId} · Departs at 10:00", x + 292, y + 250, 12, 180, 170, 150);
-                    Left(batch, text, "Click 'Visit Merchant' in dashboard to trade.", x + 292, y + 270, 10, 180, 170, 150);
+                    Left(batch, text, $"Visiting Merchant: {activeMerchant.Name}", x + 292, y + 276, 13, 200, 180, 90);
+                    Left(batch, text, $"Faction: {activeMerchant.FactionId} · Departs at 10:00 · click to trade", x + 292, y + 294, 11, 180, 170, 150);
                 }
                 else
                 {
-                    Left(batch, text, "No merchant visiting today.", x + 292, y + 230, 12, 180, 170, 150);
+                    Left(batch, text, "No merchant visiting today.", x + 292, y + 276, 12, 180, 170, 150);
                 }
                 break;
         }
