@@ -2323,6 +2323,7 @@ public sealed class DashboardPanel
         if (status == "Waiting for stockpile space") return "stores full";
         if (status.StartsWith("No food", StringComparison.Ordinal)) return "needs food";
         if (status.StartsWith("Produced", StringComparison.Ordinal)) return "work done";
+        if (status.StartsWith("Danger nearby", StringComparison.Ordinal)) return "danger — paused";
         return "workplace idle";
     }
 

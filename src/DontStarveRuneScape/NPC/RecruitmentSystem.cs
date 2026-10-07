@@ -306,6 +306,31 @@ public sealed class RecruitmentSystem
             {
                 _targets.Remove(npc.NpcId);
                 workplace.AssignedNpcId = npc.NpcId;
+
+                // ── Danger feedback (phase-5 blocked-work: danger) ──────────
+                // A hostile near the claimed workplace pauses the job: the
+                // worker backs off toward home and the structure shows why.
+                // Guards are unaffected (they engage threats elsewhere).
+                if (HasHostileNear(workplace, npc, combat))
+                {
+                    workplace.WorkStatus = "Danger nearby — work paused";
+                    if (colony?.IsFounded == true)
+                    {
+                        var homeX = (home.X + 0.5f) * Constants.TileSize;
+                        var homeY = (home.Y + 0.5f) * Constants.TileSize;
+                        float awayX = homeX - npc.WorldX;
+                        float awayY = homeY - npc.WorldY;
+                        float away = MathF.Sqrt(awayX * awayX + awayY * awayY);
+                        if (away > 1f)
+                            MoveAlongPath(npc, world, home.X, home.Y, dt, WalkSpeed);
+                        else
+                            npc.VelocityX = npc.VelocityY = 0f;
+                    }
+                    else
+                        npc.VelocityX = npc.VelocityY = 0f;
+                    continue;
+                }
+
                 var approach = FindWorkplaceApproach(world, workplace, npc);
                 if (approach == null)
                 {
@@ -1072,6 +1097,21 @@ public sealed class RecruitmentSystem
         return matchingFactions.Max(faction => faction.BaseHostility
             + (QuestSystem.DefaultStanding - (factionSystem?.StandingOf(faction.FactionId)
                 ?? QuestSystem.DefaultStanding))) >= 0.5f;
+    }
+
+    /// <summary>True when a live hostile monster stands within the danger
+    /// radius of the workplace or the worker (workers back off; the job
+    /// pauses with visible feedback until the threat clears).</summary>
+    private static bool HasHostileNear(Structure workplace, Npc worker, CombatSystem? combat)
+    {
+        if (combat == null) return false;
+        float radius = Constants.TileSize * 3f;
+        float radiusSq = radius * radius;
+        return combat.Monsters.Any(monster => monster.IsAlive() && monster.IsHostile
+            && (MathF.Pow(monster.WorldX - workplace.WorldX, 2)
+                    + MathF.Pow(monster.WorldY - workplace.WorldY, 2) <= radiusSq
+                || MathF.Pow(monster.WorldX - worker.WorldX, 2)
+                    + MathF.Pow(monster.WorldY - worker.WorldY, 2) <= radiusSq));
     }
 
     private void MoveGuard(Npc guard, TileMap world, float targetX, float targetY, float dt)
