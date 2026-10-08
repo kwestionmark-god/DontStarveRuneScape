@@ -42,6 +42,19 @@ colony can work depend on what the player can build. Four rules:
    work-order panel). Everything else (NPC levels, deliveries, raids,
    companion) is untouched.
 
+## Scope note — resource-node levels
+
+While this slice is in dispatch code it absorbs a pre-existing hole:
+the assistant harvest path never checks `ResourceDef.RequiredLevel`
+against a recruit's own gathering level (`GatherSkillFor` mapping), so
+a level-1 recruit could strip-mine `gold_vein`. The node-selection loop
+in `RecruitmentSystem.Tick` now refuses any node whose
+`RequiredLevel > recruit.Skills.GetSkillLevel(GatherSkillFor(def))` —
+visibility rides `ColonyNeedStatus = "Skill too low"` per tick so the
+colonist's row isn't silent. This is the same "the grind stays honest"
+law as rule 3; it is in scope only because the dispatch code is the
+touch point and the fix is one filter + one status.
+
 ## Non-goals
 
 - Per-structure worker skill requirements beyond the place gate
