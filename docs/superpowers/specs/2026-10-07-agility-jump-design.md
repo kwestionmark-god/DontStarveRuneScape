@@ -1,7 +1,9 @@
 # Agility Skill + Jump Action — Design Spec
 
 - **Date:** 2026-10-07
-- **Status:** implemented same day (defaults picked, user standing instruction)
+- **Status:** implemented same day (defaults picked, user standing
+  instruction); leap animation follow-up done 2026-10-07 (d20e4d2) — see
+  `2026-10-07-leap-animation-design.md`.
 - **Slice line:** new post-roadmap feature — RS pillar skill (agility) with
   DS-flavored movement play (sprint/jump), OSRS XP curve.
 - **Design law:** tri-fusion — RS skill progression (OSRS XP table, levels
