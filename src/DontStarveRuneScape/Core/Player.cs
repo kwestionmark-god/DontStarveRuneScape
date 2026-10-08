@@ -42,6 +42,11 @@ public sealed class Player
     /// <summary>True while airborne in a jump hop. Owned by <see cref="UpdateJump"/>.</summary>
     public bool IsJumping => _jumpTimeRemaining > 0f;
 
+    /// <summary>Jump arc progress 0..1 across the jump duration (0 while
+    /// grounded). Drives the leap animation channels (toe-off tilt, boot
+    /// tuck, body lean, landing reach) in the renderer.</summary>
+    public float JumpProgress { get; private set; }
+
     /// <summary>Visual arc height this frame (0 on the ground, peak
     /// <see cref="Constants.JumpHeightPx"/> mid-jump). Screen-space pixels;
     /// the renderer lifts the body billboard by this amount.</summary>
@@ -202,6 +207,7 @@ public sealed class Player
 
         _jumpTimeRemaining = Constants.JumpDuration;
         JumpVisualOffset = 0f;
+        JumpProgress = 0f;
         AwardAgilityXp(Constants.AgilityXpPerJump);
         return true;
     }
@@ -215,11 +221,13 @@ public sealed class Player
         {
             _jumpTimeRemaining = 0f;
             JumpVisualOffset = 0f;
+            JumpProgress = 0f;
             return;
         }
         // Sine arc: 0 → JumpHeightPx → 0 across the jump duration.
         float t = 1f - _jumpTimeRemaining / Constants.JumpDuration; // 0..1
         JumpVisualOffset = MathF.Sin(t * MathF.PI) * Constants.JumpHeightPx;
+        JumpProgress = t;
     }
 
     /// <summary>Forward agility XP through the leveling path and push any

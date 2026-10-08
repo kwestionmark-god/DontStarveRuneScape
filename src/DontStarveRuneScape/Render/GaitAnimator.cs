@@ -315,15 +315,17 @@ public sealed class GaitAnimator
     /// <summary>Pin every foot to its stance point under the body so feet
     /// dangle there (swimming / suspended gait), canceling any swing, and
     /// leaving the machine a sane position to resume from. The direction is
-    /// the entity's current stance direction.</summary>
-    public void PinToStance(float originX, float originY, float dirX, float dirY)
+    /// the entity's current stance direction. <paramref name="lead"/> shifts
+    /// every stance forward along that direction (world px) — the leap's
+    /// landing reach: feet pinned ahead of the body plant first.</summary>
+    public void PinToStance(float originX, float originY, float dirX, float dirY, float lead = 0f)
     {
         float px = -dirY, py = dirX;
         for (int i = 0; i < _feet.Length; i++)
         {
             var (lat, lon) = _cfg.FootOffsets[i];
-            _feet[i].X = originX + px * lat + dirX * lon;
-            _feet[i].Y = originY + py * lat + dirY * lon;
+            _feet[i].X = originX + px * lat + dirX * (lon + lead);
+            _feet[i].Y = originY + py * lat + dirY * (lon + lead);
             _feet[i].Placed = true;
             _feet[i].Swinging = false;
         }

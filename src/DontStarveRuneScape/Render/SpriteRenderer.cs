@@ -289,7 +289,7 @@ public sealed class SpriteRenderer : IDisposable
     /// (tilt + roll + lift), and travel direction.</summary>
     private void DrawBootDomes(GaitAnimator gait, GaitConfig cfg, in FootDomeDims dims,
         PrimitiveBatch batch, Camera camera, float elevation, float bodyWX, float bodyWY, bool inFront,
-        byte baseR, byte baseG, byte baseB)
+        byte baseR, byte baseG, byte baseB, float baseLift = 0f, float baseTilt = 0f)
     {
         var (dirX, dirY) = gait.Dir;
         float latX = -dirY, latY = dirX;
@@ -302,8 +302,10 @@ public sealed class SpriteRenderer : IDisposable
             float depth = (foot.X - bodyWX) * sinYaw + (foot.Y - bodyWY) * cosYaw;
             if ((depth > 0f) != inFront)
                 continue;
-            float lift = foot.Swinging ? MathF.Sin(foot.T * MathF.PI) * cfg.LiftPx * camera.Zoom : 0f;
-            float tilt = foot.Swinging ? GaitAnimator.SwingTilt(foot.T) : 0f;
+            float lift = (foot.Swinging ? MathF.Sin(foot.T * MathF.PI) * cfg.LiftPx * camera.Zoom : 0f)
+                + baseLift;
+            float tilt = (foot.Swinging ? GaitAnimator.SwingTilt(foot.T) : 0f)
+                + baseTilt;
             // Roll toward the foot's outside (sideSigned by its stance
             // offset), swelling mid-swing and settling at plant.
             float sideSign = MathF.Sign(cfg.FootOffsets[i].Item1);
@@ -462,6 +464,42 @@ public sealed class SpriteRenderer : IDisposable
         q.TLx += dx; q.TLy += dy;
         q.TRx += dx; q.TRy += dy;
         q.Cx += dx * 0.5f; q.Cy += dy * 0.5f;
+    }
+
+    /// <summary>Shift a projected quad's every corner and center UP the
+    /// screen by <paramref name="liftPx"/> (screen Y grows downward, so a
+    /// lift SUBTRACTS — the same convention as the boot swing lift and the
+    /// legacy sprite's cy − jumpLift). The camera projection has no
+    /// perspective divide, so a uniform screen-space shift IS a rigid lift
+    /// of the quad. Used to put the whole crossed-billboard figure in the
+    /// air during a jump.</summary>
+    internal static void LiftQuad(ref BillQuad q, float liftPx)
+    {
+        q.BLy -= liftPx; q.BRy -= liftPx; q.TRy -= liftPx; q.TLy -= liftPx;
+        q.Cy -= liftPx;
+    }
+
+    /// <summary>The four leap animation channels at jump-arc progress t
+    /// (0 = takeoff, 1 = landing): Tilt is the boot profile (−1 toe-off
+    /// drag → 0 level → +1 heel-strike — the gait's own SwingTilt, so the
+    /// leap reads as one continuous motion family with stepping), Tuck
+    /// pulls the boots up mid-arc (the knees-up read), Lean pitches the
+    /// body's top edge forward along travel, and Lead reaches the feet
+    /// ahead of stance in the last quarter for the landing plant. The
+    /// sine-bump channels are 0 at both ends — the leap starts and lands
+    /// exactly on the standing pose.</summary>
+    internal readonly record struct LeapPoseData(float Tilt, float Tuck, float Lean, float Lead);
+
+    internal static LeapPoseData LeapPose(float t)
+    {
+        t = Math.Clamp(t, 0f, 1f);
+        float arc = MathF.Sin(t * MathF.PI);
+        float land = t > 0.75f ? (t - 0.75f) / 0.25f : 0f;
+        return new LeapPoseData(
+            Tilt: GaitAnimator.SwingTilt(t),
+            Tuck: Constants.LeapTuckPx * arc,
+            Lean: Constants.LeapLeanPx * arc,
+            Lead: Constants.LeapFootLeadPx * land * land);
     }
 
     /// <summary>Project and draw one foot's dome. Each grid vertex samples
@@ -664,6 +702,14 @@ public sealed class SpriteRenderer : IDisposable
             elevation, HalfWidth, BodyHeightWorld, lean, gdirX, gdirY,
             _bodyHalves, out var bodyQuad);
 
+        // Leap state: while airborne the whole paper-doll rides the arc
+        // as one rigid figure — body quads, boots, gear, cape — with a
+        // toe-off → tuck → heel-strike boot profile and a body lean into
+        // the leap. Grounded frames carry the default (all-zero) pose, so
+        // every leap application below is a no-op on the ground for free.
+        bool airborne = player.IsJumping;
+        var leap = airborne ? LeapPose(player.JumpProgress) : default;
+
         // Sprint forward lean: while the envelope is up, shear the TOP edge
         // of every body quad along the on-screen travel direction. Held for
         // the whole sprint (unlike the turn bank, which settles) and eased
@@ -684,6 +730,30 @@ public sealed class SpriteRenderer : IDisposable
                     ShearQuadTop(ref _bodyHalves[i], dx * amt, dy * amt);
             }
         }
+
+        // Leap body: lift every quad by the arc height, then pitch the
+        // tops forward along the on-screen travel direction (pivoting
+        // about the lifted base edge — the same visual rule as the sprint
+        // lean, so a mid-sprint leap reads as one motion). The screen-
+        // space lift is a rigid shift — no perspective divide — so the
+        // figure stays rigid through the whole arc.
+        if (airborne)
+        {
+            LiftQuad(ref bodyQuad, jumpLift);
+            for (int i = 0; i < _bodyHalves.Length; i++)
+                LiftQuad(ref _bodyHalves[i], jumpLift);
+            var g0 = camera.WorldToScreen(player.WorldX, player.WorldY, elevation);
+            var g1 = camera.WorldToScreen(player.WorldX + gdirX, player.WorldY + gdirY, elevation);
+            float dx = g1.X - g0.X, dy = g1.Y - g0.Y;
+            float len = MathF.Sqrt(dx * dx + dy * dy);
+            if (len > 0.01f)
+            {
+                float amt = leap.Lean * camera.Zoom / len;
+                ShearQuadTop(ref bodyQuad, dx * amt, dy * amt);
+                for (int i = 0; i < _bodyHalves.Length; i++)
+                    ShearQuadTop(ref _bodyHalves[i], dx * amt, dy * amt);
+            }
+        }
         float lcx = bodyQuad.Cx, lcy = bodyQuad.Cy;
 
         // Carried cape renders behind the body.
@@ -692,7 +762,12 @@ public sealed class SpriteRenderer : IDisposable
             RenderCarried(batch, cape, lcx, lcy, bodyQuad.HalfW,
                 player.Facing, behind: true, swing: 0f, lean, halfV: bodyQuad.HalfH);
 
-        DrawShadow(batch, screen.X, screen.Y, half, 220);
+        // Shadow: shrinks and fades with jump height — the groundedness
+        // cue while the figure is airborne (the ellipse stays put at the
+        // ground point; the figure leaves it behind).
+        float airFrac = Math.Clamp(player.JumpVisualOffset / Constants.JumpHeightPx, 0f, 1f);
+        DrawShadow(batch, screen.X, screen.Y,
+            half * (1f - 0.45f * airFrac), (byte)(220 * (1f - 0.55f * airFrac)));
 
         if (bodyTex != 0)
         {
@@ -708,13 +783,25 @@ public sealed class SpriteRenderer : IDisposable
             float bootHalf = half * (4f / 32f);
             if (!swimming)
             {
-                _playerGait.Update(player.WorldX, player.WorldY, velX, velY, dt,
-                    lean * TurnLean.StanceShiftPerRad,
-                    trail: BootTrailPx * _sprintEnv);
+                // Airborne: freeze the gait (no phantom steps on air) and
+                // pin the feet ahead of stance by the leap Lead — the
+                // landing reach. The gait resumes on landing and the idle
+                // replant settles the feet back onto the terrain (same
+                // resume-sane rule as swimming's pin).
+                if (airborne)
+                    _playerGait.PinToStance(player.WorldX, player.WorldY, gdirX, gdirY, leap.Lead);
+                else
+                    _playerGait.Update(player.WorldX, player.WorldY, velX, velY, dt,
+                        lean * TurnLean.StanceShiftPerRad,
+                        trail: BootTrailPx * _sprintEnv);
                 // Boot base color matches the player/boot.png leather tone.
+                // Airborne, the leap pose rides the dome draw: the arc lift
+                // plus the tuck bump, and the toe-off→heel-strike tilt.
                 DrawBootDomes(_playerGait, GaitConfigs.Player, GaitConfigs.Player.DomeBoots,
                     batch, camera, elevation, player.WorldX, player.WorldY,
-                    inFront: false, 139, 90, 43);
+                    inFront: false, 139, 90, 43,
+                    baseLift: airborne ? jumpLift + leap.Tuck * camera.Zoom : 0f,
+                    baseTilt: airborne ? leap.Tilt : 0f);
             }
 
             // Draw the cross: four half-quads back-to-front by view depth.
@@ -742,9 +829,10 @@ public sealed class SpriteRenderer : IDisposable
                 {
                     ref var foot = ref _playerGait.GetFoot(i);
                     var fos = camera.WorldToScreen(foot.X, foot.Y, elevation);
-                    // Left/right boots kick opposite (index 0 = left).
+                    // Left/right boots kick opposite (index 0 = left). The
+                    // swim-jump hop lifts the whole figure — boots included.
                     float side = i == 0 ? -1f : 1f;
-                    batch.DrawTexturedScreenQuad(fos.X, fos.Y - bootHalf - kick * side,
+                    batch.DrawTexturedScreenQuad(fos.X, fos.Y - bootHalf - kick * side - jumpLift,
                         bootHalf, bootHalf, bootTex, 255, 255, 255);
                 }
             }
@@ -752,7 +840,9 @@ public sealed class SpriteRenderer : IDisposable
             {
                 DrawBootDomes(_playerGait, GaitConfigs.Player, GaitConfigs.Player.DomeBoots,
                     batch, camera, elevation, player.WorldX, player.WorldY,
-                    inFront: true, 139, 90, 43);
+                    inFront: true, 139, 90, 43,
+                    baseLift: airborne ? jumpLift + leap.Tuck * camera.Zoom : 0f,
+                    baseTilt: airborne ? leap.Tilt : 0f);
             }
         }
         else if (tex != 0)

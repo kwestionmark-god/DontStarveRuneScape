@@ -148,6 +148,14 @@ public static class Constants
     public const float AgilityXpPerJump = 2.0f;           // Agility XP per successful jump
     public const float AgilitySprintSpeedBonusPerLevel = 0.01f; // +1% move speed per agility level above 1
 
+    // Leap animation channels (world px unless noted) — the whole paper-
+    // doll rides the arc: toe-off tilt → tuck mid-flight → heel-strike
+    // reach at landing, plus a body lean into the leap. Sized against
+    // the sprint lean (5.5px) and boot lift (4px) families.
+    public const float LeapTuckPx = 3.5f;                 // Boot tuck bump mid-arc (knees-up read)
+    public const float LeapFootLeadPx = 5.0f;             // Landing reach: feet ahead of stance, last quarter
+    public const float LeapLeanPx = 4.5f;                 // Body top-edge shear along travel at arc peak
+
     // ─── XP & Progression ────────────────────────────────────────────────
 
     public const float XpScaleFactor = 4.0f;          // Denominator in OSRS XP formula
