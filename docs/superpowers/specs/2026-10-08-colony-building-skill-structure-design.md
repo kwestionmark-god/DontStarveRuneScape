@@ -1,7 +1,7 @@
 # Colony-building skill structure — design
 
 Date: 2026-10-08
-Status: draft
+Status: implemented (main `4c855f2`; RED `a439669`)
 Slice: post-roadmap frontier, item 6 — the last standing frontier line
 (dev-map "Ordered next work" item 6): "Colony-building skill structure —
 player skills shaping what colonies can build and do."

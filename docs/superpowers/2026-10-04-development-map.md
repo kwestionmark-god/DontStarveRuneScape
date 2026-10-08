@@ -177,8 +177,18 @@ law shapes it.
      Pillars held: RS (a companion grows with you via slice-1 skills), DS
      (she is a liability — frail at 18 HP, needs food and rest), MC (one
      new behavior on the existing recruit machinery, zero new systems).
-   - **Colony-building skill structure** — player skills shaping what
-     colonies can build and do.
+   - **Colony-building skill structure** — **done 2026-10-08.** Colony
+     capability follows the player's construction skill ("the colony never
+     out-produces its founder"): above-tier stations are never claimed and
+     read "Awaiting builder competence" on the dashboard, and the assistant
+     harvest path now filters by the recruit's own gathering level against
+     the node's required_level (closes the gold_vein-by-level-1 hole).
+     Spec: `docs/superpowers/specs/2026-10-08-colony-building-skill-structure-design.md`.
+     Pillars held: RS (your level is the colony's roof — nothing high-tier
+     runs without you), DS (the grind is honest for workers too now), MC
+     (one gate revealed by status, zero new systems).
+   - Parked sub-slice: refused-messaging on the work-order PANEL itself
+     (the gate exists; the UI hint is follow-up).
    - The fusion is **not bound to the inspiration titles**: entirely
      new logic of our own is welcome and encouraged.
 
