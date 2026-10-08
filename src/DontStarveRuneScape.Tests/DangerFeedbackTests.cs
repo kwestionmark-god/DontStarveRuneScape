@@ -146,6 +146,8 @@ public class DangerFeedbackTests
         var h = new Harness();
         h.FoundColony();
         h.SetClockHour(9f); // a WORK slot, daytime
+        // Design law: the player can build the stations the colony runs.
+        h.Skills.AddXpWithNotification("construction", SkillManager.XpForLevel(5) + 1f);
         var worker = h.AddWorker("a1", 6, 5, "assistant");
         var bench = h.AddStructure("crafting_station", 7, 5);
         bench.WorkRecipeId = "carve";

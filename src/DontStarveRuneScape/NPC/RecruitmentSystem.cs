@@ -331,6 +331,16 @@ public sealed class RecruitmentSystem
             }
             if (workplace != null && claimedWorkplaces.Add(workplace))
             {
+                // ── Colony skill gate: the station's def must be placeable
+                // by the player; above-tier stations read visibly and keep
+                // the worker off the job. Rechecked each tick, so a level-up
+                // unblocks the next scan. ─────────────────────────────────
+                if (skills != null
+                    && skills.GetSkillLevel("construction") < workplace.StructureDef.RequiresSkillLevel)
+                {
+                    workplace.WorkStatus = "Awaiting builder competence";
+                    continue; // don't bind, don't dispatch
+                }
                 _targets.Remove(npc.NpcId);
                 workplace.AssignedNpcId = npc.NpcId;
 
@@ -482,6 +492,15 @@ public sealed class RecruitmentSystem
                     if (claimed.Contains((tile.X, tile.Y)) || node.IsDepleted
                         || !CanWorkerHarvest(node, player.Inventory, colony, inCave))
                         continue;
+                    // ── Colony skill gate: the recruit's own gathering
+                    // level must cover the node's required_level. ────────
+                    int nodeGate = Math.Max(1, node.ResourceDef?.RequiredLevel ?? 1);
+                    if (npc is RecruitNpc gatherRecruit
+                        && gatherRecruit.Skills.GetSkillLevel(GatherSkillFor(node.ResourceDef)) < nodeGate)
+                    {
+                        continue; // above-level nodes are not claimed; the
+                                  // worker falls through to idle/wander
+                    }
                     if (colony?.IsFounded == true && !inCave
                         && colony.TaskBoard.IsTileReserved(tile.X, tile.Y)
                         && !ReservationHeldByWorker(npc, colony, inCave, tile.X, tile.Y))

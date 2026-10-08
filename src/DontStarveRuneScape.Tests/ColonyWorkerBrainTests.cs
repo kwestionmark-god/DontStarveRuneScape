@@ -383,6 +383,8 @@ public class ColonyWorkerBrainTests
     {
         var h = new Harness();
         Assert.True(h.FoundColony());
+        // Design law: the player can build the stations the colony runs.
+        h.Skills.AddXpWithNotification("construction", SkillManager.XpForLevel(5) + 1f);
         h.AddWorker("a1", 5, 5, "assistant");
         AddCarveRecipe(h.Crafting);
         var station = h.AddStructure("crafting_station", 6, 5);
@@ -402,6 +404,8 @@ public class ColonyWorkerBrainTests
     {
         var h = new Harness();
         Assert.True(h.FoundColony());
+        // Design law: the player can build the stations the colony runs.
+        h.Skills.AddXpWithNotification("construction", SkillManager.XpForLevel(5) + 1f);
         h.AddWorker("a1", 5, 5, "assistant");
         AddCarveRecipe(h.Crafting);
         var station = h.AddStructure("crafting_station", 6, 5);
@@ -447,6 +451,7 @@ public class ColonyWorkerBrainTests
     {
         var h = new Harness();
         Assert.True(h.FoundColony());
+        h.Skills.AddXpWithNotification("construction", SkillManager.XpForLevel(3) + 1f);
         h.AddWorker("a1", 5, 5, "assistant");
         var plot = h.AddStructure("garden_plot", 6, 5);
         h.Colony.Store("wheat", 1); // the seed
