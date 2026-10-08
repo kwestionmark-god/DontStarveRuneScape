@@ -33,6 +33,9 @@ public sealed class RecruitmentSystem
     // night) and per-NPC free-time wander targets with a short repick timer.
     private readonly Dictionary<string, bool> _nightShiftGuards = [];
     private readonly Dictionary<string, ((int X, int Y)? Tile, float RepickTimer)> _wanderTargets = [];
+    // Starting-companion slice: the "companion" behavior engine — one bonded
+    // follower per player, follow/tether/flee steering.
+    private CompanionBehavior? _companion;
     private static readonly (int X, int Y)[] PatrolOffsets = [(-3, 0), (0, -3), (3, 0), (0, 3)];
 
     private sealed class WorkerPathState
@@ -60,6 +63,11 @@ public sealed class RecruitmentSystem
     {
         if (dt <= 0f || npcSystem == null || player?.Inventory == null || world == null)
             return;
+
+        // Companion engine binds to this player; a fresh player instance
+        // (new game) starts a fresh bond.
+        if (_companion == null || !_companion.BoundTo(player))
+            _companion = new CompanionBehavior(player);
 
         if (colony?.IsFounded == true && foods != null)
             TickColonyNeeds(dt, npcSystem, colony, foods);
@@ -105,7 +113,7 @@ public sealed class RecruitmentSystem
         foreach (var npc in npcSystem.NPCs)
         {
             if (!npc.IsActive || !npc.IsRecruited
-                || npc.RecruitBehavior is not ("assistant" or "guard"))
+                || npc.RecruitBehavior is not ("assistant" or "guard" or "companion"))
                 continue;
 
             liveIds.Add(npc.NpcId);
@@ -131,7 +139,7 @@ public sealed class RecruitmentSystem
             // behaviour). Guard shift alternates by recruit order: first guard
             // is Daytime, second Nighttime, third Daytime…
             ScheduleCategory? category = null;
-            if (clock != null)
+            if (clock != null && npc.RecruitBehavior != "companion")
             {
                 float hour = clock.HourOfDay;
                 if (npc.RecruitBehavior == "guard")
@@ -187,6 +195,21 @@ public sealed class RecruitmentSystem
             if (npc.RecruitBehavior == "guard")
             {
                 TickGuard(npc, home, dt, world, colony, combat, player, skills, factions, factionSystem);
+                continue;
+            }
+            // Companion: follow/tether/flee steering — a full behavior, not a
+            // scheduled job. Needs (hunger/rest) already ran above via
+            // TickColonyNeeds / TickResidentRest like every other colonist;
+            // companions bypass the schedule templates and the task board.
+            if (npc.RecruitBehavior == "companion")
+            {
+                if (npc is RecruitNpc companion)
+                {
+                    _companion.Combat = combat;
+                    _companion.World = world;
+                    _companion.Register(companion);
+                    _companion.Tick(dt, companion);
+                }
                 continue;
             }
             bool needsFood = colony?.IsFounded == true && npc.ColonyHunger <= 0f;
@@ -1494,6 +1517,11 @@ public sealed class RecruitmentSystem
         _workTimers[npcId] = 0f;
         _targets.Remove(npcId);
         _homes.Remove(npcId);
+        // A companion recruit bonds on recruitment; re-selecting companion
+        // after a job re-assignment re-binds (Register keeps an existing
+        // bond for a different npc intact only if it was released first).
+        if (behavior == "companion")
+            _companion?.Bond(npcId);
     }
 
     /// <summary>Called when an NPC is dismissed.</summary>
@@ -1502,5 +1530,8 @@ public sealed class RecruitmentSystem
         _workTimers.Remove(npcId);
         _targets.Remove(npcId);
         _homes.Remove(npcId);
+        // Releasing the holder clears the bond so a future companion (or the
+        // same recruit re-recruited) can take it.
+        _companion?.Release(npcId);
     }
 }

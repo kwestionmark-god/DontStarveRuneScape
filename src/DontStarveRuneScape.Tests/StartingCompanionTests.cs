@@ -103,8 +103,11 @@ public sealed class StartingCompanionTests
         var (behavior, mara, player) = NewWorld();
         player.WorldX = 200f; player.WorldY = 100f; // anchor inside normal follow
 
-        // Far away: drop the tether
-        player.WorldX = 800f;
+        // Far away: drop the tether. 20 tiles east of the anchor (the map is
+        // 24 tiles wide) — beyond the 14-tile tether, so the sustained-gap
+        // timer trips after 2 s. The drafted RED used 800px (6.4 tiles),
+        // under the spec's own tether; repaired to match the spec.
+        player.WorldX = 1480f;
         for (int i = 0; i < 40; i++)
             behavior.Tick(0.25f, mara);
         Assert.Equal("Left behind", mara.CarryStatus);
@@ -125,10 +128,12 @@ public sealed class StartingCompanionTests
         player.WorldX = 260f; player.WorldY = 100f;
 
         var combat = new CombatSystem();
+        // MonsterDef's real fields are hp / aggression_range; the drafted
+        // RED imagined Health/MaxHealth/AggroRange — repaired against the API.
         var wolf = combat.SpawnMonster(new MonsterDef
         {
             MonsterId = "wolf", Name = "Wolf", IsHostile = true,
-            Health = 25, MaxHealth = 25, AggroRange = 150f,
+            Hp = 25f, AggressionRange = 150f,
         }, 400f, 100f, biomeId: "forest");
         behavior.Combat = combat; // engine reads monsters each tick
 

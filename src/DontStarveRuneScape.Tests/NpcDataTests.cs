@@ -19,7 +19,8 @@ public class NpcDataTests
         var registry = new NpcRegistry();
         registry.LoadAll();
 
-        Assert.Equal(16, registry.Npcs.Count);
+        // 16 original defs + companion_mara (starting-companion slice).
+        Assert.Equal(17, registry.Npcs.Count);
         Assert.Equal(14, registry.SpawnPoints.Count);
 
         var merchant = registry.GetNpc("merchant_forest_1");
@@ -150,6 +151,7 @@ public class NpcDataTests
         Assert.Equal(4, registry.GetNpcsOfType("merchant").Count());
         Assert.Equal(3, registry.GetNpcsOfType("quest_giver").Count());
         Assert.Equal(6, registry.GetNpcsOfType("faction_leader").Count());
-        Assert.Equal(3, registry.GetNpcsOfType("recruit").Count());
+        // 3 original recruits + companion_mara.
+        Assert.Equal(4, registry.GetNpcsOfType("recruit").Count());
     }
 }

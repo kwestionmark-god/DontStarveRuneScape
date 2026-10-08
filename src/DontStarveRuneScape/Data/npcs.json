@@ -469,6 +469,35 @@
    "recruit_sprite_key": "recruit"
   },
   {
+   "npc_id": "companion_mara",
+   "name": "Hunter Mara, freshly cast out",
+   "npc_type": "recruit",
+   "world_x": 120,
+   "world_y": 240,
+   "sprite_key": "npc/recruit_female_0",
+   "faction": "forest_villagers",
+   "dialogue_lines": [
+    "Cast out for hunting on the wrong side of the river — I know these woods better than anyone.",
+    "Take me with you. I'd rather follow you than starve alone out here."
+   ],
+   "behavior": "companion",
+   "is_active": true,
+   "is_recruited": false,
+   "recruit_behavior": null,
+   "hostility_level": 0.1,
+   "health": 18,
+   "max_health": 18,
+   "recruit_commerce_requirement": 0,
+   "recruit_persuasion_requirement": 0,
+   "recruit_composite_stat": 0,
+   "available_behaviors": [
+    "companion",
+    "assistant",
+    "guard"
+   ],
+   "recruit_sprite_key": "recruit"
+  },
+  {
    "npc_id": "recruit_coastal_trader",
    "name": "Dock Hand Finn",
    "npc_type": "recruit",
