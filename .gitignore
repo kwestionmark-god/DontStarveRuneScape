@@ -47,3 +47,4 @@ BenchmarkDotNet.Artifacts/
 
 # Publish output
 publish/
+.worktrees/

@@ -134,7 +134,6 @@ law shapes it.
      Pillars held: RS progression (levels earned through real dispatched
      work, never on the clock), DS pressure (recruits start weak at
      level 1), MC readability (levels read like characters).
-<<<<<<< HEAD
    - **Static resource sprites** — draw resource nodes statically like
      the begun entity-sprite work (reuse existing art for a first pass).
      Done 2026-10-07 (`164585b`): resource nodes render as world-fixed
