@@ -45,20 +45,26 @@ public sealed class SpriteRenderer : IDisposable
         if (resource.IsDepleted && resource.ResourceDef?.DisappearsWhenDepleted == true)
             return;
 
-        float half = 24f
-            * (resource.ResourceDef?.DisplayScale > 0 ? resource.ResourceDef.DisplayScale : FallbackScale(resource))
-            * resource.SizeScale
-            * camera.Zoom;
+        // Sprite scale (display_scale with per-family fallback) × node size.
+        float scale =
+            (resource.ResourceDef?.DisplayScale > 0 ? resource.ResourceDef.DisplayScale : FallbackScale(resource))
+            * resource.SizeScale;
+        // World-space crossed-billboard extents: zoom lives in the camera
+        // projection now, not the geometry. heightWorld = 2× half-width so
+        // sin(30° default pitch) foreshortening lands the same nominal
+        // 48·scale·zoom on-screen height the legacy square quad had.
+        float halfWidthWorld = 24f * scale;
+        float heightWorld = 2f * halfWidthWorld;
 
-        // Ground point at tile center — bottom-anchored billboard (same scheme
-        // as the player sprite) so the resource keeps its tile placement under
-        // any camera yaw/pitch instead of sliding around the tile center.
+        // Ground point at the tile-center world line — the crossed planes
+        // stand on it fixed to the world (same projection as the entity
+        // paper-doll), so the resource keeps its tile placement under any
+        // camera yaw/pitch instead of re-anchoring to the viewer.
         var screen = camera.WorldToScreen(
             tileX * Constants.TileSize + Constants.TileSize * 0.5f,
             tileY * Constants.TileSize + Constants.TileSize * 0.5f,
             elevation);
         float cx = screen.X;
-        float cy = screen.Y - half;
 
         var tier = camera.Tier;
         if (tier == Camera.LodTier.Far)
@@ -105,28 +111,46 @@ public sealed class SpriteRenderer : IDisposable
         // Soft shadow grounds every sprite (Nearest only — dots don't cast,
         // and neither does a flat ground decal).
         if (tier == Camera.LodTier.Nearest && !resource.IsDepleted)
-            DrawShadow(batch, cx, screen.Y, half, 200);
+            DrawShadow(batch, cx, screen.Y, halfWidthWorld * camera.Zoom, 200);
         if (tex != 0)
         {
-            // Mid: sprites smaller than ~6 px half-size degrade to dots —
+            // Crossed-billboard halves anchored to the world (inanimate:
+            // deterministic per-tile facing, zero lean). Mid-tier sprites
+            // whose projected height falls below ~6 px degrade to dots —
             // the texture fetch costs more than the detail is worth.
-            if (tier == Camera.LodTier.Mid && half < 6f)
+            BuildResourceCrossBillboard(camera, tileX, tileY, elevation,
+                halfWidthWorld, heightWorld, _resourceHalves, out var anchor);
+            // Screen-px projected height already carries zoom (the
+            // projection applied it) — compare directly against the legacy
+            // 6 px half-size gate.
+            if (tier == Camera.LodTier.Mid && anchor.HalfH < 6f)
             {
                 batch.DrawScreenQuad(cx, screen.Y, 3f * camera.Zoom, 3f * camera.Zoom, 200, 210, 160);
                 return;
             }
-            // Straight-alpha white texture; tint via the batch shader.
-            batch.DrawTexturedScreenQuad(cx, cy, half, half, tex, 255, 255, 255);
+            // Four sorted half-quads, each textured with its U strip of the
+            // sprite — the same draw the entity bodies use. Straight-alpha
+            // white texture; tint (e.g. seasonal) rides the batch shader.
+            foreach (var hq in _resourceHalves)
+                batch.DrawScreenQuadCornersTexturedUSpan(
+                    hq.BLx, hq.BLy, hq.BRx, hq.BRy,
+                    hq.TRx, hq.TRy, hq.TLx, hq.TLy,
+                    tex, 255, 255, 255, 255, hq.U0, hq.U1);
         }
         else
         {
-            // Fallback colored quad.
+            // Fallback: crossed colored planes instead of the legacy flat
+            // quad (same stage tint), fixed to the world like everything else.
+            BuildResourceCrossBillboard(camera, tileX, tileY, elevation,
+                halfWidthWorld, heightWorld, _resourceHalves, out _);
             (byte r, byte g, byte b) color = resource.IsDepleted
                 ? ((byte)120, (byte)120, (byte)120)
                 : resource.GrowthStage == 1
                     ? ((byte)150, (byte)220, (byte)120)
                     : ((byte)90, (byte)160, (byte)70);
-            batch.DrawScreenQuad(cx, cy, half, half, color.r, color.g, color.b);
+            foreach (var hq in _resourceHalves)
+                batch.DrawScreenQuadCorners(hq.BLx, hq.BLy, hq.BRx, hq.BRy,
+                    hq.TRx, hq.TRy, hq.TLx, hq.TLy, color.r, color.g, color.b);
         }
     }
 
@@ -162,6 +186,9 @@ public sealed class SpriteRenderer : IDisposable
     private readonly GaitAnimator _playerGait = new(GaitConfigs.Player);
     // Crossed-billboard half-planes, sorted by view depth every frame.
     private readonly BillQuad[] _bodyHalves = new BillQuad[4];
+    // Resource crossed-billboard halves (one shared rig: RenderResource
+    // completes before the next drawable runs, same as the entity path).
+    private readonly BillQuad[] _resourceHalves = new BillQuad[4];
     private readonly TurnLean _playerLean = new();
 
     /// <summary>The gait rig attached to an entity (player, monster, NPC):
@@ -308,7 +335,7 @@ public sealed class SpriteRenderer : IDisposable
     /// sprite's matching strip maps onto the half-quad.
     /// <paramref name="Depth"/> is the quad center's view depth
     /// (along view yaw: larger = closer) for back-to-front sorting.</summary>
-    private static BillQuad ProjectBodyBillboard(Camera camera, float wx, float wy,
+    internal static BillQuad ProjectBodyBillboard(Camera camera, float wx, float wy,
         float groundElev, float halfWidthWorld, float heightWorld, float lean,
         float ax, float ay, float span0 = -1f, float span1 = 1f)
     {
@@ -387,6 +414,44 @@ public sealed class SpriteRenderer : IDisposable
         halves[0].Plane = halves[1].Plane = 0;
         halves[2].Plane = halves[3].Plane = 1;
         CrossBillboardSorter.SortBackToFront(halves);
+    }
+
+    /// <summary>Deterministic per-tile facing for inanimate resource
+    /// crossed billboards: a coordinate hash bucketing into one of 16
+    /// orientations over 180° (a plane's axis is a line, not a ray — a
+    /// full 360° would pair every dir with its twin). Resources are
+    /// inanimate: the facing is fixed to the world, never tracking the
+    /// camera or a gait direction, and identical every frame and session
+    /// (no persistence needed). Odd multipliers make the low nibble a
+    /// bijection in each coordinate, so 16 consecutive tiles along either
+    /// axis cover all buckets — no axis-aligned striping in the visual
+    /// field.</summary>
+    internal static (float X, float Y) GetDeterministicDir(int tileX, int tileY)
+    {
+        // & 15 (not % 16): reads the low nibble directly, so the bucket is
+        // the XOR of the per-axis nibbles — a bijection in each coordinate.
+        int bucket = ((tileX * 73856093) ^ (tileY * 19349663)) & 15;
+        // 16 steps over 180°: a plane's axis is a line (dir and −dir build
+        // the same crossed pair), so 180° is the full orientation space.
+        float a = bucket * (MathF.PI / 16f);
+        return (MathF.Cos(a), MathF.Sin(a));
+    }
+
+    /// <summary>Build the crossed-billboard paper-doll for an inanimate
+    /// resource node standing at the tile-center world line: same static
+    /// two-plane geometry as the entities, with the deterministic per-tile
+    /// facing in place of a gait direction and zero lean. Both planes share
+    /// the width (resource sprites are roughly symmetric); the caller
+    /// supplies world-space height and half-width (zoom lives in the
+    /// projection, not the geometry).</summary>
+    internal static void BuildResourceCrossBillboard(Camera camera, int tileX, int tileY,
+        float groundElev, float halfWidthWorld, float heightWorld, BillQuad[] halves, out BillQuad anchorQuad)
+    {
+        float wx = (tileX + 0.5f) * Constants.TileSize;
+        float wy = (tileY + 0.5f) * Constants.TileSize;
+        var (dirX, dirY) = GetDeterministicDir(tileX, tileY);
+        BuildCrossBillboard(camera, wx, wy, groundElev, halfWidthWorld, heightWorld,
+            lean: 0f, dirX, dirY, halves, out anchorQuad);
     }
 
     /// <summary>Shift a projected body quad's TOP edge in screen space — the
