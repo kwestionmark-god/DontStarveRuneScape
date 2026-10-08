@@ -187,6 +187,19 @@ law shapes it.
      Pillars held: RS (your level is the colony's roof — nothing high-tier
      runs without you), DS (the grind is honest for workers too now), MC
      (one gate revealed by status, zero new systems).
+   - **Water gathering — bucket mechanics** — **done 2026-10-08.** Water is
+     no longer free: `water_source` requires a bucket, a craftable
+     equippable tool (planks×2 + grass_rope×1, crafting level 2, sprite
+     reused). The player gate rides the existing axe/pickaxe tool
+     pipeline verbatim (zero player-path code); worker dispatch's
+     surface blanket-ban on tool nodes became the same stock check caves
+     use (player inventory OR colony store) — visible in stock, silent
+     skip without, and the surface pickaxe path stays guarded by test.
+     Spec:
+     `docs/superpowers/specs/2026-10-08-water-gathering-bucket-mechanics-design.md`.
+     Pillars held: RS (progression gates the infinite node), DS (the
+     grind stays honest — water costs a crafted tool), MC (the gate is
+     stock-visibility, not a new UI).
    - Parked sub-slice: refused-messaging on the work-order PANEL itself
      (the gate exists; the UI hint is follow-up).
    - The fusion is **not bound to the inspiration titles**: entirely

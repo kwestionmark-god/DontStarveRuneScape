@@ -1,7 +1,7 @@
 # Water gathering — bucket mechanics — design
 
 Date: 2026-10-08
-Status: draft (RED next)
+Status: implemented (RED `24cbf5f`; GREEN `53abe7c`)
 Slice: post-roadmap frontier, next-arc item 1 — "water gathering (bucket
 mechanics)" (user-approved next arc start-of-session state).
 

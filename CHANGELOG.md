@@ -58,6 +58,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   with their real sprite at the tile's elevation (was a gray elevation-0
   quad). `DSR_TEST_CLICK` accepts multiple clicks ("x1,y1;x2,y2") applied one
   per frame.
+- **Water gathering — bucket mechanics** — water is no longer free.
+  `water_source` nodes require a bucket: a new craftable equippable tool
+  (Carve Wooden Bucket — planks×2 + grass_rope×1, crafting level 2,
+  durability 100, sprite reused from berry_jar). The player-side gate
+  rides the existing tool pipeline ("You need a bucket." refusal, exact/
+  suffix tool match); colony workers harvest tool-gated nodes on the
+  surface when the tool sits in the player's inventory or the colony
+  store — the same stock check caves already used — instead of the old
+  surface blanket-ban. Workers without the tool skip the node silently
+  (visible in stock). 7-test slice; surface pickaxe dispatch guarded by
+  a regression test.
 
 ### Fixed
 - **Notifications never rendered**: `ActionSystem.AddNotification` queued into
