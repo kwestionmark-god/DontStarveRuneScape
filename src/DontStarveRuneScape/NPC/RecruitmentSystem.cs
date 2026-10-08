@@ -761,7 +761,12 @@ public sealed class RecruitmentSystem
         DontStarveRuneScape.Inventory.Inventory inventory, ColonySystem? colony, bool inCave)
     {
         if (!node.RequiresTool) return true;
-        if (!inCave) return false;
+        // Tool-required nodes are harvestable when the tool is available
+        // (player inventory or colony store) — on the surface as in caves.
+        // The surface restriction once applied to every tool node; the
+        // bucket-gated water_source made tools a stock-check question
+        // instead (cave-mining convention, extended). Without the tool the
+        // node is silently skipped — visible in stock, per the MC law.
         string required = node.ResourceDef?.ToolRequirement ?? "";
         bool inPlayerInventory = inventory.Slots.Any(slot => slot.Quantity > 0
             && slot.ItemId != null && (slot.ItemId == required

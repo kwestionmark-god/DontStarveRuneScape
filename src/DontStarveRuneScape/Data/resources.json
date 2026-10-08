@@ -178,7 +178,7 @@
       "depletion_count": -1,
       "regrow_time": 0.0,
       "sprite_key": "world/water",
-      "requires_tool": null,
+      "requires_tool": "bucket",
       "biome_affinity": {
         "plains": 1.5,
         "swamp": 1.2,

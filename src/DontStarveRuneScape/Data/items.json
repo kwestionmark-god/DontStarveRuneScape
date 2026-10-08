@@ -380,6 +380,17 @@
       "sprite_key": "items/pickaxe"
     },
     {
+      "id": "bucket",
+      "name": "Bucket",
+      "stack_size": 1,
+      "is_equippable": true,
+      "is_essential_tool": true,
+      "is_food": false,
+      "tool_type": "bucket",
+      "durability": 100,
+      "sprite_key": "items/berry_jar"
+    },
+    {
       "id": "tin_ore",
       "name": "Tin Ore",
       "stack_size": 14,
