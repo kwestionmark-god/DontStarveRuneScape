@@ -1,7 +1,7 @@
 # Starting Companion — design
 
 Date: 2026-10-07
-Status: draft
+Status: implemented (main `df9b7b9`; RED `44ed4a1` from the parallel session's reverted draft, repaired against the real API)
 Slice: post-roadmap frontier, item 5 (dev-map "Ordered next work" item 6)
 
 ## Design law

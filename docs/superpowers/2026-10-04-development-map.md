@@ -162,7 +162,21 @@ law shapes it.
      `docs/superpowers/specs/2026-10-07-first-steps-quest-chain-design.md`.
      Pillars held: RS (guided grind teaches one skill per step), DS
      (survival-first objectives — fire, food, roof), MC (zero new systems).
-   - **Starting companion/follower** — an early-game first follower.
+   - **Starting companion/follower** — **done 2026-10-07.** Hunter Mara
+     (`companion_mara`) joins with zero stat gates as the early-game
+     first follower: one bonded companion per player, walks to close the
+     gap (never teleports), posts up beside the player, drops off with a
+     visible "Left behind" status after a sustained 14-tile gap until
+     the player returns within 7 tiles, and flees hostiles near the pair
+     instead of tanking. CompanionBehavior steers inside
+     RecruitmentSystem.Tick as a sibling to the guard branch — companions
+     bypass schedules and the task board, while hunger/rest needs and
+     NPCDataSnapshot persistence (per-recruit skills included) ride the
+     existing colony paths. Spec:
+     `docs/superpowers/specs/2026-10-07-starting-companion-design.md`.
+     Pillars held: RS (a companion grows with you via slice-1 skills), DS
+     (she is a liability — frail at 18 HP, needs food and rest), MC (one
+     new behavior on the existing recruit machinery, zero new systems).
    - **Colony-building skill structure** — player skills shaping what
      colonies can build and do.
    - The fusion is **not bound to the inspiration titles**: entirely
