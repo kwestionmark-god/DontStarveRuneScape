@@ -127,6 +127,11 @@ law shapes it.
      SkillManager (gatherers level gathering, guards level combat).
    - **Static resource sprites** — draw resource nodes statically like
      the begun entity-sprite work (reuse existing art for a first pass).
+     Done 2026-10-07 (`164585b`): resource nodes render as world-fixed
+     crossed billboards — two static world planes on a deterministic
+     per-tile facing, the entity paper-doll machinery applied to
+     inanimate world dressing. Spec:
+     `docs/superpowers/specs/2026-10-07-world-fixed-resource-billboards-design.md`.
    - **More characters** — new starting character defs/choices.
    - **More quests** — expand QuestSystem content.
    - **Starting companion/follower** — an early-game first follower.
