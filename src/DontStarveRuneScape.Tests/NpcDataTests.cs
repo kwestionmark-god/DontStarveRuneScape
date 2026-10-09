@@ -66,7 +66,7 @@ public class NpcDataTests
         var registry = new TradeItemRegistry();
         registry.LoadAll();
 
-        Assert.Equal(42, registry.TradeItems.Count);
+        Assert.Equal(43, registry.TradeItems.Count);
 
         var herbs = registry.GetTradeItem("forest_healing_herbs");
         Assert.NotNull(herbs);

@@ -592,4 +592,274 @@ public class FishingTests
         Assert.True(worker.Skills.GetSkill("fishing").Xp > 0f,
             "bone-rod fisher still trains fishing");
     }
+
+    // ─── Rare drops: pearl + old boot, level-scaled ─────────────────────
+
+    [Fact]
+    public void RareDropData_ItemsAndTradeEntry_LoadFromJson()
+    {
+        var items = DataLoader.LoadJsonList<ItemDef>(Constants.ItemsFile, "items");
+        var pearl = items.FirstOrDefault(i => i.Id == "pearl");
+        Assert.NotNull(pearl);
+        Assert.Equal(5, pearl!.StackSize);
+        Assert.False(pearl.IsEquippable);
+        Assert.False(pearl.IsEssentialTool);
+        Assert.False(pearl.IsFood);
+        Assert.Equal("items/moonstone", pearl.SpriteKey);
+
+        var boot = items.FirstOrDefault(i => i.Id == "old_boot");
+        Assert.NotNull(boot);
+        Assert.Equal(5, boot!.StackSize);
+        Assert.False(boot.IsEquippable);
+        Assert.False(boot.IsEssentialTool);
+        Assert.False(boot.IsFood);
+        Assert.Equal("gear/leather_boots", boot.SpriteKey);
+
+        var trade = new TradeItemRegistry();
+        trade.LoadAll();
+        var entry = trade.GetTradeItem("coastal_pearl");
+        Assert.NotNull(entry);
+        Assert.Equal("pearl", entry!.ItemId);
+        Assert.Equal("coastal", entry.Biome);
+        Assert.Equal(25, entry.SellPrice);
+        Assert.Equal(60, entry.BuyPrice);
+        Assert.Equal(0, entry.StockQuantity);
+        Assert.Equal(0, entry.MaxStock);
+    }
+
+    [Fact]
+    public void RareTable_Roll_LevelsScaleTheWindows()
+    {
+        // Level 1: pearl window [0, 0.01), boot window [0.01, 0.05).
+        Assert.Equal("pearl", FishingRareTable.Roll(0.005f, 1));
+        Assert.Equal("old_boot", FishingRareTable.Roll(0.02f, 1));
+        Assert.Null(FishingRareTable.Roll(0.06f, 1));
+
+        // Level 30: pearl window grows to [0, 0.0535) — the same roll that
+        // said "boot" at level 1 now says "pearl".
+        Assert.Equal("pearl", FishingRareTable.Roll(0.03f, 30));
+        Assert.Null(FishingRareTable.Roll(0.999f, 99));
+
+        // Level 0 (unregistered skill fallback) clamps to level 1.
+        Assert.Equal("pearl", FishingRareTable.Roll(0.005f, 0));
+    }
+
+    [Fact]
+    public void PlayerRareCatch_ForcedPearl_LandsInInventoryWithMessage()
+    {
+        var system = new ActionSystem { ForceRareDrop = "pearl" };
+        var node = FishSpot();
+        var sm = new SkillManager();
+        PumpSuccessRate(sm, 1000f);
+        var inv = new Inv();
+        Assert.True(inv.AddItem("fishing_rod", 1));
+
+        Assert.Null(system.StartAction(ActionType.Fishing, node, sm, inv));
+        float remaining = Constants.FishingCastSeconds;
+        while (remaining > 0.25f)
+        {
+            Assert.Null(system.Update(0.25f));
+            remaining -= 0.25f;
+        }
+        var result = system.Update(0.25f);
+        Assert.NotNull(result);
+        Assert.True(result!.Success);
+        Assert.Equal("pearl", result.RareItemId);
+        Assert.Contains("dredged up a pearl", result.Message);
+
+        system.ProcessCompletion(result, inv, sm);
+        Assert.Equal(1, inv.GetItemQuantity("pearl"));
+        // The rare grant posts the gold rare-find notification.
+        var notifications = system.FlushNotifications();
+        Assert.Contains(notifications, n =>
+            n.Text.Contains("+1 pearl") && n.Color.R == 255 && n.Color.G == 215);
+    }
+
+    [Fact]
+    public void PlayerRareCatch_ForcedOldBoot_StillJunk()
+    {
+        var system = new ActionSystem { ForceRareDrop = "old_boot" };
+        var node = FishSpot();
+        var sm = new SkillManager();
+        PumpSuccessRate(sm, 1000f);
+        var inv = new Inv();
+        Assert.True(inv.AddItem("fishing_rod", 1));
+
+        Assert.Null(system.StartAction(ActionType.Fishing, node, sm, inv));
+        float remaining = Constants.FishingCastSeconds;
+        while (remaining > 0.25f)
+        {
+            Assert.Null(system.Update(0.25f));
+            remaining -= 0.25f;
+        }
+        var result = system.Update(0.25f);
+        Assert.NotNull(result);
+        Assert.Equal("old_boot", result!.RareItemId);
+        Assert.Contains("dredged up a old_boot", result.Message);
+
+        system.ProcessCompletion(result, inv, sm);
+        Assert.Equal(1, inv.GetItemQuantity("old_boot"));
+    }
+
+    [Fact]
+    public void PlayerCast_StashesFishingLevelAtCastStart()
+    {
+        var system = new ActionSystem();
+        var node = FishSpot();
+        var sm = new SkillManager();
+        var inv = new Inv();
+        Assert.True(inv.AddItem("fishing_rod", 1));
+
+        // A fresh fisher casts at level 1…
+        Assert.Null(system.StartAction(ActionType.Fishing, node, sm, inv));
+        Assert.Equal(1, system.Active.FishingLevel);
+
+        // A levelled fisher casts at their level: pump to level 5.
+        sm.AddXpWithNotification("fishing", SkillManager.XpForLevel(5) + 1f);
+        Assert.Equal(5, sm.GetSkillLevel("fishing"));
+        system.CancelActive();
+        Assert.Null(system.StartAction(ActionType.Fishing, node, sm, inv));
+        Assert.Equal(5, system.Active.FishingLevel);
+    }
+
+    [Fact]
+    public void PlayerCast_ForcedNoDrop_KeepsPlainCatchShape()
+    {
+        var system = new ActionSystem { ForceRareDrop = "" };
+        var node = FishSpot();
+        var sm = new SkillManager();
+        PumpSuccessRate(sm, 1000f);
+        var inv = new Inv();
+        Assert.True(inv.AddItem("fishing_rod", 1));
+
+        Assert.Null(system.StartAction(ActionType.Fishing, node, sm, inv));
+        float remaining = Constants.FishingCastSeconds;
+        while (remaining > 0.25f)
+        {
+            Assert.Null(system.Update(0.25f));
+            remaining -= 0.25f;
+        }
+        var result = system.Update(0.25f);
+        Assert.NotNull(result);
+        Assert.Null(result!.RareItemId);
+        // Message shape unchanged: no dredged clause.
+        Assert.Equal("Harvested 1 raw_fish.", result.Message);
+    }
+
+    [Fact]
+    public void PlayerRareCatch_FullInventory_VisibleLoss()
+    {
+        var system = new ActionSystem { ForceRareDrop = "pearl" };
+        var node = FishSpot();
+        var sm = new SkillManager();
+        PumpSuccessRate(sm, 1000f);
+        var inv = new Inv();
+        Assert.True(inv.AddItem("fishing_rod", 1));
+
+        // Fill every slot: the rod already holds one slot; 19 distinct
+        // filler ids take the rest (GetStackSize's fallback default is a
+        // stack of 10 — same-id fillers would merge, distinct ids can't).
+        for (int i = 0; i < 19; i++)
+            Assert.True(inv.AddItem($"rod_filler_{i}", 5));
+        Assert.False(inv.CanAdd("raw_fish", 1));
+
+        Assert.Null(system.StartAction(ActionType.Fishing, node, sm, inv));
+        float remaining = Constants.FishingCastSeconds;
+        while (remaining > 0.25f)
+        {
+            Assert.Null(system.Update(0.25f));
+            remaining -= 0.25f;
+        }
+        var result = system.Update(0.25f);
+        Assert.NotNull(result);
+        Assert.Equal("pearl", result!.RareItemId);
+
+        system.ProcessCompletion(result, inv, sm);
+        // The pearl is lost — 21 rods don't hide it — but VISIBLY.
+        Assert.Equal(0, inv.GetItemQuantity("pearl"));
+        var notifications = system.FlushNotifications();
+        Assert.Contains(notifications, n =>
+            n.Text.Contains("pearl") && n.Text.Contains("slipped back into the water")
+            && n.Color.R == 255 && n.Color.G == 100 && n.Color.B == 100);
+    }
+
+    [Fact]
+    public void WorkerRareCatch_ForcedPearl_LandsInColonyStore()
+    {
+        var h = new Harness();
+        h.FoundColony(5, 5);
+        FishSpotAt(h.World, 6, 6);
+        h.Colony.Store("fishing_rod", 1);
+        h.Recruits.ForceRareDrop = "pearl";
+        var worker = h.AddWorker("fisher", 5, 6);
+
+        h.Tick(60);
+
+        // The rare lands in the stockpile ledger alongside the fish.
+        Assert.True(h.Colony.GetItemQuantity("pearl") >= 1,
+            $"expected pearl in store, got {h.Colony.GetItemQuantity("pearl")}");
+        Assert.True(h.Colony.GetItemQuantity("raw_fish") > 0);
+        // The worker's haul state stays single-type cargo (pearl isn't cargo).
+        Assert.NotEqual("pearl", worker.CarriedItemId);
+    }
+
+    [Fact]
+    public void WorkerRareCatch_PickaxeNodes_NeverRoll()
+    {
+        var h = new Harness();
+        h.FoundColony(5, 5);
+        var copper = new ResourceDef
+        {
+            Id = "copper_rock",
+            Name = "Copper Rock",
+            YieldItem = "copper_ore",
+            Yield = 1,
+            RequiredLevel = 1,
+            ToolRequirement = "pickaxe",
+            Xp = 35f,
+            DepletionCount = 5,
+            Seasons = [],
+        };
+        h.World.GetTile(6, 6)!.ResourceNode =
+            new ResourceNode("copper_rock", copper, 10f);
+        h.Colony.Store("pickaxe", 1);
+        h.Recruits.ForceRareDrop = "pearl";
+        var miner = h.AddWorker("miner", 6, 7);
+
+        h.Tick(60);
+
+        // Ore mined, XP trained — but the rare table never fires on a
+        // non-rod node.
+        Assert.True(h.Colony.GetItemQuantity("copper_ore") > 0);
+        Assert.Equal(0, h.Colony.GetItemQuantity("pearl"));
+    }
+
+    [Fact]
+    public void PearlTrade_SellOnly_NoMerchantStock()
+    {
+        // Registry loads the real trade_items.json.
+        var registry = new TradeItemRegistry();
+        registry.LoadAll();
+        var trade = new TradeSystem { Registry = registry };
+        var merchant = new MerchantNpc
+        {
+            NpcId = "coastal_merchant",
+            Name = "Coastal Merchant",
+            Biome = "coastal",
+            FactionId = "",
+            PriceModifier = 1f,
+            StartingGold = 1000,
+        };
+
+        // The pearl has a market price…
+        Assert.Equal(25, trade.SellPriceFor("pearl", merchant));
+
+        // …but no stock to buy back — the payday is sell-only.
+        var result = trade.ExecuteBuy("coastal_pearl", 1, merchant, new Inv(), new SkillManager());
+        Assert.False(result.Success);
+        Assert.Contains("Out of stock", result.Message);
+
+        // The old boot has no market at all — junk stays junk.
+        Assert.Equal(0, trade.SellPriceFor("old_boot", merchant));
+    }
 }
