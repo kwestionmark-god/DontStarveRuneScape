@@ -513,4 +513,83 @@ public class FishingTests
         Assert.True(h.Colony.GetItemQuantity("raw_fish") >= 2,
             $"expected doubled haul in store, got {h.Colony.GetItemQuantity("raw_fish")}");
     }
+
+    // ─── Rod tiers: bone rod — faster cast, store-arm fix ────────────────
+
+    [Fact]
+    public void BoneRodData_ItemAndRecipe_LoadFromJson()
+    {
+        var items = DataLoader.LoadJsonList<ItemDef>(Constants.ItemsFile, "items");
+        var rod = items.FirstOrDefault(i => i.Id == "bone_fishing_rod");
+        Assert.NotNull(rod);
+        Assert.Equal("fishing_rod", rod!.ToolType);
+        Assert.True(rod.IsEquippable);
+        Assert.True(rod.IsEssentialTool);
+        Assert.Equal(100, rod.Durability);
+        Assert.Equal("items/bone_wolf", rod.SpriteKey);
+
+        var recipes = new RecipeRegistry();
+        recipes.LoadAll();
+        var recipe = recipes.GetRecipe("craft_bone_fishing_rod");
+        Assert.NotNull(recipe);
+        Assert.Equal("bone_fishing_rod", recipe!.OutputItem);
+        Assert.Equal("crafting", recipe.RequiredSkill);
+        Assert.Equal(4, recipe.RequiredLevel);
+        Assert.Contains(recipe.Inputs, i => i.ItemId == "wolf_bone" && i.Quantity == 2);
+        Assert.Contains(recipe.Inputs, i => i.ItemId == "grass_rope" && i.Quantity == 1);
+    }
+
+    [Fact]
+    public void BoneRod_PassesGateAndCastsFaster()
+    {
+        var system = new ActionSystem();
+        var node = FishSpot();
+        var sm = new SkillManager();
+        PumpSuccessRate(sm, 1000f);
+        var inv = new Inv();
+        // ONLY the bone rod — proves the suffix match recognizes it as a
+        // fishing_rod with no base rod present.
+        Assert.True(inv.AddItem("bone_fishing_rod", 1));
+
+        Assert.Null(system.StartAction(ActionType.Fishing, node, sm, inv));
+        Assert.True(system.Active.IsBusy);
+
+        // The bone rod's cast is 2s, not 3s: at 2.25s of Updates the catch
+        // has already fired (a base-rod cast would still be holding).
+        float remaining = Constants.BoneFishingCastSeconds;
+        while (remaining > 0.25f)
+        {
+            Assert.Null(system.Update(0.25f));
+            remaining -= 0.25f;
+        }
+        var result = system.Update(0.25f);
+        Assert.NotNull(result);
+        Assert.True(result!.Success);
+        Assert.Equal("raw_fish", result.ItemId);
+        Assert.Equal(1, result.Quantity); // tier buys speed, not yield
+        Assert.Equal(15f, result.Xp);
+
+        // A base-rod regression lives in the existing 3s tests
+        // (MidCastIsBusyAndHoldsSilence pins 2.9s-still-busy).
+    }
+
+    [Fact]
+    public void WorkerStore_BoneRod_SatisfiesTheGate()
+    {
+        var h = new Harness();
+        h.FoundColony(5, 5);
+        FishSpotAt(h.World, 6, 6);
+        // ONLY a bone rod in the store — no plain fishing_rod. Proves the
+        // bone_ store arm (exact + stone_ match would leave the node
+        // unclaimed and nothing carried).
+        h.Colony.Store("bone_fishing_rod", 1);
+        var worker = h.AddWorker("fisher", 5, 6);
+
+        h.Tick(40);
+
+        Assert.True(h.Colony.GetItemQuantity("raw_fish") > 0,
+            $"expected raw_fish from bone-rod store gate, got {h.Colony.GetItemQuantity("raw_fish")}");
+        Assert.True(worker.Skills.GetSkill("fishing").Xp > 0f,
+            "bone-rod fisher still trains fishing");
+    }
 }
