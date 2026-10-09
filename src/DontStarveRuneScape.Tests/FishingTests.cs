@@ -406,4 +406,109 @@ public class FishingTests
             "surface pickaxe harvest still trains mining");
         Assert.True(h.Colony.GetItemQuantity("copper_ore") > 0);
     }
+
+    // ─── Bait: prepared casts + colony bait logistics ────────────────────
+
+    [Fact]
+    public void BaitData_ItemAndRecipe_LoadFromJson()
+    {
+        var items = DataLoader.LoadJsonList<ItemDef>(Constants.ItemsFile, "items");
+        var bait = items.FirstOrDefault(i => i.Id == "fishing_bait");
+        Assert.NotNull(bait);
+        Assert.Equal(20, bait!.StackSize);
+        Assert.False(bait.IsEquippable);
+        Assert.False(bait.IsEssentialTool);
+        Assert.False(bait.IsFood);
+        Assert.Equal("items/worm_segment", bait.SpriteKey);
+
+        var recipes = new RecipeRegistry();
+        recipes.LoadAll();
+        var recipe = recipes.GetRecipe("craft_fishing_bait");
+        Assert.NotNull(recipe);
+        Assert.Equal("fishing_bait", recipe!.OutputItem);
+        Assert.Equal(4, recipe.OutputQuantity);
+        Assert.Equal("crafting", recipe.RequiredSkill);
+        Assert.Equal(1, recipe.RequiredLevel);
+        Assert.Contains(recipe.Inputs, i => i.ItemId == "shells" && i.Quantity == 2);
+        Assert.Contains(recipe.Inputs, i => i.ItemId == "fibers" && i.Quantity == 1);
+    }
+
+    [Fact]
+    public void PlayerBaitedCast_DoublesCatchAndConsumesBait()
+    {
+        var system = new ActionSystem();
+        var node = FishSpot();
+        var sm = new SkillManager();
+        PumpSuccessRate(sm, 1000f);
+        var inv = new Inv();
+        Assert.True(inv.AddItem("fishing_rod", 1));
+        Assert.True(inv.AddItem("fishing_bait", 3));
+
+        Assert.Null(system.StartAction(ActionType.Fishing, node, sm, inv));
+
+        // Bait is consumed the moment the cast starts (it sank with the
+        // cast) — before the window closes.
+        Assert.Equal(2, inv.GetItemQuantity("fishing_bait"));
+        Assert.True(system.Active.Baited);
+
+        // Wait out the cast window.
+        float remaining = Constants.FishingCastSeconds;
+        while (remaining > 0.25f)
+        {
+            Assert.Null(system.Update(0.25f));
+            remaining -= 0.25f;
+        }
+        var result = system.Update(0.25f);
+        Assert.NotNull(result);
+        Assert.True(result!.Success);
+        // Doubled catch: 1 base yield × 2 (bait).
+        Assert.Equal(2, result.Quantity);
+        Assert.Contains("(bait)", result.Message);
+        Assert.Equal(15f, result.Xp); // XP is per-catch, not per-fish
+        Assert.Equal(1, inv.GetItemQuantity("fishing_bait"));
+    }
+
+    [Fact]
+    public void PlayerBaitedCast_CancelGivesNoBaitRefund()
+    {
+        var system = new ActionSystem();
+        var node = FishSpot();
+        var sm = new SkillManager();
+        var inv = new Inv();
+        Assert.True(inv.AddItem("fishing_rod", 1));
+        Assert.True(inv.AddItem("fishing_bait", 2));
+
+        Assert.Null(system.StartAction(ActionType.Fishing, node, sm, inv));
+        Assert.True(system.Active.Baited);
+
+        // Walk away mid-cast: the cast cancels, the bait is gone (it sank).
+        Assert.True(system.CancelActive());
+        Assert.Equal(1, inv.GetItemQuantity("fishing_bait"));
+
+        // A fresh cast with the last bait works normally.
+        Assert.Null(system.StartAction(ActionType.Fishing, node, sm, inv));
+        Assert.Equal(0, inv.GetItemQuantity("fishing_bait"));
+    }
+
+    [Fact]
+    public void WorkerBaitedHarvest_BurnsColonyBaitAndDoubles()
+    {
+        var h = new Harness();
+        h.FoundColony(5, 5);
+        FishSpotAt(h.World, 6, 6);
+        h.Colony.Store("fishing_rod", 1);
+        h.Colony.Store("fishing_bait", 5);
+        var worker = h.AddWorker("fisher", 5, 6);
+
+        h.Tick(60); // several harvest rounds
+
+        // Bait was burned from the colony store…
+        Assert.True(h.Colony.GetItemQuantity("fishing_bait") < 5,
+            $"expected bait consumed, got {h.Colony.GetItemQuantity("fishing_bait")}");
+        // …and the haul landed doubled (more fish than a no-bait run of the
+        // same length could produce: depletion_count 2 caps an unbaited
+        // node at 2 fish ever; baited doubles per harvest).
+        Assert.True(h.Colony.GetItemQuantity("raw_fish") >= 2,
+            $"expected doubled haul in store, got {h.Colony.GetItemQuantity("raw_fish")}");
+    }
 }
