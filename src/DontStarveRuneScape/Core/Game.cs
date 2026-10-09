@@ -833,6 +833,32 @@ public sealed class Game
                 if (result?.ItemId is not null && result.Quantity > 0)
                     QuestSystem?.NotifyCollect(result.ItemId, result.Quantity);
                 actionSys.UpdateNotifications(dt);
+
+                // Fishing cast: hold the renderer's cast visuals while the
+                // timed cast runs; walking out of interact reach cancels it
+                // (the fish gets away). Game.cs is Update's sole consumer.
+                if (SpriteRenderer != null)
+                {
+                    var active = actionSys.Active;
+                    if (active.State == ActionState.Running
+                        && active.ActionType == ActionType.Fishing
+                        && active.TileXy is { } castTile)
+                    {
+                        float fx = (castTile.X + 0.5f) * Constants.TileSize;
+                        float fy = (castTile.Y + 0.5f) * Constants.TileSize;
+                        float dx = Player.WorldX - fx, dy = Player.WorldY - fy;
+                        if (MathF.Sqrt(dx * dx + dy * dy) > 128f)
+                        {
+                            actionSys.CancelActive();
+                            actionSys.AddNotification("You moved — the fish got away.", (255, 180, 100));
+                            SpriteRenderer.StopFishingCast();
+                        }
+                        else
+                            SpriteRenderer.SetFishingCast(fx, fy);
+                    }
+                    else
+                        SpriteRenderer.StopFishingCast();
+                }
             }
         }
 
@@ -900,6 +926,11 @@ public sealed class Game
             ParticleSystem.Sync(WeatherSystem.CurrentWeather);
             ParticleSystem.Update(dt);
         }
+
+        // World-ambient animation clock (fish-spot ripples, decal
+        // breathing, bobber bob) — one authoritative advance per update,
+        // independent of the weather/particle systems.
+        SpriteRenderer?.AdvanceAnimation(dt);
 
         // Lighting (Phase 6)
         if (LightingSystem != null)
@@ -1138,6 +1169,50 @@ public sealed class Game
                     Player.WorldY = y * Constants.TileSize + Constants.TileSize / 2f;
                     Player.TargetX = Player.WorldX;
                     Player.TargetY = Player.WorldY;
+                    done = true;
+                    break;
+                }
+                if (done) break;
+            }
+        }
+
+        // DSR_TEST_FISHING=1: stand the player on a dry neighbor of the first
+        // live fish_spot, grant a rod, and start the timed cast — captures
+        // exercise the rod/line/bobber + ripple visual path headlessly.
+        if (Environment.GetEnvironmentVariable("DSR_TEST_FISHING") == "1"
+            && World != null && Player != null && Player.ActionSystem != null
+            && SkillManager != null && Inventory != null)
+        {
+            for (int y = 0; y < World.Height; y++)
+            {
+                bool done = false;
+                for (int x = 0; x < World.Width; x++)
+                {
+                    var node = World.GetTile(x, y)?.ResourceNode;
+                    if (node?.ResourceDef?.Id != "fish_spot" || node.IsDepleted) continue;
+                    // Stand on a dry neighbor (Elevation ≥ SeaLevel + 2), else
+                    // on the spot tile itself (shallow spot tiles are at
+                    // SeaLevel - 3..SeaLevel, so the player wades).
+                    int sx = x, sy = y;
+                    var here = World.GetTile(x, y);
+                    if (here != null && here.Elevation < Constants.SeaLevel + 2f)
+                    {
+                        foreach (var (dx, dy) in new[] { (1, 0), (-1, 0), (0, 1), (0, -1) })
+                        {
+                            int nx = x + dx, ny = y + dy;
+                            if (nx < 0 || ny < 0 || nx >= World.Width || ny >= World.Height) continue;
+                            var nt = World.GetTile(nx, ny);
+                            if (nt?.Elevation >= Constants.SeaLevel + 2f) { sx = nx; sy = ny; break; }
+                        }
+                    }
+                    Player.WorldX = (sx + 0.5f) * Constants.TileSize;
+                    Player.WorldY = (sy + 0.5f) * Constants.TileSize;
+                    Player.TargetX = Player.WorldX;
+                    Player.TargetY = Player.WorldY;
+                    Inventory.AddItem("fishing_rod", 1);
+                    Player.ActionSystem.StartAction(
+                        ActionType.Fishing, node, SkillManager, Inventory,
+                        tileXy: (x, y));
                     done = true;
                     break;
                 }

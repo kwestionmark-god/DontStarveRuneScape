@@ -42,6 +42,10 @@ public sealed class SpriteRenderer : IDisposable
 
     public void RenderResource(ResourceNode resource, PrimitiveBatch batch, Camera camera, float elevation, int tileX, int tileY, World.Tile? tile = null)
     {
+        // World-ambient animation clock (ripples, bobber bob): advanced once
+        // per update by Game.cs; deterministic per-tile phases hash off the
+        // tile coords, so nothing here is RNG.
+        float anim = AnimTime;
         if (resource.IsDepleted && resource.ResourceDef?.DisappearsWhenDepleted == true)
             return;
 
@@ -99,12 +103,49 @@ public sealed class SpriteRenderer : IDisposable
         if (resource.ResourceDef?.GroundDecal == true && tile != null && tex != 0)
         {
             float ts = Constants.TileSize;
-            const float inset = 0.08f; // keep the sprite just inside the tile
+            // Fish spots breathe and shimmer: the decal inset pulses a
+            // hair, and ripple rings expand through it. Same bed pass as
+            // the decal itself, so the ripples read through the water
+            // sheet exactly like the spot does. Empty water (depleted)
+            // stays still.
+            float phase = ((tileX * 73856093) ^ (tileY * 19349663)) & 7;
+            float inset = 0.08f;
+            bool live = !resource.IsDepleted;
+            if (live)
+                inset += 0.012f * MathF.Sin(anim * 2.2f + phase * 0.78f);
             var c00 = camera.WorldToScreen((tileX + inset) * ts, (tileY + inset) * ts, tile.CornerElevations?[0] ?? tile.Elevation);
             var c10 = camera.WorldToScreen((tileX + 1 - inset) * ts, (tileY + inset) * ts, tile.CornerElevations?[1] ?? tile.Elevation);
             var c11 = camera.WorldToScreen((tileX + 1 - inset) * ts, (tileY + 1 - inset) * ts, tile.CornerElevations?[2] ?? tile.Elevation);
             var c01 = camera.WorldToScreen((tileX + inset) * ts, (tileY + 1 - inset) * ts, tile.CornerElevations?[3] ?? tile.Elevation);
             batch.DrawScreenQuadCornersTextured(c00.X, c00.Y, c10.X, c10.Y, c11.X, c11.Y, c01.X, c01.Y, tex, 255, 255, 255, (byte)220);
+
+            // Two expanding ripple rings, phase-staggered per tile. Each
+            // ring is 12 short quad segments between two radii — thin
+            // corner-quads, no new primitives.
+            if (live)
+            {
+                for (int k = 0; k < 2; k++)
+                {
+                    float t = (anim * 0.45f + k * 0.5f + phase / 16f) % 1f;
+                    float rIn = (5f + 20f * t) * camera.Zoom;
+                    float rOut = rIn + 1.3f * camera.Zoom;
+                    byte alpha = (byte)(100 * (1f - t));
+                    if (alpha == 0) continue;
+                    for (int s = 0; s < 12; s++)
+                    {
+                        float a0 = s * (MathF.PI * 2f / 12f);
+                        float a1 = (s + 1) * (MathF.PI * 2f / 12f);
+                        // Animate on the tile-center screen point; segment
+                        // corners sit on the inner/outer radius circles.
+                        batch.DrawScreenQuadCorners(
+                            cx + MathF.Cos(a0) * rIn, screen.Y + MathF.Sin(a0) * rIn,
+                            cx + MathF.Cos(a1) * rIn, screen.Y + MathF.Sin(a1) * rIn,
+                            cx + MathF.Cos(a1) * rOut, screen.Y + MathF.Sin(a1) * rOut,
+                            cx + MathF.Cos(a0) * rOut, screen.Y + MathF.Sin(a0) * rOut,
+                            190, 225, 240, alpha);
+                    }
+                }
+            }
             return;
         }
 
@@ -628,6 +669,19 @@ public sealed class SpriteRenderer : IDisposable
     private float _swingRemaining;
     private float _swingTotal = 1f;
 
+    // World-ambient animation clock: ripples, decal breathing, the bobber's
+    // bob. Game.cs advances it once per update; render reads only.
+    public float AnimTime { get; private set; }
+    public void AdvanceAnimation(float dt) => AnimTime += dt;
+
+    // Fishing cast visuals (the TriggerPlayerSwing pattern, target-
+    // addressed): Game.cs sets the spot's world position every frame while
+    // the cast runs and clears it on completion/cancel. RenderPlayer draws
+    // the rod, line, and bobbing bobber over the figure while it is set.
+    private (float X, float Y)? _fishTarget;
+    public void SetFishingCast(float worldX, float worldY) => _fishTarget = (worldX, worldY);
+    public void StopFishingCast() => _fishTarget = null;
+
     public void TriggerPlayerSwing(float duration = 0.3f)
     {
         _swingRemaining = duration;
@@ -881,6 +935,56 @@ public sealed class SpriteRenderer : IDisposable
             byte a = (byte)Math.Clamp(45 + waterDepth * 22f, 0f, 100f);
             batch.DrawScreenQuad(lcx, lcy + bodyQuad.HalfH - stripHalf,
                 bodyQuad.HalfW * 0.6f, stripHalf, 70, 130, 195, a);
+        }
+
+        // Fishing cast overlay: rod from the player's leading side toward
+        // the spot, a thin line to a bobbing bobber at the spot's
+        // waterline. Set by Game.cs every frame while the timed cast runs.
+        if (_fishTarget is { } fish)
+        {
+            float zoom = camera.Zoom;
+            // Bobber floats at the waterline (SeaLevel), bobbing ±2.5px.
+            var bobberScreen = camera.WorldToScreen(fish.X, fish.Y, Constants.SeaLevel);
+            float bob = MathF.Sin(AnimTime * 3f) * 2.5f * zoom; // Y down = dip
+            float bx = bobberScreen.X, by = bobberScreen.Y + bob;
+
+            // Rod: slim two-tone quad from the player's leading side,
+            // angled toward the spot (up-and-over the shoulder).
+            float dirX = MathF.Sign(bx - cx);
+            if (dirX == 0f) dirX = 1f;
+            float rodLen = 34f * zoom, rodHalfW = 1.5f * zoom;
+            // Base near the shoulder; tip toward the spot, raised.
+            float baseX = cx + dirX * half * 0.6f;
+            float baseY = cy - 4f * zoom;
+            float tipX = baseX + dirX * rodLen * 0.85f;
+            float tipY = baseY - rodLen * 0.35f;
+            // The rod quad runs base→tip; perpendicular for the width.
+            float rdx = tipX - baseX, rdy = tipY - baseY;
+            float rLen = MathF.Sqrt(rdx * rdx + rdy * rdy);
+            float nx = -rdy / rLen * rodHalfW, ny = rdx / rLen * rodHalfW;
+            batch.DrawScreenQuadCorners(
+                baseX - nx, baseY - ny, baseX + nx, baseY + ny,
+                tipX + nx, tipY + ny, tipX - nx, tipY - ny,
+                168, 124, 82, 255);
+            // Grip: short darker section at the base end.
+            float gripT = 0.22f;
+            batch.DrawScreenQuadCorners(
+                baseX - nx, baseY - ny, baseX + nx, baseY + ny,
+                baseX + rdx * gripT + nx, baseY + rdy * gripT + ny,
+                baseX + rdx * gripT - nx, baseY + rdy * gripT - ny,
+                94, 64, 40, 255);
+
+            // Line: thin pale quad from rod tip to bobber.
+            float ldx = bx - tipX, ldy = by - tipY;
+            float lLen = MathF.Max(1f, MathF.Sqrt(ldx * ldx + ldy * ldy));
+            float lnx = -ldy / lLen * 0.6f * zoom, lny = ldx / lLen * 0.6f * zoom;
+            batch.DrawScreenQuadCorners(
+                tipX - lnx, tipY - lny, tipX + lnx, tipY + lny,
+                bx + lnx, by + lny, bx - lnx, by - lny,
+                230, 230, 220, 200);
+
+            // Bobber dot on the water.
+            batch.DrawScreenQuad(bx, by, 2f * zoom, 2f * zoom, 230, 60, 60, 255);
         }
     }
 

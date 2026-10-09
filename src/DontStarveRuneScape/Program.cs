@@ -30,13 +30,27 @@ public static class Program
                 smokeBenchFrames = int.Parse(args[i + 1]);
         }
 
+        // Smoketest settings override must exist BEFORE the Game ctor —
+        // Game.cs loads Settings in its constructor, so setting PathOverride
+        // after `new Game(...)` never applied the override (it only rerouted
+        // saves). Headless captures on a locked/suspended compositor then
+        // inherited the user's Borderless+VSync window and the present
+        // blocked forever after ~2 frames. The harness file keeps
+        // headless runs off the real per-user settings.json AND pins a
+        // windowed, no-vsync context that never blocks on present.
+        Settings.PathOverride = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "dsr-smoketest-settings.json");
+        if ((smokeTestPath != null || smokeBenchFrames > 0)
+            && !System.IO.File.Exists(Settings.PathOverride))
+        {
+            // Headless-safe defaults: the class default is VSync=true,
+            // which deadlocks the swap on a locked/suspended session.
+            new Settings { VSync = false }.Save();
+        }
+
         var game = new Game(42);
         if (smokeTestPath != null)
         {
             game.SmokeTestPath = smokeTestPath;
-            // The harness mutates settings via scripted clicks/hooks; keep
-            // those writes off the real per-user settings.json.
-            Settings.PathOverride = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "dsr-smoketest-settings.json");
         }
         if (smokeBenchFrames > 0)
             game.SmokeBenchFrames = smokeBenchFrames;
