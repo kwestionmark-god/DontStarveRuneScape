@@ -88,8 +88,13 @@ frontier section. Everything below is verified against the tree as of
 
 ## Next-arc candidates (user-approved order)
 
-1. **Fishing rare-drop table** (pearl / old boot, level-scaled) — the
-   "keep casting" OSRS hook; freshest seams above.
+1. **Fishing rare-drop table** — **done 2026-10-09 (RED `4f9acfa` /
+   GREEN `3ae444b`)** — pearl (sell-only coastal trade entry, 25 gold)
+   + old boot (junk, no market), level-scaled windows, one roll per
+   successful catch on BOTH player and worker paths, visible
+   full-inventory loss. Spec:
+   `docs/superpowers/specs/2026-10-09-fishing-rare-drops-design.md`.
+   NEXT up: item 2 (animal taming).
 2. **Animal taming** — untouched territory; no groundwork exists yet.
 3. **Cross-skill audit** — find dark corners like the recruit-level
    gate one (e.g. what else trains the wrong skill, what nodes have

@@ -8,6 +8,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Fishing rare-drop table — pearl + old boot** — every successful
+  catch now rolls a second, level-scaled table: a pearl (1% +
+  0.15%/fishing level — the payday: coastal merchants pay 25 gold,
+  sell-only stock-0 entry) or the old boot (4% + 0.2%/level — vendor
+  junk with no market, the OSRS gag). The roll uses the fishing level
+  frozen at cast start. The catch message names the dredge ("You
+  dredged up a pearl!") and the grant posts the gold rare-find
+  notification; a full inventory loses the rare visibly ("No room —
+  the pearl slipped back into the water!") — never a silent vanish.
+  Worker fishers roll the same table on their own fishing level (rod
+  nodes only) and their rares land in the colony stockpile ledger.
 - **Fishing rod tiers — bone rod** — the cast window is the tier lever:
   Carve Bone Fishing Rod (wolf_bone×2 + grass_rope×1, crafting 4) casts
   in 2s where the carved plank rod takes 3s ("You cast your bone

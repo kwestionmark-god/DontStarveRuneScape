@@ -1,7 +1,7 @@
 # Fishing rare-drop table — pearl + old boot — design
 
 Date: 2026-10-09
-Status: draft
+Status: implemented (RED `4f9acfa`; GREEN `3ae444b`)
 Slice: next-arc item 1 (handoff: "fishing rare-drop table (pearl/old
 boot, level-scaled) — the keep-casting OSRS hook"). The catch pipeline
 gains a second, rarer reward channel: most casts land fish, some dredge

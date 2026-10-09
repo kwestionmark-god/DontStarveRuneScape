@@ -273,6 +273,26 @@ law shapes it.
      upgrade), DS (the upgrade costs combat drops, not wood; the base
      rod never stops working), MC (the notification names the tier;
      no new systems).
+   - **Fishing — rare-drop table (pearl + old boot)** — **done
+     2026-10-09.** The keep-casting hook: every successful catch
+     rolls a second, level-scaled table — pearl (1% + 0.15%/fishing
+     level, the payday: coastal merchants pay 25 gold, sell-only via
+     the stock-0 entry) then the old boot (4% + 0.2%/level, vendor
+     junk with no market). The roll uses the level frozen at cast
+     start (`ActiveAction.FishingLevel`, OSRS-style). Player catches
+     name the dredge ("You dredged up a pearl!") and the grant posts
+     the gold rare-find notification; a full inventory loses the
+     rare VISIBLY ("No room — the pearl slipped back into the
+     water!") — never a silent vanish. Worker fishers roll the same
+     table on their own fishing level (rod nodes only) and rares land
+     directly in the stockpile ledger. Test hooks follow the
+     RaidRollOverride convention (`ForceRareDrop` string + seeded
+     `RareDropRandom` on both systems). Spec:
+     `docs/superpowers/specs/2026-10-09-fishing-rare-drops-design.md`.
+     Pillars held: RS (the drop table compounds the grind — better
+     fisher, luckier water), DS (rares are dredged, never bought; the
+     full-bag loss is honest and visible), MC (the catch message
+     names the dredge; workers mirror the stock-ledger convention).
    - Parked sub-slice: refused-messaging on the work-order PANEL itself
      (the gate exists; the UI hint is follow-up).
    - The fusion is **not bound to the inspiration titles**: entirely
