@@ -9,6 +9,7 @@ using DontStarveRuneScape.Data;
 using DontStarveRuneScape.Skills;
 using DontStarveRuneScape.Combat;
 using DontStarveRuneScape.Survival;
+using DontStarveRuneScape.Actions;
 
 /// <summary>
 /// RecruitmentSystem — Handles recruited workers and their colony jobs.
@@ -630,6 +631,28 @@ public sealed class RecruitmentSystem
             {
                 quantity *= 2;
             }
+            // Rare drop: the fisher's own fishing level scales the same
+            // table the player rolls — one roll per successful haul, rod
+            // nodes only. The rare bypasses the haul walk (carried cargo
+            // is single-type) and lands directly where it's visible: the
+            // stockpile ledger, or the player's inventory pre-colony.
+            if (quantity > 0
+                && resource.ResourceDef?.ToolRequirement == "fishing_rod"
+                && npc is RecruitNpc rareRecruit)
+            {
+                string? rare = ForceRareDrop != null
+                    ? (ForceRareDrop.Length == 0 ? null : ForceRareDrop)
+                    : FishingRareTable.Roll(
+                        (float)(RareDropRandom ?? new Random()).NextDouble(),
+                        rareRecruit.Skills.GetSkillLevel("fishing"));
+                if (rare != null)
+                {
+                    if (colony is { IsFounded: true } rareColony)
+                        rareColony.Store(rare, 1);
+                    else
+                        player.Inventory.AddItem(rare, 1);
+                }
+            }
             if (quantity > 0)
             {
                 if (!inCave && colony?.IsFounded == true)
@@ -771,6 +794,14 @@ public sealed class RecruitmentSystem
         task.Status = $"Hauling {npc.CarriedQuantity} {task.ItemId} to stockpile";
         npc.CarryStatus = task.Status;
     }
+
+    /// <summary>Test hook: forces the worker rare-roll result
+    /// (null = random, "" = forced no-drop) — the RaidRollOverride
+    /// convention.</summary>
+    public string? ForceRareDrop { get; set; }
+
+    /// <summary>Seeded RNG for the worker rare roll (tests; null = new per roll).</summary>
+    public Random? RareDropRandom { get; set; }
 
     private static bool CanWorkerHarvest(ResourceNode node,
         DontStarveRuneScape.Inventory.Inventory inventory, ColonySystem? colony, bool inCave)

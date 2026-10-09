@@ -38,6 +38,14 @@ public sealed class ActionSystem
     public ForagingSkill? ForagingSkill { get; set; }
     private TileMap? _tileMap;
 
+    /// <summary>Test hook: forces the next rare-roll result
+    /// (null = random, "" = forced no-drop) — the RaidRollOverride
+    /// convention.</summary>
+    public string? ForceRareDrop { get; set; }
+
+    /// <summary>Seeded RNG for the rare roll (tests; null = new per catch).</summary>
+    public System.Random? RareDropRandom { get; set; }
+
     // ─── Constructor ─────────────────────────────────────────────────────────
 
     public ActionSystem() { }
@@ -177,6 +185,10 @@ public sealed class ActionSystem
             action.SuccessRateBonus = skillManager.GetEffectiveStat("fishing", "success_rate") * 1.0f;
             action.ExtraResourcesBonus = skillManager.GetEffectiveStat("fishing", "harvest_boost");
 
+            // Rare-table input: the fisher's level at cast start — frozen
+            // for the roll the catch will make.
+            action.FishingLevel = skillManager.GetSkillLevel("fishing");
+
             // Fishing is the one timed gather: the cast holds for the
             // rod tier's window before the catch resolves (the window the
             // rod/line/bobber animation plays in). Tier buys speed: the
@@ -253,6 +265,10 @@ public sealed class ActionSystem
             if (!inventory.CanAdd(result.ItemId, result.Quantity))
             {
                 AddNotification("Inventory is full — nothing was gathered.", (255, 100, 100));
+                // A rare that can't fit is lost — but VISIBLY, never a
+                // silent vanish (manageable loss, per design).
+                if (!string.IsNullOrEmpty(result.RareItemId))
+                    AddNotification($"No room — the {result.RareItemId} slipped back into the water!", (255, 100, 100));
             }
             else
             {
@@ -266,6 +282,17 @@ public sealed class ActionSystem
                 var levelUpMessages = skillManager.AddXpWithNotification(skillId, result.Xp);
                 foreach (var msg in levelUpMessages)
                     AddNotification(msg, (255, 215, 0));
+
+                // Rare drop grant: the dredged item rides the same
+                // completion — gold rare-find notification on success,
+                // visible red loss if it can't fit.
+                if (!string.IsNullOrEmpty(result.RareItemId))
+                {
+                    if (inventory.AddItem(result.RareItemId, 1))
+                        AddNotification($"+1 {result.RareItemId} — a rare find!", (255, 215, 0));
+                    else
+                        AddNotification($"No room — the {result.RareItemId} slipped back into the water!", (255, 100, 100));
+                }
             }
         }
 
@@ -422,14 +449,33 @@ public sealed class ActionSystem
             if (baited)
                 quantity *= 2;
 
+            // Rare drop: one roll per successful catch, scaled by the
+            // level stashed at cast start. Yield stays the bait economy's
+            // knob; this is the level economy's knob — the keep-casting
+            // hook (pearl first, then the old-boot gag).
+            string? rareItemId = null;
+            if (action.ActionType == ActionType.Fishing)
+            {
+                rareItemId = ForceRareDrop != null
+                    ? (ForceRareDrop.Length == 0 ? null : ForceRareDrop)
+                    : FishingRareTable.Roll(
+                        (float)(RareDropRandom ?? new System.Random()).NextDouble(),
+                        action.FishingLevel);
+            }
+
+            string message = baited
+                ? $"Harvested {quantity} {action.YieldItem} (bait)."
+                : $"Harvested {quantity} {action.YieldItem}.";
+            if (rareItemId != null)
+                message += $" You dredged up a {rareItemId}!";
+
             // Return structured result
             return ActionResult.SuccessResult(
                 action.YieldItem,
                 quantity,
                 action.XpReward,
-                baited
-                    ? $"Harvested {quantity} {action.YieldItem} (bait)."
-                    : $"Harvested {quantity} {action.YieldItem}.");
+                message,
+                rareItemId);
         }
         else
         {

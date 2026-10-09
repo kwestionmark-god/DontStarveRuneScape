@@ -389,6 +389,24 @@
       "sprite_key": "items/worm_segment"
     },
     {
+      "id": "pearl",
+      "name": "Pearl",
+      "stack_size": 5,
+      "is_equippable": false,
+      "is_essential_tool": false,
+      "is_food": false,
+      "sprite_key": "items/moonstone"
+    },
+    {
+      "id": "old_boot",
+      "name": "Old Boot",
+      "stack_size": 5,
+      "is_equippable": false,
+      "is_essential_tool": false,
+      "is_food": false,
+      "sprite_key": "gear/leather_boots"
+    },
+    {
       "id": "bone_fishing_rod",
       "name": "Bone Fishing Rod",
       "stack_size": 1,

@@ -23,6 +23,10 @@ public sealed class ActionResult
     /// <summary>Human-readable feedback message.</summary>
     public string Message { get; }
 
+    /// <summary>Rare item dredged up with the catch, if any (the fishing
+    /// rare-drop table; null for a plain catch).</summary>
+    public string? RareItemId { get; }
+
     /// <summary>
     /// Create an ActionResult.
     /// </summary>
@@ -31,18 +35,21 @@ public sealed class ActionResult
         string itemId = "",
         int quantity = 0,
         float xp = 0.0f,
-        string message = "")
+        string message = "",
+        string? rareItemId = null)
     {
         Success = success;
         ItemId = itemId;
         Quantity = quantity;
         Xp = xp;
         Message = message;
+        RareItemId = rareItemId;
     }
 
     /// <summary>Create a success result with yield.</summary>
-    public static ActionResult SuccessResult(string itemId, int quantity, float xp, string message)
-        => new(true, itemId, quantity, xp, message);
+    public static ActionResult SuccessResult(string itemId, int quantity, float xp, string message,
+        string? rareItemId = null)
+        => new(true, itemId, quantity, xp, message, rareItemId);
 
     /// <summary>Create a failure result.</summary>
     public static ActionResult Failure(string message)

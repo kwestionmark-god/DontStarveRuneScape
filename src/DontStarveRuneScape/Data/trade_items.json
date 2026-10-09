@@ -183,6 +183,18 @@
    "commerce_requirement": 0
   },
   {
+   "trade_item_id": "coastal_pearl",
+   "item_id": "pearl",
+   "biome": "coastal",
+   "buy_price": 60,
+   "sell_price": 25,
+   "stock_quantity": 0,
+   "max_stock": 0,
+   "tier": 1,
+   "is_premium": false,
+   "commerce_requirement": 0
+  },
+  {
    "trade_item_id": "coastal_dried_fish",
    "item_id": "dried_fish",
    "biome": "coastal",

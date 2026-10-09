@@ -55,6 +55,11 @@ public sealed class ActiveAction
     /// catch lands doubled (the bait sank with the cast; no refund).</summary>
     public bool Baited { get; set; }
 
+    /// <summary>Fishing level at cast start — the rare-table input
+    /// (frozen per cast, OSRS-style: the roll describes the cast, not
+    /// whatever level the XP from this catch buys).</summary>
+    public int FishingLevel { get; set; } = 1;
+
     /// <summary>
     /// Create an ActiveAction.
     /// </summary>
