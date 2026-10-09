@@ -1,0 +1,111 @@
+# Colony arc handoff — 2026-10-09
+
+For a cold session (new agent, no chat context): read this, then
+`docs/superpowers/2026-10-04-development-map.md` "Ordered next work" /
+frontier section. Everything below is verified against the tree as of
+`2d09c33` (clean, suite 411 total / 410 green, 1 pre-existing skip).
+
+## How to work here (the short version)
+
+- Skill `dsrs-colony-slice-tdd` auto-loads for this repo's tasks and has
+  every pitfall hit so far — read its pitfalls before writing tests.
+- Build/test (dotnet lives ONLY in the ornith-cuda toolbox):
+  `toolbox run -c ornith-cuda sh -c 'cd /var/home/kwestionmark/dontstarve-runescape-c# && dotnet test src/DontStarveRuneScape.Tests/DontStarveRuneScape.Tests.csproj --nologo -v q'`
+- Slice rhythm (user-approved): draft spec in
+  `docs/superpowers/specs/YYYY-MM-DD-<slice>-design.md` (house style:
+  Date/Status/Design law/Ground-verified/Goal/Non-goals/Design/Testing
+  plan/Open questions/Revision history) → RED commit (verify the failure
+  is the RIGHT one) → GREEN commit → docs commit (spec status, dev-map
+  entry with pillars, CHANGELOG). Explicit `git add` paths only (never
+  `-A`). The user approves progressive commits and wants to be shown
+  the plan when stakes are real; defaults are ours to pick otherwise.
+- User's lens for this arc: "whatever makes fishing satisfyingly
+  grindy in a survival sandbox with colony dynamics" — RS-style
+  progression + honest grind + readable systems. "Not bound to the
+  inspiration titles — fusion logic of our own welcome."
+
+## State: the fishing arc is COMPLETE (four slices)
+
+1. **Skill + rod** (`0e25d54`): `fishing` skill registered;
+   `fish_spot` requires `fishing_rod` (craftable: planks×2 +
+   grass_rope×1, crafting 2; required_level 5→1). New
+   `ActionType.Fishing` routes player XP (Foraging would leak —
+   `CompleteAction` nulls `Active.Resource` before
+   `ProcessCompletion` maps the skill; only the enum survives).
+   `GatherSkillFor` has a fishing branch BEFORE the tool check (else
+   workers train mining on rod nodes).
+2. **Cast window + visuals** (`3178c94`, pixel-verified `4208d09`):
+   fishing is the one TIMED gather — 3s cast
+   (`Constants.FishingCastSeconds`), walk-away >128px cancels
+   ("You moved — the fish got away.", `ActionSystem.CancelActive`).
+   Fish spots: breathing decal + two expanding ripple rings (per-tile
+   phase hash, bed pass, driven by `SpriteRenderer.AnimTime`, advanced
+   once per update by Game.cs). Casting overlay: primitive rod + line +
+   bobbing bobber via `SetFishingCast`/`StopFishingCast` (Game.cs
+   syncs every frame). `DSR_TEST_FISHING=1` smoketest hook.
+3. **Bait economy** (`0207b00`): `fishing_bait` (shells×2 + fibers×1,
+   crafting 1, ×4 per batch, worm_segment sprite). Player: bait
+   consumed at cast START (`ActiveAction.Baited`), no refund on cancel,
+   ×2 catch with "(bait)" in the message. Workers: one colony-store
+   bait per harvest → ×2 haul (`RecruitmentSystem` ~:622, the
+   meals/materials `RemoveItem` idiom).
+4. **Rod tiers** (`a03597d`): `bone_fishing_rod` (wolf_bone×2 +
+   grass_rope×1, crafting 4, bone_wolf sprite). Tier lever = cast
+   speed: 2s (`Constants.BoneFishingCastSeconds`) vs 3s. The tool
+   check's matched id is hoisted (`matchedTool` in StartAction) so the
+   Fishing branch picks the tier; notification says "You cast your
+   bone rod...". Colony-store tool check (`CanWorkerHarvest`) matches
+   exact + `stone_` + `bone_` prefixes now.
+
+## Live seam map (where the next slice will cut)
+
+- **Player catch pipeline**: `InteractSystem.cs:92-96` routes
+  `fishing_rod` → `ActionType.Fishing` → `ActionSystem.StartAction`
+  Fishing branch (~`:163-200`) sets duration/bait → `Update` holds
+  `DurationRemaining` → `CompleteGathering` (~`:380-430`) rolls success
+  (50% + `fishing.success_rate` substat; tests pump it to 1000),
+  harvests, doubles if baited, message, then `ProcessCompletion`
+  routes XP via the enum.
+- **Worker fisher**: gather dispatch in `RecruitmentSystem`
+  (~`:488-650`): claim → walk → `HarvestInterval` 4s → `Harvest` →
+  level bonus (deterministic counter) → bait double (~`:622`) → haul.
+  `CanWorkerHarvest` (~`:780-792`) = tool availability (player inv
+  suffix-match OR store exact/stone_/bone_).
+- **Rare-drop candidates for the next slice**: drops belong in
+  `CompleteGathering`'s success path (player) — a level-scaled roll
+  (pearl / old boot; seed a `Random` hook or deterministic counter for
+  tests — see the RaidRollOverride pitfall in the skill). Worker side:
+  same spot as the bait double. Items `pearl` may not exist yet — grep
+  items.json first (the classic RED-compile trap).
+- **Smoketest verification**: `dotnet run -- --smoketest <png>` +
+  `DSR_SMOKE_FRAMES=<n>`; `DSR_TEST_FISHING=1` stages a mid-cast
+  capture. Pixel-diff via PIL in the container (no vision provider in
+  the default profile). CRITICAL: the user must NOT touch the game
+  window during captures (their movement cancels casts/moves the
+  camera) — tell them "hands off ~75s". The Settings.PathOverride fix
+  (`Program.cs`, applied BEFORE the Game ctor, VSync=false defaults)
+  unblocked captures that used to deadlock on a locked session.
+
+## Next-arc candidates (user-approved order)
+
+1. **Fishing rare-drop table** (pearl / old boot, level-scaled) — the
+   "keep casting" OSRS hook; freshest seams above.
+2. **Animal taming** — untouched territory; no groundwork exists yet.
+3. **Cross-skill audit** — find dark corners like the recruit-level
+   gate one (e.g. what else trains the wrong skill, what nodes have
+   unreachable gates).
+4. **NPC-quest breadth** — quests.json has 18 pinned by NpcDataTests;
+   adding any breaks that pin for a DATA reason (update the pin).
+
+## Standing cautions (beyond the skill's pitfall list)
+
+- `git add` explicit paths; the root accumulates harness dirt
+  (package.json etc.).
+- Terminal approval flow can block commands when the user is AFK — if
+  blocked, do NOT retry; commit with the step marked PENDING and tell
+  the user what to re-run.
+- `python3 -c` inline scripts and root-path `rm` need approval in this
+  environment; prefer the patch/read_file tools.
+- The user hops in and out of focus — keep momentum, don't wait on
+  confirmations for low-stakes picks, but surface real gameplay
+  decisions (they answered the bait-scope clarify in one click).
