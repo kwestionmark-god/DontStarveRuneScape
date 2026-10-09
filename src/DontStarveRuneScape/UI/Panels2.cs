@@ -486,6 +486,7 @@ public sealed class SkillPanel
         ("woodcutting",  "Woodcutting",  "Wc",  96, 160,  84),
         ("mining",       "Mining",       "Mn", 150, 146, 128),
         ("foraging",     "Foraging",     "Fo", 118, 186, 110),
+        ("fishing",      "Fishing",      "Fi",  66, 134, 244),
         ("cooking",      "Cooking",      "Ck", 208, 132,  70),
         ("firemaking",   "Firemaking",   "Fm", 220,  96,  48),
         ("crafting",     "Crafting",     "Cr", 186, 152,  96),

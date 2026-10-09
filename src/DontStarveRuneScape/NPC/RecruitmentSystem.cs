@@ -685,6 +685,10 @@ public sealed class RecruitmentSystem
     private static string GatherSkillFor(ResourceDef? def)
     {
         if (def == null) return "foraging";
+        // Rod-gated nodes train fishing (the one skill that can reach
+        // their gate); other tool nodes train mining (the convention the
+        // cave-mining path already uses).
+        if (def.ToolRequirement == "fishing_rod") return "fishing";
         if (def.RequiresTool) return "mining";
         return def.YieldItem is "wood" or "log" or "logs" ? "woodcutting" : "foraging";
     }

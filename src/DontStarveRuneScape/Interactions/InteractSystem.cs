@@ -91,6 +91,7 @@ public sealed class InteractSystem
             {
                 "axe" => ActionType.Woodcutting,
                 "pickaxe" => ActionType.Mining,
+                "fishing_rod" => ActionType.Fishing,
                 _ => ActionType.Foraging, // No tool requirement — forage (berries, herbs, water, etc.)
             };
 

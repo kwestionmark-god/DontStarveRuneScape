@@ -260,7 +260,7 @@
       "depletion_count": 2,
       "regrow_time": 60.0,
       "sprite_key": "world/fish",
-      "requires_tool": null,
+      "requires_tool": "fishing_rod",
       "biome_affinity": {
         "coastal": 2.0,
         "swamp": 1.0,
@@ -269,7 +269,7 @@
         "mountains": 0.1,
         "desert": 0.0
       },
-      "required_level": 5,
+      "required_level": 1,
       "display_scale": 0.6,
       "size_variance": 0.15,
       "ground_decal": true

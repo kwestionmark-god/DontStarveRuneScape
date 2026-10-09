@@ -15,7 +15,7 @@ public sealed class SkillManager
     {
         var skillIds = new[]
         {
-            "attack", "woodcutting", "mining", "foraging", "cooking",
+            "attack", "woodcutting", "mining", "foraging", "fishing", "cooking",
             "firemaking", "crafting", "metallurgy", "construction", "intelligence",
             "agility"
         };

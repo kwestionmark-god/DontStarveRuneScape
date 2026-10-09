@@ -11,6 +11,7 @@ public enum ActionType
     Mining,
     Cooking,
     Foraging,
+    Fishing,
 }
 
 /// <summary>
@@ -32,6 +33,7 @@ public static class ActionTypeExtensions
             ActionType.Mining => "mining",
             ActionType.Cooking => "cooking",
             ActionType.Foraging => "foraging",
+            ActionType.Fishing => "fishing",
             _ => throw new System.ArgumentOutOfRangeException(nameof(actionType), $"Unknown ActionType: {actionType}"),
         };
     }

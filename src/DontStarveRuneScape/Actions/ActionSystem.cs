@@ -160,6 +160,21 @@ public sealed class ActionSystem
                 action.ExtraResourcesBonus = skillManager.GetEffectiveStat("foraging", "harvest_boost");
             }
         }
+        else if (actionType == ActionType.Fishing && resource != null)
+        {
+            action.Resource = resource;
+            action.XpReward = resource.XpReward;
+            action.YieldItem = resource.YieldItem;
+            action.YieldQuantity = resource.YieldQuantity;
+            action.RequiredTool = resource.ResourceDef?.ToolRequirement;
+
+            // No dedicated fishing-skill class: the registered skill's
+            // sub-stats drive success and yield, same shape as the
+            // foraging fallback below.
+            action.StaminaCost = 2.0f;
+            action.SuccessRateBonus = skillManager.GetEffectiveStat("fishing", "success_rate") * 1.0f;
+            action.ExtraResourcesBonus = skillManager.GetEffectiveStat("fishing", "harvest_boost");
+        }
         else if (actionType == ActionType.Cooking && recipeId != null)
         {
             action.RecipeId = recipeId;
@@ -269,7 +284,7 @@ public sealed class ActionSystem
     {
         var action = Active;
 
-        var result = action.ActionType is ActionType.Woodcutting or ActionType.Mining or ActionType.Foraging
+        var result = action.ActionType is ActionType.Woodcutting or ActionType.Mining or ActionType.Foraging or ActionType.Fishing
             ? CompleteGathering(action)
             : null;
 

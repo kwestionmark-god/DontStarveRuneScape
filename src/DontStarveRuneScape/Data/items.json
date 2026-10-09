@@ -369,6 +369,17 @@
       "sprite_key": "items/axe"
     },
     {
+      "id": "fishing_rod",
+      "name": "Fishing Rod",
+      "stack_size": 1,
+      "is_equippable": true,
+      "is_essential_tool": true,
+      "is_food": false,
+      "tool_type": "fishing_rod",
+      "durability": 100,
+      "sprite_key": "items/elder_wood_staff"
+    },
+    {
       "id": "pickaxe",
       "name": "Pickaxe",
       "stack_size": 1,
