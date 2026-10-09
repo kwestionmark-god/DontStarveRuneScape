@@ -8,6 +8,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Fishing cast window + animated visuals** — fishing is now the one
+  timed gather: a 3-second cast holds the catch, walking away cancels it
+  ("You moved — the fish got away."). Fish-spot decals breathe and carry
+  expanding ripple rings (deterministic per-tile phases); while casting
+  the player draws a rod, line, and bobbing bobber at the waterline —
+  all primitive-rendered, no new art. New DSR_TEST_FISHING=1 headless
+  smoketest hook, and a fixed harness bug: smoketest runs now apply the
+  settings override (windowed, no vsync) BEFORE the Game ctor, so the
+  framebuffer present no longer deadlocks on a locked desktop session.
 - **Fishing skill + rod gate** — fish are no longer free: `fish_spot` now
   requires a craftable `fishing_rod` (planks×2 + grass_rope×1, crafting
   level 2, elder-wood-staff sprite reused). Catches train a real `fishing`

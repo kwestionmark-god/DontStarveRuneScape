@@ -218,6 +218,29 @@ law shapes it.
      Pillars held: RS (progression gates the node AND names the skill it
      trains), DS (the grind stays honest — fish cost a crafted rod),
      MC (readability — existing refusal vocabulary, existing decal art).
+   - **Fishing — cast window + animated visuals** — **done 2026-10-08.**
+     Fishing is now the one timed gather: a 3s cast (Constants.
+     FishingCastSeconds) holds the catch, giving the animation window —
+     walking out of interact reach cancels it ("You moved — the fish got
+     away.", CancelActive). Fish spots animate in place: decal breathing
+     + two expanding ripple rings (per-tile phase hash, no RNG) drawn in
+     the existing seabed pass. While casting, the player renders a
+     primitive rod angled toward the spot, a thin line, and a bobbing
+     bobber at the waterline — all primitives, no new art. New
+     SpriteRenderer.AnimTime world clock (advanced by Game.cs once per
+     update) and DSR_TEST_FISHING=1 smoketest hook. Found and fixed a
+     real harness bug along the way: Settings.PathOverride was set
+     AFTER the Game ctor loaded settings, so smoketest runs silently
+     used the user's real Borderless+VSync window — on a locked/sleeping
+     session the swap present deadlocked after ~2 frames; the override
+     now applies before the ctor with headless-safe defaults.
+     Pixel-diff verification still pending (approval-flow block; re-run
+     when the user is at the keyboard). Spec:
+     `docs/superpowers/specs/2026-10-08-fishing-cast-animations-design.md`.
+     Pillars held: RS (the cast is the OSRS-style progression beat),
+     DS (walking away loses the fish — the wait is real time),
+     MC (the spot itself telegraphs "fish here"; the cast reads at a
+     glance).
    - Parked sub-slice: refused-messaging on the work-order PANEL itself
      (the gate exists; the UI hint is follow-up).
    - The fusion is **not bound to the inspiration titles**: entirely
