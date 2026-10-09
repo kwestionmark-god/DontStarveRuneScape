@@ -152,6 +152,10 @@ public static class Constants
     // wait per catch); every other gather resolves on the first tick.
     public const float FishingCastSeconds = 3.0f;
 
+    // Tier-2 rod (bone): a faster cast is the upgrade — same spot, less
+    // wait. Tier buys speed, not yield (yield is the bait economy's knob).
+    public const float BoneFishingCastSeconds = 2.0f;
+
     // Leap animation channels (world px unless noted) — the whole paper-
     // doll rides the arc: toe-off tilt → tuck mid-flight → heel-strike
     // reach at landing, plus a body lean into the leap. Sized against

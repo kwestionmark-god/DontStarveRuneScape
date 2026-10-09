@@ -71,11 +71,13 @@ public sealed class ActionSystem
         if (Active.State == ActionState.Running)
             return "Already performing an action.";
 
-        // Required-tool check (for gathering)
+        // Required-tool check (for gathering) — the matched id is kept:
+        // the Fishing branch reads it to pick the rod tier's cast length.
+        string? matchedTool = null;
         if (resource != null && resource.ResourceDef != null && !string.IsNullOrEmpty(resource.ResourceDef.ToolRequirement))
         {
-            string? tool = FindEquippedTool(inventory, resource.ResourceDef.ToolRequirement);
-            if (tool == null)
+            matchedTool = FindEquippedTool(inventory, resource.ResourceDef.ToolRequirement);
+            if (matchedTool == null)
                 return $"You need a {resource.ResourceDef.ToolRequirement}.";
         }
 
@@ -175,11 +177,17 @@ public sealed class ActionSystem
             action.SuccessRateBonus = skillManager.GetEffectiveStat("fishing", "success_rate") * 1.0f;
             action.ExtraResourcesBonus = skillManager.GetEffectiveStat("fishing", "harvest_boost");
 
-            // Fishing is the one timed gather: the cast holds for
-            // FishingCastSeconds before the catch resolves (the window
-            // the rod/line/bobber animation plays in).
-            action.DurationRemaining = Constants.FishingCastSeconds;
-            AddNotification("You cast your line...", (120, 190, 255));
+            // Fishing is the one timed gather: the cast holds for the
+            // rod tier's window before the catch resolves (the window the
+            // rod/line/bobber animation plays in). Tier buys speed: the
+            // bone rod casts in 2s where the carved rod takes 3s.
+            bool boneRod = matchedTool == "bone_fishing_rod";
+            action.DurationRemaining = boneRod
+                ? Constants.BoneFishingCastSeconds
+                : Constants.FishingCastSeconds;
+            AddNotification(boneRod
+                ? "You cast your bone rod..."
+                : "You cast your line...", (120, 190, 255));
 
             // Baited cast: one bait per cast, consumed the moment the line
             // hits the water — honest grind: no refund on walk-away cancel,

@@ -787,7 +787,8 @@ public sealed class RecruitmentSystem
             && slot.ItemId != null && (slot.ItemId == required
                 || slot.ItemId.EndsWith("_" + required, StringComparison.Ordinal)));
         bool inColonyStore = colony != null && (colony.GetItemQuantity(required) > 0
-            || colony.GetItemQuantity("stone_" + required) > 0);
+            || colony.GetItemQuantity("stone_" + required) > 0
+            || colony.GetItemQuantity("bone_" + required) > 0);
         return inPlayerInventory || inColonyStore;
     }
 

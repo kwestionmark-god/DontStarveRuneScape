@@ -389,6 +389,17 @@
       "sprite_key": "items/worm_segment"
     },
     {
+      "id": "bone_fishing_rod",
+      "name": "Bone Fishing Rod",
+      "stack_size": 1,
+      "is_equippable": true,
+      "is_essential_tool": true,
+      "is_food": false,
+      "tool_type": "fishing_rod",
+      "durability": 100,
+      "sprite_key": "items/bone_wolf"
+    },
+    {
       "id": "pickaxe",
       "name": "Pickaxe",
       "stack_size": 1,

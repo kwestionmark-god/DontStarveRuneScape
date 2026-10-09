@@ -121,6 +121,32 @@
       "required_level": 1
     },
     {
+      "recipe_id": "craft_bone_fishing_rod",
+      "name": "Carve Bone Fishing Rod",
+      "input_items": [
+        [
+          "wolf_bone",
+          2
+        ],
+        [
+          "grass_rope",
+          1
+        ]
+      ],
+      "output_item": "bone_fishing_rod",
+      "output_quantity": 1,
+      "xp_reward": 10.0,
+      "processing_chain": "wood_chain",
+      "tier": 1,
+      "requires_campfire": false,
+      "requires_structure": "",
+      "skill": null,
+      "season": "all",
+      "skill_affects_yield": "crafting",
+      "required_skill": "crafting",
+      "required_level": 4
+    },
+    {
       "recipe_id": "wood_bucket",
       "name": "Carve Wooden Bucket",
       "input_items": [
