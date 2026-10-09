@@ -131,6 +131,15 @@ public class FishingTests
         Assert.Null(system.StartAction(ActionType.Fishing, node, sm, inv));
         Assert.True(system.Active.IsBusy);
 
+        // The cast is timed (Constants.FishingCastSeconds): no catch mid-cast…
+        float remaining = Constants.FishingCastSeconds;
+        while (remaining > 0f)
+        {
+            Assert.Null(system.Update(0.25f));
+            remaining -= 0.25f;
+        }
+
+        // …then exactly one catch on the tick that closes the window.
         var result = system.Update(0.016f);
         Assert.NotNull(result);
         Assert.True(result!.Success);
@@ -150,6 +159,58 @@ public class FishingTests
         Assert.Equal(0f, sm.GetSkill("foraging").Xp);
         Assert.True(inv.Slots.Any(s => s?.ItemId == "raw_fish"),
             "raw_fish should be in the player inventory after a catch");
+    }
+
+    [Fact]
+    public void PlayerFishing_MidCastIsBusyAndHoldsSilence()
+    {
+        var system = new ActionSystem();
+        var node = FishSpot();
+        var sm = new SkillManager();
+        var inv = new Inv();
+        Assert.True(inv.AddItem("fishing_rod", 1));
+
+        Assert.Null(system.StartAction(ActionType.Fishing, node, sm, inv));
+
+        // Mid-cast the player is busy: a second start is refused…
+        Assert.Equal("Already performing an action.",
+            system.StartAction(ActionType.Fishing, node, sm, inv));
+        // …and partial-time Updates return null (no early catch, no leak).
+        Assert.Null(system.Update(0.5f));
+        Assert.Null(system.Update(1.0f));
+        Assert.True(system.Active.IsBusy);
+        Assert.Null(system.Update(1.4f));
+        // Total elapsed 2.9s < 3.0s cast: still busy.
+        Assert.True(system.Active.IsBusy);
+    }
+
+    [Fact]
+    public void PlayerForaging_StillInstant_RegressionGuard()
+    {
+        var system = new ActionSystem();
+        var sm = new SkillManager();
+        sm.GetSkill("foraging").SubStats["success_rate"] = 1000f;
+        var inv = new Inv();
+        var berries = new ResourceDef
+        {
+            Id = "berry_bush",
+            Name = "Berry Bush",
+            YieldItem = "berries",
+            Yield = 1,
+            Xp = 5f,
+            DepletionCount = 3,
+            RequiredLevel = 1,
+            Seasons = [],
+        };
+        var node = new ResourceNode("berry_bush", berries, 3f);
+
+        Assert.Null(system.StartAction(ActionType.Foraging, node, sm, inv));
+        // Every gather EXCEPT fishing stays instant: the very first Update
+        // completes it (no DurationRemaining was ever set).
+        var result = system.Update(0.016f);
+        Assert.NotNull(result);
+        Assert.True(result!.Success);
+        Assert.Equal("berries", result.ItemId);
     }
 
     // ─── 5–7. Worker path (WaterBucketTests harness shape) ──────────────
