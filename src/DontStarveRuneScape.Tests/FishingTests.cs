@@ -185,6 +185,39 @@ public class FishingTests
     }
 
     [Fact]
+    public void PlayerFishing_CancelActive_StopsTheCast()
+    {
+        var system = new ActionSystem();
+        var node = FishSpot();
+        var sm = new SkillManager();
+        var inv = new Inv();
+        Assert.True(inv.AddItem("fishing_rod", 1));
+
+        Assert.Null(system.StartAction(ActionType.Fishing, node, sm, inv));
+        Assert.True(system.Active.IsBusy);
+
+        // Walk-away mid-cast: the cast cancels with no yield.
+        Assert.True(system.CancelActive());
+        Assert.False(system.Active.IsBusy);
+        Assert.Null(system.Active.Resource);
+
+        // Cancelled casts never resolve: Updates stay null forever.
+        Assert.Null(system.Update(0.25f));
+        Assert.Null(system.Update(5.0f));
+        Assert.True(inv.Slots.All(s => s?.ItemId != "raw_fish"),
+            "a cancelled cast must not yield");
+        Assert.Equal(0f, sm.GetSkill("fishing").Xp);
+
+        // And the player can immediately start a fresh cast.
+        Assert.Null(system.StartAction(ActionType.Fishing, node, sm, inv));
+        Assert.True(system.Active.IsBusy);
+
+        // Cancelling an idle action is a no-op (returns false).
+        Assert.False(system.CancelActive());
+        Assert.False(system.Active.IsBusy);
+    }
+
+    [Fact]
     public void PlayerForaging_StillInstant_RegressionGuard()
     {
         var system = new ActionSystem();
