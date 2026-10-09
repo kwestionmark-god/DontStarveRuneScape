@@ -133,14 +133,14 @@ public class FishingTests
 
         // The cast is timed (Constants.FishingCastSeconds): no catch mid-cast…
         float remaining = Constants.FishingCastSeconds;
-        while (remaining > 0f)
+        while (remaining > 0.25f)
         {
             Assert.Null(system.Update(0.25f));
             remaining -= 0.25f;
         }
 
-        // …then exactly one catch on the tick that closes the window.
-        var result = system.Update(0.016f);
+        // …the tick that closes the window is the catch tick.
+        var result = system.Update(0.25f);
         Assert.NotNull(result);
         Assert.True(result!.Success);
         Assert.Equal("raw_fish", result.ItemId);

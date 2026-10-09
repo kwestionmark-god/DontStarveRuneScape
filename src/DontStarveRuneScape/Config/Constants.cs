@@ -148,6 +148,10 @@ public static class Constants
     public const float AgilityXpPerJump = 2.0f;           // Agility XP per successful jump
     public const float AgilitySprintSpeedBonusPerLevel = 0.01f; // +1% move speed per agility level above 1
 
+    // Fishing cast window: fishing is the one timed gather (OSRS-style
+    // wait per catch); every other gather resolves on the first tick.
+    public const float FishingCastSeconds = 3.0f;
+
     // Leap animation channels (world px unless noted) — the whole paper-
     // doll rides the arc: toe-off tilt → tuck mid-flight → heel-strike
     // reach at landing, plus a body lean into the leap. Sized against

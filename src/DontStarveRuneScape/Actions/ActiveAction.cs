@@ -10,10 +10,15 @@ public sealed class ActiveAction
     /// <summary>What kind of action (woodcutting/mining/cooking).</summary>
     public ActionType ActionType { get; set; }
 
-    /// <summary>IDLE, RUNNING. Running is a one-frame transient: actions
-    /// resolve instantly on the next tick, so the state only marks a pending
-    /// completion.</summary>
+    /// <summary>IDLE, RUNNING. Running marks a pending completion: instant
+    /// actions resolve on the next tick; timed actions (the fishing cast)
+    /// hold until DurationRemaining elapses.</summary>
     public ActionState State { get; set; } = ActionState.Idle;
+
+    /// <summary>Seconds remaining for timed actions (the fishing cast);
+    /// zero means resolve on the first tick, as every other gather does.
+    /// </summary>
+    public float DurationRemaining { get; set; } = 0f;
 
     /// <summary>The resource node being interacted with (None for cooking).</summary>
     public ResourceNode? Resource { get; set; }

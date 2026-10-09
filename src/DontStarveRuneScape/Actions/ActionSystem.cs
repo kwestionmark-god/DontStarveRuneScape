@@ -174,6 +174,12 @@ public sealed class ActionSystem
             action.StaminaCost = 2.0f;
             action.SuccessRateBonus = skillManager.GetEffectiveStat("fishing", "success_rate") * 1.0f;
             action.ExtraResourcesBonus = skillManager.GetEffectiveStat("fishing", "harvest_boost");
+
+            // Fishing is the one timed gather: the cast holds for
+            // FishingCastSeconds before the catch resolves (the window
+            // the rod/line/bobber animation plays in).
+            action.DurationRemaining = Constants.FishingCastSeconds;
+            AddNotification("You cast your line...", (120, 190, 255));
         }
         else if (actionType == ActionType.Cooking && recipeId != null)
         {
@@ -273,9 +279,16 @@ public sealed class ActionSystem
         if (Active.State != ActionState.Running)
             return null;
 
-        // Actions resolve instantly — no harvest timeout: the first tick
-        // after start completes the action, and the stamina pool gates the
-        // next one (acting is possible while it covers the cost).
+        // Timed actions (the fishing cast) hold for their window before
+        // resolving; every other action has no duration and resolves on
+        // this first tick, exactly as before.
+        if (Active.DurationRemaining > 0f)
+        {
+            Active.DurationRemaining -= dt;
+            if (Active.DurationRemaining > 0f)
+                return null;
+            Active.DurationRemaining = 0f;
+        }
         return CompleteAction();
     }
 
