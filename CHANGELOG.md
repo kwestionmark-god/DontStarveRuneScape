@@ -8,6 +8,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Fishing bait economy** — fishing is now a prepared activity: Mix
+  Fishing Bait (shells×2 + fibers×1, crafting level 1, ×4 per batch)
+  turns coastal trash into catch-doubling consumables. Baited player
+  casts land ×2 catches ("Baited hook..." → "Harvested 2 raw_fish
+  (bait)."); one bait is consumed at cast start — walk-away cancels get
+  no refund, the bait sank with the cast. Colony fishers burn one
+  bait from the store per harvest for a doubled haul (meals/materials
+  convention); unbaited fishing stays the silent ×1 default.
 - **Fishing cast window + animated visuals** — fishing is now the one
   timed gather: a 3-second cast holds the catch, walking away cancels it
   ("You moved — the fish got away."). Fish-spot decals breathe and carry

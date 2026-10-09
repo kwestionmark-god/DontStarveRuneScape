@@ -241,6 +241,22 @@ law shapes it.
      DS (walking away loses the fish — the wait is real time),
      MC (the spot itself telegraphs "fish here"; the cast reads at a
      glance).
+   - **Fishing — bait economy** — **done 2026-10-09.** Fishing is now a
+     prepared activity: `craft_fishing_bait` (shells×2 + fibers×1,
+     crafting 1, ×4 per batch, worm-segment sprite reused) turns coastal
+     trash into catch-doubling consumables. Player casts consume one bait
+     at cast START — the bait sinks with the cast, so walk-away cancels
+     get no refund (honest grind) — and baited catches land ×2 with
+     "(bait)" in the message. Worker fishers burn one colony-store bait
+     per harvest for a doubled haul via the meals/materials
+     stock-consumption idiom; unbaited fishing stays the silent ×1
+     default, visible in the stock ledger. Unbaited casts still work —
+     bait is an economy, not a wall. Spec:
+     `docs/superpowers/specs/2026-10-09-fishing-bait-design.md`.
+     Pillars held: RS (the prep loop — shells → bait → doubled catches),
+     DS (per-cast consumption, no refund; entry-tier but real
+     ingredients), MC (the doubled catch names itself; workers mirror
+     the stock-visibility convention).
    - Parked sub-slice: refused-messaging on the work-order PANEL itself
      (the gate exists; the UI hint is follow-up).
    - The fusion is **not bound to the inspiration titles**: entirely

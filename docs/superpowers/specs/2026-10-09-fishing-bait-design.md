@@ -1,7 +1,7 @@
 # Fishing bait — prepared casts and colony bait logistics — design
 
 Date: 2026-10-09
-Status: drafted
+Status: implemented (RED `514357c`; GREEN `0207b00`)
 Slice: next-arc continuation — "bait" (user-scoped after the rod slice:
 "whatever pieces would make a fishing skill satisfyingly grindy in a
 survival sandbox with colony dynamics"). User-confirmed scope: bait item +
