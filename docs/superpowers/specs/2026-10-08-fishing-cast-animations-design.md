@@ -3,9 +3,11 @@
 Date: 2026-10-08
 Status: implemented (cast window RED `158904c`/GREEN `302c5e4`; cancel RED
 `82b5ccf`/GREEN `dbf89ca`; visuals + deadlock fix `4a856cb`). Visual
-pixel-diff verification PENDING — the verification run was blocked by the
-command approval flow; re-run baseline/cast captures when the user is at
-the keyboard.
+pixel-diff verification COMPLETE 2026-10-09: bobber blob present mid-cast
+(81 px at screen-center), absent at baseline and after resolve (no state
+leak); bobber bobs ±5 px between mid-cast frames; 6.6k px of ripple motion
+around the spot between frames (rings animate). Captures run clean thanks
+to the PathOverride deadlock fix.
 Slice: post-roadmap frontier — user request: "animated fishspot visuals +
 an animation for the player while fishing". Builds on the fishing rod
 slice (`345e50e`).
