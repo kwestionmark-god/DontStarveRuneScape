@@ -268,6 +268,22 @@ public sealed class ActionSystem
     // ─── Update ──────────────────────────────────────────────────────────────
 
     /// <summary>
+    /// Cancel the running action (walk-away, interruption): idle it with
+    /// no yield and no completion. Returns true when a running action was
+    /// cancelled; false when nothing was running (no-op).
+    /// </summary>
+    public bool CancelActive()
+    {
+        if (Active.State != ActionState.Running)
+            return false;
+        Active.State = ActionState.Idle;
+        Active.Resource = null;
+        Active.RecipeId = null;
+        Active.DurationRemaining = 0f;
+        return true;
+    }
+
+    /// <summary>
     /// Update the active action. Called every frame.
     /// </summary>
     /// <param name="dt">Delta time in seconds.</param>

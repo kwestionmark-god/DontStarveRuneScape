@@ -208,13 +208,13 @@ public class FishingTests
             "a cancelled cast must not yield");
         Assert.Equal(0f, sm.GetSkill("fishing").Xp);
 
-        // And the player can immediately start a fresh cast.
-        Assert.Null(system.StartAction(ActionType.Fishing, node, sm, inv));
-        Assert.True(system.Active.IsBusy);
-
         // Cancelling an idle action is a no-op (returns false).
         Assert.False(system.CancelActive());
         Assert.False(system.Active.IsBusy);
+
+        // And the player can immediately start a fresh cast.
+        Assert.Null(system.StartAction(ActionType.Fishing, node, sm, inv));
+        Assert.True(system.Active.IsBusy);
     }
 
     [Fact]
