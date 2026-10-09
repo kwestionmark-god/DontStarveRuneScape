@@ -200,6 +200,24 @@ law shapes it.
      Pillars held: RS (progression gates the infinite node), DS (the
      grind stays honest — water costs a crafted tool), MC (the gate is
      stock-visibility, not a new UI).
+   - **Fishing — rod mechanics + fishing skill** — **done 2026-10-08.**
+     Fish are no longer free: `fish_spot` requires a fishing_rod, a
+     craftable equippable tool (planks×2 + grass_rope×1, crafting level 2,
+     sprite reused); `required_level` dropped 5 → 1 so the only fishing XP
+     source isn't stranded behind its own gate. Catches now train a real
+     `fishing` skill (net-new; XP previously leaked into foraging for the
+     player, mining for workers). Two landmines the design dodged: a
+     Foraging-route XP leak (CompleteAction nulls Active.Resource before
+     ProcessCompletion maps the skill — only the new `ActionType.Fishing`
+     enum survives the reset) and the worker any-tool-node → mining map
+     (GatherSkillFor gained a fishing branch before the tool check). Player
+     gate rides the existing tool pipeline verbatim; workers fish when the
+     rod is in stock (bucket convention). Skills panel gained a fishing
+     row. Spec:
+     `docs/superpowers/specs/2026-10-08-fishing-rod-skill-design.md`.
+     Pillars held: RS (progression gates the node AND names the skill it
+     trains), DS (the grind stays honest — fish cost a crafted rod),
+     MC (readability — existing refusal vocabulary, existing decal art).
    - Parked sub-slice: refused-messaging on the work-order PANEL itself
      (the gate exists; the UI hint is follow-up).
    - The fusion is **not bound to the inspiration titles**: entirely

@@ -8,6 +8,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Fishing skill + rod gate** — fish are no longer free: `fish_spot` now
+  requires a craftable `fishing_rod` (planks×2 + grass_rope×1, crafting
+  level 2, elder-wood-staff sprite reused). Catches train a real `fishing`
+  skill — new `ActionType.Fishing` routes XP correctly for the player
+  (previously leaked into foraging), and `GatherSkillFor` gained a fishing
+  branch so rod-gated nodes train workers' fishing (previously mining).
+  `fish_spot.required_level` dropped 5 → 1 (the only fishing XP source
+  can't be stranded behind its own gate). Workers fish when the rod is in
+  stock (bucket convention); skills panel gained a fishing row.
 - **Dashboard hub (O)** — live player/survival, location, inventory, quest,
   crafting, and faction summaries; choose destinations by mouse or keyboard,
   then return from dashboard-launched panels with O or the on-screen button.

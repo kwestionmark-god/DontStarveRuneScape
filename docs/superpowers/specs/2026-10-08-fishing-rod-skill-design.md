@@ -1,7 +1,7 @@
 # Fishing — rod mechanics and the fishing skill — design
 
 Date: 2026-10-08
-Status: drafted
+Status: implemented (RED `4bcf55e`; GREEN `345e50e`)
 Slice: next-arc item 2 — "fishing as a real skill (catches/bait/rod)" (per
 user-approved scope: skill + rod now, bait next).
 
