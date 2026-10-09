@@ -8,6 +8,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Fishing rod tiers — bone rod** — the cast window is the tier lever:
+  Carve Bone Fishing Rod (wolf_bone×2 + grass_rope×1, crafting 4) casts
+  in 2s where the carved plank rod takes 3s ("You cast your bone
+  rod..."). Tier buys speed, never yield — yield stays the bait
+  economy's knob. The player path recognizes the bone rod free via the
+  tool-suffix match; the colony-store tool check gained the `bone_`
+  arm so a store-side bone rod satisfies the fishing gate (extends the
+  stone_axe convention).
 - **Fishing bait economy** — fishing is now a prepared activity: Mix
   Fishing Bait (shells×2 + fibers×1, crafting level 1, ×4 per batch)
   turns coastal trash into catch-doubling consumables. Baited player

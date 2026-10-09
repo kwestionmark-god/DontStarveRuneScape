@@ -257,6 +257,22 @@ law shapes it.
      DS (per-cast consumption, no refund; entry-tier but real
      ingredients), MC (the doubled catch names itself; workers mirror
      the stock-visibility convention).
+   - **Fishing — rod tiers (bone rod)** — **done 2026-10-09.** The cast
+     window is the tier lever: the carved rod (crafting 2) casts in 3s,
+     the bone rod (wolf_bone×2 + grass_rope×1, crafting 4, bone_wolf
+     sprite) in 2s — tier buys speed, never yield (yield stays the
+     bait economy's knob, both stay relevant). Player path free via the
+     FindEquippedTool suffix match (the tool-check's matched id is now
+     hoisted for the Fishing branch); the cast notification names the
+     rod. Found and fixed a worker gap while grounding: the colony-store
+     tool check only matched exact + `stone_` ids, so a store-side bone
+     rod would have silently failed the gate — `CanWorkerHarvest`
+     gained the `bone_` arm (stone_axe convention extended). Spec:
+     `docs/superpowers/specs/2026-10-09-rod-tiers-bone-rod-design.md`.
+     Pillars held: RS (tool progression on one node — entry vs
+     upgrade), DS (the upgrade costs combat drops, not wood; the base
+     rod never stops working), MC (the notification names the tier;
+     no new systems).
    - Parked sub-slice: refused-messaging on the work-order PANEL itself
      (the gate exists; the UI hint is follow-up).
    - The fusion is **not bound to the inspiration titles**: entirely

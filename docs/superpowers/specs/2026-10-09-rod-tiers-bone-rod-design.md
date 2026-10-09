@@ -1,7 +1,7 @@
 # Fishing rod tiers — bone rod — design
 
 Date: 2026-10-09
-Status: drafted
+Status: implemented (RED `dd0bed4`; GREEN `a03597d`)
 Slice: next-arc continuation — "rod TIERS" (user: "whatever makes fishing
 satisfyingly grindy in a survival sandbox with colony dynamics"). The
 cast window (3178c94) becomes the tier lever: better rod, shorter cast.
