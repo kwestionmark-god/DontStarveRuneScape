@@ -619,6 +619,17 @@ public sealed class RecruitmentSystem
                         quantity *= 2;
                 }
             }
+            // Colony bait: a fisher burns one bait per harvest for a
+            // doubled haul — the same stock-consumption idiom as meals and
+            // construction materials (RemoveItem returns false when not
+            // stocked; unbaited is the silent default).
+            if (quantity > 0
+                && resource.ResourceDef?.ToolRequirement == "fishing_rod"
+                && colony is { IsFounded: true } baitColony
+                && baitColony.RemoveItem("fishing_bait", 1))
+            {
+                quantity *= 2;
+            }
             if (quantity > 0)
             {
                 if (!inCave && colony?.IsFounded == true)

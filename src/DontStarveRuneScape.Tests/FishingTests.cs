@@ -465,7 +465,9 @@ public class FishingTests
         Assert.Equal(2, result.Quantity);
         Assert.Contains("(bait)", result.Message);
         Assert.Equal(15f, result.Xp); // XP is per-catch, not per-fish
-        Assert.Equal(1, inv.GetItemQuantity("fishing_bait"));
+        // 3 bait − 1 consumed at cast start = 2 remain; consumption happens
+        // once per cast, not per fish.
+        Assert.Equal(2, inv.GetItemQuantity("fishing_bait"));
     }
 
     [Fact]

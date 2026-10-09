@@ -51,6 +51,10 @@ public sealed class ActiveAction
     /// <summary>Tile coords for regrow tracking.</summary>
     public (int X, int Y)? TileXy { get; set; }
 
+    /// <summary>True when this cast consumed fishing bait at start — the
+    /// catch lands doubled (the bait sank with the cast; no refund).</summary>
+    public bool Baited { get; set; }
+
     /// <summary>
     /// Create an ActiveAction.
     /// </summary>

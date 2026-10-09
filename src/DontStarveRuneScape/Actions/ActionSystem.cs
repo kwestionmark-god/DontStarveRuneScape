@@ -180,6 +180,13 @@ public sealed class ActionSystem
             // the rod/line/bobber animation plays in).
             action.DurationRemaining = Constants.FishingCastSeconds;
             AddNotification("You cast your line...", (120, 190, 255));
+
+            // Baited cast: one bait per cast, consumed the moment the line
+            // hits the water — honest grind: no refund on walk-away cancel,
+            // the bait sank with the cast.
+            action.Baited = inventory.RemoveItem("fishing_bait", 1);
+            if (action.Baited)
+                AddNotification("Baited hook...", (150, 220, 160));
         }
         else if (actionType == ActionType.Cooking && recipeId != null)
         {
@@ -400,12 +407,21 @@ public sealed class ActionSystem
                 // quantity = Math.Max(1, (int)(quantity * outdoorMod));
             }
 
+            // Baited fishing casts land a doubled catch — the bait economy:
+            // one consumed bait buys two fish where an unbaited cast lands
+            // one.
+            bool baited = action.ActionType == ActionType.Fishing && action.Baited;
+            if (baited)
+                quantity *= 2;
+
             // Return structured result
             return ActionResult.SuccessResult(
                 action.YieldItem,
                 quantity,
                 action.XpReward,
-                $"Harvested {quantity} {action.YieldItem}.");
+                baited
+                    ? $"Harvested {quantity} {action.YieldItem} (bait)."
+                    : $"Harvested {quantity} {action.YieldItem}.");
         }
         else
         {

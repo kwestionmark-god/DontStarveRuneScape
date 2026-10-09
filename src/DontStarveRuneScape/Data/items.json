@@ -380,6 +380,15 @@
       "sprite_key": "items/elder_wood_staff"
     },
     {
+      "id": "fishing_bait",
+      "name": "Fishing Bait",
+      "stack_size": 20,
+      "is_equippable": false,
+      "is_essential_tool": false,
+      "is_food": false,
+      "sprite_key": "items/worm_segment"
+    },
+    {
       "id": "pickaxe",
       "name": "Pickaxe",
       "stack_size": 1,
