@@ -59,7 +59,8 @@ public sealed class FireInteraction
         }
 
         // Light the fire
-        var result = game.Firemaking.LightFire(fuelQueue, game.Inventory, game.Player.WorldX, game.Player.WorldY);
+        var result = game.Firemaking.LightFire(fuelQueue, game.Inventory, game.Player.WorldX, game.Player.WorldY,
+            game.SkillManager);
 
         if (result.Success)
         {

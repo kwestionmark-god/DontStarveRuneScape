@@ -483,6 +483,7 @@ public sealed class SkillPanel
 
     private static readonly (string Id, string Name, string Glyph, byte R, byte G, byte B)[] Skills =
     {
+        ("attack",      "Attack",       "At", 200,  64,  56),
         ("woodcutting",  "Woodcutting",  "Wc",  96, 160,  84),
         ("mining",       "Mining",       "Mn", 150, 146, 128),
         ("foraging",     "Foraging",     "Fo", 118, 186, 110),
@@ -496,29 +497,17 @@ public sealed class SkillPanel
         ("intelligence", "Intelligence", "In", 122, 148, 196),
     };
 
-    private static readonly (string Key, string Name)[] SubStats =
-    {
-        ("success_rate",      "Success rate"),
-        ("harvest_boost",     "Harvest boost"),
-        ("extra_resources",   "Extra resources"),
-        ("efficiency",        "Efficiency"),
-        ("stamina_reduction", "Stamina reduction"),
-    };
-
-    // Intelligence-only sub-stats (gate quests, trade stock, recruitment).
-    private static readonly (string Key, string Name)[] IntelExtraStats =
-    {
-        ("commerce",   "Commerce"),
-        ("persuasion", "Persuasion"),
-    };
-
-    // Sub-stats for the selected skill: the generic five, plus the
-    // intelligence extras when intelligence is selected.
+    // The menu for the selected skill comes from the manager's catalog —
+    // the single source SpendPoint admits (logic and UI can never
+    // disagree). The old one-size-fits-all five (plus the intelligence
+    // extras) are gone.
     private static (string Key, string Name)[] StatsFor(string skillId) =>
-        skillId == "intelligence" ? [.. SubStats, .. IntelExtraStats] : SubStats;
+        SkillManager.SubStatCatalog.TryGetValue(skillId, out var keys)
+            ? keys.Select(k => (k, SkillManager.SubStatNames.TryGetValue(k, out var n) ? n : k)).ToArray()
+            : [];
 
     private const float ContentW = 780f;
-    private const float ContentH = 520f; // 10 skill rows (RowH 42 + gap 4) + header
+    private const float ContentH = 580f; // 12 skill rows (RowH 42 + gap 4) + header
     private const float RowH = 42f;
     private const float RowGap = 4f;
     private const float HeaderH = 26f;
@@ -528,7 +517,7 @@ public sealed class SkillPanel
     private readonly float[] _rowY = new float[Skills.Length];
     private float _rowX, _rowW;
     private float _detailX, _detailY, _detailW;
-    private readonly float[] _statY = new float[SubStats.Length + IntelExtraStats.Length];
+    private readonly float[] _statY = new float[SkillManager.SubStatCatalog.Values.Max(v => v.Length)];
     private float _plusX, _plusY0;             // [+] button column
 
     // Selection mode: 0 = skill list (left), 1 = [+] buttons (right)

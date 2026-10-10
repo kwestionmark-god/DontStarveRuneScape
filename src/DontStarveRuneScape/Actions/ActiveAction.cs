@@ -60,6 +60,12 @@ public sealed class ActiveAction
     /// whatever level the XP from this catch buys).</summary>
     public int FishingLevel { get; set; } = 1;
 
+    /// <summary>Invested rare-luck points at cast start (fishing.rare_luck
+    /// sub-stat) — the luck twin of FishingLevel, frozen per cast. Zero
+    /// keeps the rare table exactly as the rare-drops slice shipped it.
+    /// </summary>
+    public float FishingLuck { get; set; } = 0f;
+
     /// <summary>
     /// Create an ActiveAction.
     /// </summary>

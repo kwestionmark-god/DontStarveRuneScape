@@ -69,22 +69,41 @@ public sealed class CraftingSystem
                 };
         }
 
-        // All-or-nothing: the output must fit before anything is consumed.
-        if (!inventory.CanAdd(recipe.OutputItem, recipe.OutputQuantity))
+        // All-or-nothing: the output (plus any harvest_boost extra) must
+        // fit before anything is consumed.
+        // harvest_boost: invested points (raw) = % chance of +1 output —
+        // the production-skill yield arm (0 points = exact legacy output).
+        float yieldBonus = skillManager.GetSubStatPoints(recipe.RequiredSkill, "harvest_boost");
+        int extraOutput = yieldBonus > 0f
+            && new Random().NextDouble() * 100f < yieldBonus ? 1 : 0;
+        int outputQuantity = recipe.OutputQuantity + extraOutput;
+
+        if (!inventory.CanAdd(recipe.OutputItem, outputQuantity))
             return new CraftResult { Success = false, Message = "Inventory is full." };
 
-        foreach (var (itemId, quantity) in groupedInputs)
-            inventory.RemoveItem(itemId, quantity);
+        // efficiency: invested points (raw) = % chance to save one unit
+        // of the recipe's largest input group (0 points = full consume).
+        float saveBonus = skillManager.GetSubStatPoints(recipe.RequiredSkill, "efficiency");
+        var largestInput = groupedInputs.OrderByDescending(g => g.Quantity).First();
 
-        inventory.AddItem(recipe.OutputItem, recipe.OutputQuantity);
+        foreach (var (itemId, quantity) in groupedInputs)
+        {
+            int consume = quantity;
+            if (itemId == largestInput.ItemId && saveBonus > 0f
+                && new Random().NextDouble() * 100f < saveBonus)
+                consume--;
+            inventory.RemoveItem(itemId, consume);
+        }
+
+        inventory.AddItem(recipe.OutputItem, outputQuantity);
         OnCrafted?.Invoke(recipe.OutputItem);
 
         var levelUpMessages = skillManager.AddXpWithNotification(recipe.RequiredSkill, recipe.XpReward);
         return new CraftResult
         {
             Success = true,
-            Message = $"Crafted {recipe.OutputQuantity} {recipe.OutputItem}.",
-            ProducedItems = { [recipe.OutputItem] = recipe.OutputQuantity },
+            Message = $"Crafted {outputQuantity} {recipe.OutputItem}.",
+            ProducedItems = { [recipe.OutputItem] = outputQuantity },
             XpGained = recipe.XpReward,
             LevelUpMessages = levelUpMessages,
         };

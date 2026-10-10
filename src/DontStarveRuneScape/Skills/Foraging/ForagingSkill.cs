@@ -26,10 +26,14 @@ public sealed class ForagingSkill
         return _skillManager.GetEffectiveStat("foraging", "success_rate");
     }
 
-    /// <summary>Calculate harvest yield.</summary>
-    public int CalculateHarvest(int baseYield)
+    /// <summary>Calculate harvest yield. The harvest_boost bonus (raw
+    /// invested points) is a percentage chance for +1 — same shape as the
+    /// woodcutting/mining yield arms; it was stashed but dead until the
+    /// individual-stat-menus slice wired it.</summary>
+    public int CalculateHarvest(int baseYield, float extraResourcesBonus = 0f)
     {
-        // Foraging might have different yield logic
+        if (extraResourcesBonus > 0f && new System.Random().NextDouble() * 100.0 < extraResourcesBonus)
+            return baseYield + 1;
         return baseYield;
     }
 }

@@ -217,13 +217,19 @@ public sealed class CombatSystem
 
         float weapon = player.Gear?.GetWeaponDamage() ?? 1f;
         float bonus = player.Gear?.GetTotalAttackBonus() ?? 0f;
-        int damage = Math.Max(1, (int)MathF.Round(weapon + bonus - target.Defence));
+        // attack.power: invested sub-stat points add flat damage (raw
+        // read — zero points keeps the legacy math bit-identical).
+        float powerPts = skills.GetSubStatPoints("attack", "power");
+        int damage = Math.Max(1, (int)MathF.Round(weapon + bonus + powerPts - target.Defence));
         target.Health -= damage;
         DamageNumbers.Add(new DamageNumber { Value = damage, WorldX = target.WorldX, WorldY = target.WorldY });
 
-        // Attack speed: base cooldown reduced by the gear's speed bonus.
+        // Attack speed: base cooldown reduced by the gear's speed bonus,
+        // plus attack.speed points (−0.12s each, same 0.3s floor as gear).
         float speedBonus = player.Gear?.GetTotalSpeedBonus() ?? 0f;
-        _playerAttackCooldown = MathF.Max(0.3f, Constants.CombatBaseAttackCooldown - speedBonus * Constants.CombatSpeedStatCooldownReduction);
+        float speedPts = skills.GetSubStatPoints("attack", "speed");
+        _playerAttackCooldown = MathF.Max(0.3f, Constants.CombatBaseAttackCooldown
+            - speedBonus * Constants.CombatSpeedStatCooldownReduction - speedPts * 0.12f);
 
         bool killed = !target.IsAlive();
         string message = killed

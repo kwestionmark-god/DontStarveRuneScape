@@ -288,7 +288,12 @@ public sealed class RecruitmentSystem
                     continue;
                 }
                 npc.VelocityX = npc.VelocityY = 0f;
-                constructionSite.WorkProgress += Math.Min(dt, 0.25f);
+                // construction.build_speed: the FOUNDER's invested points
+                // (raw) speed the colony's builds +5%/pt — competence
+                // shapes the colony (colony-skill-structure law). Zero
+                // points keeps the legacy 20s (80-tick) build exactly.
+                float buildMult = 1f + (skills?.GetSubStatPoints("construction", "build_speed") ?? 0f) * 0.05f;
+                constructionSite.WorkProgress += Math.Min(dt, 0.25f) * buildMult;
                 bool upgrading = constructionSite.UpgradingToId != null;
                 constructionSite.WorkStatus = upgrading
                     ? $"Upgrading ({Math.Min(99, (int)(constructionSite.WorkProgress / 20f * 100f))}%)"

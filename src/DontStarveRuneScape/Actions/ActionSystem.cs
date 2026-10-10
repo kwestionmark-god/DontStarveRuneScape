@@ -161,7 +161,7 @@ public sealed class ActionSystem
             {
                 action.StaminaCost = 2.0f * (1.0f - ForagingSkill.GetStaminaReduction());
                 action.SuccessRateBonus = ForagingSkill.GetSuccessRate() * 100.0f; // Convert to percentage
-                action.ExtraResourcesBonus = skillManager.GetEffectiveStat("foraging", "harvest_boost");
+                action.ExtraResourcesBonus = skillManager.GetSubStatPoints("foraging", "harvest_boost");
             }
             else
             {
@@ -182,12 +182,16 @@ public sealed class ActionSystem
             // sub-stats drive success and yield, same shape as the
             // foraging fallback below.
             action.StaminaCost = 2.0f;
-            action.SuccessRateBonus = skillManager.GetEffectiveStat("fishing", "success_rate") * 1.0f;
-            action.ExtraResourcesBonus = skillManager.GetEffectiveStat("fishing", "harvest_boost");
+            // Family scale: one success_rate point buys the same
+            // threshold swing as woodcutting/mining/foraging (×100),
+            // not the ×1 the fishing slice shipped.
+            action.SuccessRateBonus = skillManager.GetSubStatPoints("fishing", "success_rate") * 100.0f;
+            action.ExtraResourcesBonus = skillManager.GetSubStatPoints("fishing", "harvest_boost");
 
-            // Rare-table input: the fisher's level at cast start — frozen
-            // for the roll the catch will make.
+            // Rare-table inputs, frozen at cast start: the fisher's level
+            // and invested rare-luck points (the roll describes the cast).
             action.FishingLevel = skillManager.GetSkillLevel("fishing");
+            action.FishingLuck = skillManager.GetSubStatPoints("fishing", "rare_luck");
 
             // Fishing is the one timed gather: the cast holds for the
             // rod tier's window before the catch resolves (the window the
@@ -424,7 +428,16 @@ public sealed class ActionSystem
             }
             else if (action.ActionType == ActionType.Foraging && ForagingSkill != null)
             {
-                quantity = ForagingSkill.CalculateHarvest(action.YieldQuantity);
+                quantity = ForagingSkill.CalculateHarvest(action.YieldQuantity, action.ExtraResourcesBonus);
+            }
+            else if (action.ActionType == ActionType.Fishing)
+            {
+                // Fishing yield arm (the harvest_boost consumer — this
+                // stat was stashed but dead until this slice): same +1
+                // chance shape as the sibling gatherers, raw points.
+                if (action.ExtraResourcesBonus > 0f
+                    && new System.Random().NextDouble() * 100.0 < action.ExtraResourcesBonus)
+                    quantity++;
             }
 
             // Apply seasonal resource multiplier to yield (placeholder)
@@ -460,7 +473,8 @@ public sealed class ActionSystem
                     ? (ForceRareDrop.Length == 0 ? null : ForceRareDrop)
                     : FishingRareTable.Roll(
                         (float)(RareDropRandom ?? new System.Random()).NextDouble(),
-                        action.FishingLevel);
+                        action.FishingLevel,
+                        action.FishingLuck);
             }
 
             string message = baited

@@ -177,9 +177,13 @@ public sealed class Player
     {
         var pool = ActionSystem?.Stamina;
         bool wasSprinting = Sprinting;
+        // agility.sprint_cost: invested points cut the drain −5%/pt,
+        // capped at 75% (raw read — 0 points = exact legacy drain).
+        float sprintCut = Math.Min(0.75f,
+            (SkillManager?.GetSubStatPoints("agility", "sprint_cost") ?? 0f) * 0.05f);
         Sprinting = sprintHeld && moving && dt > 0f
             && pool is { IsExhausted: false }
-            && pool.Consume(Constants.SprintStaminaDrainPerSecond * dt);
+            && pool.Consume(Constants.SprintStaminaDrainPerSecond * dt * (1f - sprintCut));
         // The sprint ran the pool dry → forced rest. Fire once on the
         // sprinting→exhausted edge only, so a held key does not spam it
         // every frame.
@@ -202,7 +206,11 @@ public sealed class Player
     {
         if (IsJumping) return false;
         var pool = ActionSystem?.Stamina;
-        if (pool == null || !pool.Consume(Constants.JumpStaminaCost))
+        // agility.jump_cost: invested points cut the cost −5%/pt, capped
+        // at 75% (raw read — 0 points = the exact legacy cost).
+        float jumpCut = Math.Min(0.75f,
+            (SkillManager?.GetSubStatPoints("agility", "jump_cost") ?? 0f) * 0.05f);
+        if (pool == null || !pool.Consume(Constants.JumpStaminaCost * (1f - jumpCut)))
             return false;
 
         _jumpTimeRemaining = Constants.JumpDuration;

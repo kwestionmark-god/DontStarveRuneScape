@@ -11,6 +11,47 @@ public sealed class SkillManager
 {
     private readonly Dictionary<string, SkillData> _skills = new();
 
+    /// <summary>Per-skill spendable sub-stats — the single source the
+    /// panel renders and SpendPoint admits. A key appears on a skill only
+    /// if a live seam consumes it (spec:
+    /// 2026-10-09-individual-stat-menus-design.md).</summary>
+    public static readonly IReadOnlyDictionary<string, string[]> SubStatCatalog = new Dictionary<string, string[]>
+    {
+        ["attack"] = ["power", "speed"],
+        ["woodcutting"] = ["success_rate", "harvest_boost", "efficiency"],
+        ["mining"] = ["success_rate", "extra_resources", "efficiency"],
+        ["foraging"] = ["success_rate", "harvest_boost", "stamina_reduction"],
+        ["fishing"] = ["success_rate", "harvest_boost", "rare_luck"],
+        ["cooking"] = ["harvest_boost", "efficiency"],
+        ["firemaking"] = ["fuel_saver", "duration"],
+        ["crafting"] = ["harvest_boost", "efficiency"],
+        ["metallurgy"] = ["harvest_boost", "efficiency"],
+        ["construction"] = ["build_speed", "efficiency"],
+        ["intelligence"] = ["commerce", "persuasion"],
+        ["agility"] = ["sprint_cost", "jump_cost"],
+    };
+
+    /// <summary>Display names shared across skills (keys are reused by
+    /// design — one name per mechanic).</summary>
+    public static readonly IReadOnlyDictionary<string, string> SubStatNames = new Dictionary<string, string>
+    {
+        ["success_rate"] = "Success rate",
+        ["harvest_boost"] = "Harvest boost",
+        ["extra_resources"] = "Extra resources",
+        ["efficiency"] = "Efficiency",
+        ["stamina_reduction"] = "Stamina reduction",
+        ["power"] = "Power",
+        ["speed"] = "Attack speed",
+        ["rare_luck"] = "Rare luck",
+        ["fuel_saver"] = "Fuel saver",
+        ["duration"] = "Fire duration",
+        ["build_speed"] = "Build speed",
+        ["commerce"] = "Commerce",
+        ["persuasion"] = "Persuasion",
+        ["sprint_cost"] = "Sprint cost",
+        ["jump_cost"] = "Jump cost",
+    };
+
     public SkillManager()
     {
         var skillIds = new[]
@@ -22,7 +63,13 @@ public sealed class SkillManager
 
         foreach (var id in skillIds)
         {
-            _skills[id] = new SkillData { Id = id };
+            var data = new SkillData { Id = id };
+            // The skill's menu comes from the catalog — logic and panel
+            // can never disagree.
+            if (SubStatCatalog.TryGetValue(id, out var stats))
+                foreach (var key in stats)
+                    data.SubStats[key] = 0f;
+            _skills[id] = data;
         }
 
         // Intelligence also carries the commerce/persuasion sub-stats that
@@ -125,6 +172,15 @@ public sealed class SkillManager
         return true;
     }
 
+    /// <summary>Raw invested points in a sub-stat — no level scaling, no
+    /// gear. New consumers read this so zero-point characters keep exact
+    /// legacy math.</summary>
+    public float GetSubStatPoints(string skillId, string statName)
+    {
+        return _skills.TryGetValue(skillId, out var skill)
+            && skill.SubStats.TryGetValue(statName, out float value) ? value : 0f;
+    }
+
     /// <summary>Progress within the current level: xp earned into the level and xp needed
     /// to reach the next.</summary>
     public void ProgressToNext(string skillId, out float into, out float needed)
@@ -181,23 +237,34 @@ public sealed class SkillManager
         return snapshot;
     }
 
-    /// <summary>Restore from snapshot.</summary>
-    public void RestoreSnapshot(SkillSnapshot snapshot)
+    /// <summary>Restore from snapshot. Sub-stat keys the skill's menu no
+    /// longer carries are RESPEC'D: their points return to that skill's
+    /// unallocated pool (never a silent loss). Returns the total number
+    /// of refunded points.</summary>
+    public int RestoreSnapshot(SkillSnapshot snapshot)
     {
+        int refunded = 0;
         foreach (var kvp in snapshot.Skills)
         {
-            if (_skills.TryGetValue(kvp.Key, out var skill))
+            if (!_skills.TryGetValue(kvp.Key, out var skill))
+                continue;
+            skill.Level = kvp.Value.Level;
+            skill.Xp = kvp.Value.Xp;
+            skill.UnallocatedPoints = kvp.Value.StatPoints;
+            foreach (var statKvp in kvp.Value.SubStats)
             {
-                skill.Level = kvp.Value.Level;
-                skill.Xp = kvp.Value.Xp;
-                skill.UnallocatedPoints = kvp.Value.StatPoints;
-                foreach (var statKvp in kvp.Value.SubStats)
+                if (skill.SubStats.ContainsKey(statKvp.Key))
+                    skill.SubStats[statKvp.Key] = statKvp.Value;
+                else
                 {
-                    if (skill.SubStats.ContainsKey(statKvp.Key))
-                        skill.SubStats[statKvp.Key] = statKvp.Value;
+                    // Dead key on this skill's new menu: refund the
+                    // invested points, visibly spendable again.
+                    skill.UnallocatedPoints += statKvp.Value;
+                    refunded += statKvp.Value;
                 }
             }
         }
+        return refunded;
     }
 }
 
@@ -210,12 +277,5 @@ public sealed class SkillData
     public float Xp { get; set; } = 0f;
     public int Level { get; set; } = 1;
     public int UnallocatedPoints { get; set; } = 0;
-    public Dictionary<string, float> SubStats { get; } = new()
-    {
-        ["success_rate"] = 0f,
-        ["harvest_boost"] = 0f,
-        ["extra_resources"] = 0f,
-        ["efficiency"] = 0f,
-        ["stamina_reduction"] = 0f,
-    };
+    public Dictionary<string, float> SubStats { get; } = new();
 }

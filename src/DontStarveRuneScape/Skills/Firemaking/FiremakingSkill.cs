@@ -38,7 +38,8 @@ public sealed class FiremakingSkill
         return result;
     }
 
-    public FireResult LightFire(List<(string ItemId, int Quantity)> fuelQueue, Inventory inventory, float x, float y)
+    public FireResult LightFire(List<(string ItemId, int Quantity)> fuelQueue, Inventory inventory, float x, float y,
+        SkillManager? skills = null)
     {
         if (fuelQueue.Count == 0)
             return new FireResult { Success = false, Message = "No fuel provided." };
@@ -49,8 +50,10 @@ public sealed class FiremakingSkill
             inventory.RemoveItem(itemId, qty);
         }
 
-        // Create fire (duration based on fuel)
-        float duration = 30f; // Base 30 seconds
+        // firemaking.duration: invested points (raw) extend the burn
+        // +5s each; no manager = the flat legacy 30s.
+        float durationBonus = (skills?.GetSubStatPoints("firemaking", "duration") ?? 0f) * 5f;
+        float duration = 30f + durationBonus;
         var fire = new FireInstance
         {
             WorldX = x,
@@ -59,6 +62,13 @@ public sealed class FiremakingSkill
             MaxTime = duration,
         };
         _activeFires.Add(fire);
+
+        // firemaking.fuel_saver: invested points (raw) = 4%/pt chance to
+        // recover one unit of the first consumed fuel — the frugal
+        // firemaker's rebate, paid back into the inventory.
+        float saveChance = (skills?.GetSubStatPoints("firemaking", "fuel_saver") ?? 0f) * 4f;
+        if (saveChance > 0f && new System.Random().NextDouble() * 100f < saveChance)
+            inventory.AddItem(fuelQueue[0].ItemId, 1);
 
         return new FireResult
         {

@@ -20,17 +20,24 @@ public static class FishingRareTable
     /// <summary>Each fishing level adds 0.2% boot chance.</summary>
     public const float BootPerLevel = 0.002f;
 
+    /// <summary>Each invested rare-luck point widens the pearl window by 0.1%.</summary>
+    public const float PearlPerLuck = 0.001f;
+
+    /// <summary>Each invested rare-luck point widens the boot window by 0.1%.</summary>
+    public const float BootPerLuck = 0.001f;
+
     /// <summary>
     /// Roll the table. `roll` is a uniform [0,1) sample. Level clamps to
-    /// 1 (an unregistered skill must still roll honestly).
+    /// 1 (an unregistered skill must still roll honestly). Luck is the
+    /// fisher's invested rare_luck points (raw; 0 = the shipped table).
     /// </summary>
     /// <returns>The rare item id, or null for a plain catch.</returns>
-    public static string? Roll(float roll, int level)
+    public static string? Roll(float roll, int level, float luck = 0f)
     {
         int l = Math.Max(1, level);
-        float pearl = PearlBaseChance + PearlPerLevel * (l - 1);
+        float pearl = PearlBaseChance + PearlPerLevel * (l - 1) + PearlPerLuck * luck;
         if (roll < pearl) return "pearl";
-        if (roll < pearl + BootBaseChance + BootPerLevel * (l - 1))
+        if (roll < pearl + BootBaseChance + BootPerLevel * (l - 1) + BootPerLuck * luck)
             return "old_boot";
         return null;
     }

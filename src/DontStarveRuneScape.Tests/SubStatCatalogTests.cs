@@ -269,7 +269,8 @@ public class SubStatCatalogTests
         var result = system.Craft("sticks", inventory, skills);
 
         Assert.True(result.Success, result.Message);
-        int sticks = inventory.GetItemQuantity("sticks");
+        // Real recipe: 1 oak_log -> 3 stick. 200% boost: +1 -> 4 stick.
+        int sticks = inventory.GetItemQuantity("stick");
         Assert.True(sticks == 4, $"200% boost must add +1 output, got {sticks}");
     }
 
@@ -281,9 +282,9 @@ public class SubStatCatalogTests
 
         system.Craft("sticks", inventory, skills);
 
-        // Sticks: 2 oak_logs -> 3 stick. 100% save: one log survives.
+        // Real recipe: 1 oak_log -> 3 stick. 100% save: the log survives.
         int logs = inventory.GetItemQuantity("oak_logs");
-        Assert.True(logs == 5, $"100% efficiency must save one log, got {logs}");
+        Assert.True(logs == 5, $"100% efficiency must save the log, got {logs}");
     }
 
     [Fact]
@@ -294,8 +295,9 @@ public class SubStatCatalogTests
         var result = system.Craft("sticks", inventory, skills);
 
         Assert.True(result.Success, result.Message);
+        // Real recipe: 1 oak_log -> 3 stick; no points = exact legacy.
         Assert.Equal(3, inventory.GetItemQuantity("stick"));
-        Assert.Equal(3, inventory.GetItemQuantity("oak_logs")); // 5 - 2
+        Assert.Equal(4, inventory.GetItemQuantity("oak_logs")); // 5 - 1
     }
 
     // ─── Firemaking: duration + fuel_saver (fire seams) ────────────────
@@ -446,8 +448,12 @@ public class SubStatCatalogTests
     public void ForagingHarvestBoost_FinallyLandsExtraYield()
     {
         // Foraging's harvest_boost was stashed but CalculateHarvest never
-        // consumed it — the bonus param is the fix.
-        var system = new ActionSystem();
+        // consumed it — the bonus param is the fix. The ForagingSkill must
+        // be wired on the system (the class arm is the consumer).
+        var sm = new SkillManager();
+        sm.GetSkill("foraging").SubStats["success_rate"] = 1000f;
+        sm.GetSkill("foraging").SubStats["harvest_boost"] = 200f;
+        var system = new ActionSystem { ForagingSkill = new DontStarveRuneScape.Skills.Foraging.ForagingSkill(sm) };
         var node = new ResourceNode("bush", new ResourceDef
         {
             Name = "Berry Bush",
@@ -459,9 +465,6 @@ public class SubStatCatalogTests
             Seasons = [],
             DepletionCount = 100,
         }, 100f);
-        var sm = new SkillManager();
-        sm.GetSkill("foraging").SubStats["success_rate"] = 1000f;
-        sm.GetSkill("foraging").SubStats["harvest_boost"] = 200f;
 
         Assert.Null(system.StartAction(ActionType.Foraging, node, sm, new Inv()));
         var result = system.Update(0.016f);
@@ -624,8 +627,8 @@ public class SubStatCatalogTests
             var worker = new RecruitNpc
             {
                 NpcId = "builder",
-                WorldX = 12.5f * Constants.TileSize,
-                WorldY = 10.5f * Constants.TileSize,
+                WorldX = 14.5f * Constants.TileSize,
+                WorldY = 9.5f * Constants.TileSize,
                 IsActive = true,
                 IsRecruited = true,
                 RecruitBehavior = "assistant",
