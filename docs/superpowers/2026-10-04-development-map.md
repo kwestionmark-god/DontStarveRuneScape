@@ -293,6 +293,32 @@ law shapes it.
      fisher, luckier water), DS (rares are dredged, never bought; the
      full-bag loss is honest and visible), MC (the catch message
      names the dredge; workers mirror the stock-ledger convention).
+   - **Individual stat menus (per-skill sub-stat catalogs)** — **done
+     2026-10-09.** The skills panel's one-size-fits-all five sub-stats
+     are gone: every skill now has its own menu, single-sourced in
+     `SkillManager.SubStatCatalog`, and every key on every menu has a
+     live consumer. Attack finally appears in the panel (12 rows; its
+     levels were already banking invisible points) with power (+flat
+     damage) and speed (−0.12s/pt attack cooldown, gear floor). New
+     wired stats: fishing rare_luck (widens the pearl/boot windows,
+     stashed at cast start like the level), agility sprint_cost /
+     jump_cost (−5%/pt, cap 75%), firemaking duration (+5s/pt) and
+     fuel_saver (4%/pt fuel rebate), craft-seam harvest_boost (+1
+     output chance) and efficiency (input save) for cooking/crafting/
+     metallurgy, construction build_speed (+5%/pt on colony site
+     ticks — the founder speeds the colony's builds). Honesty fixes
+     while in there: fishing success_rate normalized to the family
+     ×100 scale (was ×1), fishing and foraging harvest_boost were
+     stashed but DEAD — both now have real yield arms. Old saves
+     respec: snapshot keys a skill's new menu drops return as that
+     skill's unallocated points (visible, never lost). All new
+     consumers read RAW invested points (`GetSubStatPoints`) — zero
+     points keeps every legacy number bit-identical. Spec:
+     `docs/superpowers/specs/2026-10-09-individual-stat-menus-design.md`.
+     Pillars held: RS (every point buys something real — a stat ships
+     only with a live consumer), DS (no free power — new knobs are
+     invested-points-only), MC (menus render from the same catalog
+     SpendPoint admits; respec surfaces as the green counter).
    - Parked sub-slice: refused-messaging on the work-order PANEL itself
      (the gate exists; the UI hint is follow-up).
    - The fusion is **not bound to the inspiration titles**: entirely

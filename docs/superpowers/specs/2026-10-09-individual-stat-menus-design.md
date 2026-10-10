@@ -1,7 +1,7 @@
 # Individual stat menus — per-skill allocation catalogs — design
 
 Date: 2026-10-09
-Status: draft (decisions clarified 2026-10-09) → implemented
+Status: implemented (RED `47f927e`; GREEN `bdf8a3f`)
 Slice: user-directed 2026-10-09 ("the stat point allocation menu is one size
 fits all, that doesn't actually fit — individualise these allocation menus
 based on integrative individualised parameters"). The skills panel currently
