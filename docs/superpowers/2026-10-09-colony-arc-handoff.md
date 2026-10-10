@@ -148,9 +148,15 @@ frontier section. Everything below is verified against the tree as of
    quest DAG every run. Parked findings (clarify-round
    non-picks): "combat"→attack (170 XP vanishing), AddXp Level
    recompute, grass_rope dup key, leader-panel E-fork.
-4. **NPC-quest breadth** — quests.json has 18 pinned by NpcDataTests;
-   adding any breaks that pin for a DATA reason (update the pin).
-   herb_gathering is now offered (audit slice B).
+4. **NPC-quest breadth** — **done 2026-10-10 (RED `17b4d62` / GREEN
+   `51be69a`).** quests.json 18→23, npcs.json 17→18: the plains hub
+   (Hayward the Reaper + plains_harvest → boar_hunt → plains_provender),
+   first boards for elder_mara and stone_guardian, the ghost `"combat"`
+   skill retargeted to `attack`, and the leader E-fork replaced by a
+   role menu with tabs (`NpcHubPanel` — E on a multi-role NPC shows
+   Quests AND Diplomacy; single-role NPCs unchanged). Open follow-ups:
+   coastal/swamp side quests; return-to-menu after a tab handoff; the
+   banked unlock-as-event trigger.
 
 ## Standing cautions (beyond the skill's pitfall list)
 

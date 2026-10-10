@@ -1,8 +1,8 @@
 # NPC-quest breadth — design
 
 - **Date:** 2026-10-10
-- **Status:** Proposed (clarify answers in — all three shapes mixed; pure
-  side quests, no recipe/gear gating; leader E-fork fix included)
+- **Status:** Implemented (RED `17b4d62` / GREEN `51be69a`; suite 488
+  total / 487 green / 1 pre-existing skip)
 - **Slice line:** "NPC-quest breadth" (dev-map item 4).
 - **Design law:** RS = the quest web teaches the world's skills and
   factions; DS = hunger, beasts, and weather supply the verbs;
@@ -169,6 +169,14 @@ stone_guardian) → hub with [quests, diplomacy]; leader without quests →
 diplomacy as today; merchant / recruit / plain giver → their panel as
 today.
 
+**Implementation note (found by the tests, not the design):**
+`Game.SetState` closes every open panel on a panel-to-panel move
+(`InputRouter.CloseAllPanels`), so both the hub opener and the tab
+handoff must transition state FIRST and populate the panel AFTER —
+doing it the other way round wipes the session/`FactionInfo` that was
+just set. The menu itself closes with the handoff (press E again to
+reopen it); a return-to-menu affordance is left as a follow-up.
+
 ### Parked finding: "combat" XP
 
 quests.json `gem_mining`, `mountain_pass`, `coastal_defense` award
@@ -226,3 +234,10 @@ Docs: spec status, dev-map item tick + backlog note, CHANGELOG.
 ### Revision history
 
 - 2026-10-10: drafted from clarify answers + live-tree grounding.
+- 2026-10-10: implemented (RED `17b4d62` / GREEN `51be69a`). Design
+  adjustments during RED/GREEN: the leader E-fork became a general
+  multi-role NPC menu (user's call — dashboard-style tabs) instead of a
+  hotkey; the panel-transition ordering fix was found by the tests; the
+  parked "combat"-ghost-XP fix rode along (the new registered-skill
+  law would otherwise be unenforceable); the `herbal_remedy` count was
+  settled at 6 herb (matching its sibling `herb_gathering`'s economy).

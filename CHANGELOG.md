@@ -8,6 +8,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **NPC-quest breadth — the plains hub and two leader boards** —
+  quests.json 18 → 23, npcs.json 17 → 18. A new plains quest giver,
+  Hayward the Reaper (forest_villagers — their territory already
+  includes plains), carries a three-quest chain: Plains Harvest (gather
+  6 wild wheat), Boar Hunt (kill 2 boars), Plains Provender (deliver 2
+  boar meat to Joss and trade at his camp — which finally gives the
+  plains merchant a reason to exist). Elder Mara and the Stone Guardian
+  each gain their first quest (Herbal Remedy, behind Timber Collection;
+  The Guardian's Request, behind Mountain Pass), so the two quest-less
+  faction leaders now have boards. All five are pure side quests — XP,
+  items and gold only, no recipe or gear gating. Two new suite laws pin
+  the slice's invariants: every quest is offered by some NPC, and every
+  quest's skill XP names a skill the game actually registers.
+- **Multi-role NPC menu (the leader E-fork fix)** — an NPC offering more
+  than one interaction now opens a role menu with tabs (the dashboard's
+  own idiom) instead of being hard-routed into a single panel: E on a
+  faction leader with quests shows Quests AND Diplomacy, so the
+  negotiation their own quest line demands is reachable by keyboard
+  again. Single-role NPCs — merchants, recruits, plain quest givers,
+  quest-less leaders — open their panel directly, exactly as before.
+  The tabs come from what the NPC actually offers
+  (`NpcHubPanel.RolesFor`): one source for the menu, the E routing and
+  the tests.
 - **Cross-skill audit — progression reachability test** — a
   data-driven suite guard (`ProgressionReachabilityTests`) that walks
   every quest's collect/deliver targets against the full item-source
@@ -55,6 +78,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   colony auto-production passes no unlock set and stays ungated
   (colony stock-visibility convention). What the panel says and what
   the craft system does are the same fact.
+
+### Fixed
+- **Quests paid XP into a skill that doesn't exist** — goblin_diplomacy,
+  coastal_defense and mountain_pass awarded 50/80/40 skill XP to
+  `"combat"`, which is not a registered skill (the game registers
+  `attack`), so 170 XP silently vanished at claim. Retargeted to
+  `attack`; `EveryQuestSkillReward_TargetsARegisteredSkill` now fails
+  the suite on any future ghost skill.
+- **A panel opened from another panel lost its data** — `SetState`
+  closes every open panel on a panel-to-panel move (`CloseAllPanels`),
+  so the role menu's tab handoff wiped the target panel's freshly-set
+  state. State transitions now happen first and the target panel is
+  populated after.
 
 ### Added (fishing arc — 2026-10-08/09, consolidated)
 - **Fishing rare-drop table — pearl + old boot** — every successful

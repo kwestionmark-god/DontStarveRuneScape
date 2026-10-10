@@ -420,16 +420,34 @@ law shapes it.
        a fresh start with no axe), MC (the panel's quest flag and the
        craft system's gate are the same fact now).
        Audit findings NOT yet fixed (parked, unapproved in the clarify
-       round): 3 quests award skill_xp to nonexistent "combat" (170 XP
-       vanishes — should be attack), raw `AddXp` never recomputes Level
-       (construction/firemaking/cave-mining levels frozen mid-session;
-       acute for player construction, whose only in-session source is
-       raw), grass_rope recipe has duplicate xp_reward keys, and the
-       leader-panel E-fork (InteractSystem.cs:63-70 — leaders with
-       quests never open diplomacy via E).
-     - **NPC-quest breadth** — quests.json has 18 pinned by NpcDataTests;
-       adding any breaks that pin for a DATA reason (update the pin).
-       herb_gathering is now offered (attached in the audit slice).
+       round): raw `AddXp` never recomputes Level (construction/
+       firemaking/cave-mining levels frozen mid-session; acute for
+       player construction, whose only in-session source is raw) and the
+       grass_rope recipe's duplicate xp_reward keys. FIXED since, in the
+       NPC-quest breadth slice: the "combat" ghost skill (3 quests
+       awarded XP to a skill that doesn't exist — retargeted to `attack`)
+       and the leader-panel E-fork (leaders with quests could never open
+       diplomacy via E — replaced by the multi-role NPC role menu).
+     - **NPC-quest breadth** — **done 2026-10-10 (RED `17b4d62` /
+       GREEN `51be69a`).** quests.json 18 → 23 and npcs.json 17 → 18.
+       The plains hub opens: new `quest_giver_plains_1` ("Hayward the
+       Reaper", forest_villagers — their territory already includes
+       plains) carries a chain plains_harvest → boar_hunt →
+       plains_provender (wheat → boars → delivering the hunt to Joss at
+       the plains camp, which also gives the plains merchant a reason to
+       exist). elder_mara and stone_guardian each get their FIRST quest
+       (herbal_remedy chained off timber_collection; guardians_request
+       off mountain_pass) — both are faction leaders, so they now carry
+       the multi-role menu. `EveryQuest_IsOfferedBySomeNpc` and
+       `EveryQuestSkillReward_TargetsARegisteredSkill` pin the two laws
+       this slice depends on (every quest has a giver; every XP reward
+       names a real skill). Follow-ups left open: coastal/swamp side
+       quests, and a panels-opened-from-the-menu get no return-to-menu
+       (E again reopens the hub).
+       Pillars held: RS (a chain that walks you through plains
+       foraging → combat → cooking), DS (wheat, boars and hunger supply
+       the verbs), MC (pure DATA on the 7 existing condition hooks — no
+       engine work; the one code change is UI routing).
      - **Unlock-as-event (banked idea, 2026-10-10):** a quest-bound
        craftable needn't be a completion REWARD — unlock it mid-quest as
        a story beat (learn the recipe from the hermit when you REACH him,
@@ -446,6 +464,22 @@ law shapes it.
        The display layer needs no fix-up — both Panels2.cs:2417 and
        Craft consult UnlockedRecipes live. Banked for a later slice;
        audit-B's enforced quest_unlock is the gate this reads from.
+     - **Crafted campfire item is inert (found 2026-10-10, verified in
+       the tree).** `items.json` marks the campfire item
+       `is_structure: true` and the crafting recipe
+       (`Skills/Construction/data/recipes.json`, "campfire": 3 oak_logs
+       + 5 stone) outputs it — but NOTHING reads `Item.IsStructure`
+       (grep finds only the declaration in `Data/Item.cs`). Placement
+       flows solely from the building panel (`BuildingPanel.BuildCallback`
+       → `Game.StartPlacement` → `BuildingSystem.PlaceStructure`), which
+       spends the structures.json def's own materials (2 stick + 2
+       stone), never the crafted item. So the crafted campfire can
+       neither be placed nor satisfy `requires_campfire`: the cooking
+       gate reads active placed structures plus a virtual "campfire"
+       within 3 tiles of a LIT fire (`Game.GetAvailableStructureIds`,
+       Game.cs:1979). Two honest fixes — route an `is_structure` craft
+       output into placement mode on craft, or drop the recipe. Parked
+       for a gameplay call.
      - **Skills-arc tails** (still parked): workers reading their own
        sub-stats (RecruitNpc.Skills inherits catalogs; gather/production
        math still level-only) and per-stat tooltips in the panel.
