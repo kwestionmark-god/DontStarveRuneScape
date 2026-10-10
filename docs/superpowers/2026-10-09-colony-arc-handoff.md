@@ -134,15 +134,23 @@ frontier section. Everything below is verified against the tree as of
    `2b47599` / wiring `e8aed14`).** Feed-to-tame via E on the ten
    tamable species; new `taming` skill (attempt 4 XP, success 25 XP,
    success_rate sub-stat); first pet bonds as follower (companion
-   tether), later pets colony-guard (approach-and-strike in a 6-tile
-   radius). Full seam notes below. Spec:
+   tether contract), later pets colony-guard (approach-and-strike in a
+   6-tile radius). Full seam notes above. Spec:
    `docs/superpowers/specs/2026-10-09-animal-taming-design.md`.
-   NEXT up: item 3 (cross-skill audit).
-3. **Cross-skill audit** — find dark corners like the recruit-level
-   gate one (e.g. what else trains the wrong skill, what nodes have
-   unreachable gates).
+3. **Cross-skill audit** — **done 2026-10-09 (slices A+B: RED
+   `05f9017`/GREEN `29cb967`, RED `51b88f7`/GREEN `4b56cdb`).**
+   GatherSkillFor mirrors the player tool switch (workers chop →
+   woodcutting, water → foraging; the colony node-gate reads the
+   trained skill); planks day-1 + quest_unlock ENFORCED in Craft and
+   the panel (worker auto-production ungated); whittle_sap unblocks
+   first_flame for axe-less starts; herb_gathering attached to
+   Hemlock; ProgressionReachabilityTests walks item sources + the
+   quest DAG every run. Parked findings (clarify-round
+   non-picks): "combat"→attack (170 XP vanishing), AddXp Level
+   recompute, grass_rope dup key, leader-panel E-fork.
 4. **NPC-quest breadth** — quests.json has 18 pinned by NpcDataTests;
    adding any breaks that pin for a DATA reason (update the pin).
+   herb_gathering is now offered (audit slice B).
 
 ## Standing cautions (beyond the skill's pitfall list)
 

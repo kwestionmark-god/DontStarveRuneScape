@@ -8,6 +8,55 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Cross-skill audit — progression reachability test** — a
+  data-driven suite guard (`ProgressionReachabilityTests`) that walks
+  every quest's collect/deliver targets against the full item-source
+  graph (any resource node yield, any monster loot, merchant stock
+  within early commerce reach, starter packs, and the recipe closure
+  over those) and walks the quest prerequisite DAG to a fixed point —
+  a quest asking for an item nothing produces, or a quest chain with a
+  dead-end, now fails the suite with a named chain instead of being
+  discovered by playtest.
+- **Tap Sap recipe** — tree_sap is craftable at crafting level 1 from
+  one oak_log (`whittle_sap`), so First Flame (the tutorial quest) is
+  completable by any background: axe-less starts buy logs at the
+  forest merchant (commerce 0) or chop them as the forester. The
+  maple tap (crafting 5) remains the bulk sap source.
+- **herb_gathering quest is offered** — the orphaned quest (defined
+  since Phase 3, listed by no NPC, so its 40 intelligence XP and
+  rewards were unreachable) now sits on Old Man Hemlock's board after
+  Timber Collection, matching its prerequisite chain.
+
+### Changed
+- **Worker gather XP trains the right skill** — `GatherSkillFor` now
+  mirrors the player's tool switch exactly: workers chopping the eight
+  axe-tree species train woodcutting (they silently trained MINING —
+  the any-tool-node→mining mapping predates per-recruit skills, and
+  the woodcutting branch it was supposed to fall through to was dead
+  code matching no real yield id), bucket-water hauling trains
+  foraging (matching the player's water gather), pickaxe nodes keep
+  training mining, rod nodes keep training fishing. The colony
+  node-level gate calls the same function, so a maple_tree's level-20
+  gate now reads the worker's woodcutting — the skill the tree itself
+  trains — instead of testing mining and waving everything through.
+- **Planks are craftable from day 1** — the `quest_unlock:
+  goblin_diplomacy` flag is removed from the planks recipe and from
+  the quest's reward list (goblin_diplomacy keeps its gear unlocks,
+  trophy, gold, and XP). The fishing rod and wooden bucket chains no
+  longer inherit the quest's commerce-3/persuasion-5/intelligence-5
+  acceptance gates through their shared planks input.
+- **`quest_unlock` is now enforced** — the flag used to be
+  display-only: the crafting panel rendered "Quest: <id>" on the
+  recipe while `CraftingSystem.Craft` and the panel's craftability
+  check ignored it entirely, and `Player.UnlockedRecipes` was
+  write-only state. Both the system and the panel now refuse a
+  quest-locked recipe until the owning quest's claim has added it to
+  the player's unlock set ("Requires quest unlock: <id>."); worker
+  colony auto-production passes no unlock set and stays ungated
+  (colony stock-visibility convention). What the panel says and what
+  the craft system does are the same fact.
+
+### Added (fishing arc — 2026-10-08/09, consolidated)
 - **Fishing rare-drop table — pearl + old boot** — every successful
   catch now rolls a second, level-scaled table: a pearl (1% +
   0.15%/fishing level — the payday: coastal merchants pay 25 gold,

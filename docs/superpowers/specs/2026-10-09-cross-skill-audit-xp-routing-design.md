@@ -1,7 +1,7 @@
 # Cross-skill audit — mechanical XP fixes (slice A) — design
 
 Date: 2026-10-09
-Status: Draft
+Status: Implemented (RED 05f9017 / GREEN 29cb967)
 Slice line: worker gather XP trains the skill the node actually belongs to;
 deadlock remedies land in slice B of the same arc.
 

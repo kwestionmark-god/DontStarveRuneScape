@@ -1,7 +1,7 @@
 # Cross-skill audit — progression deadlocks + reachability tool (slice B) — design
 
 Date: 2026-10-09
-Status: Draft
+Status: Implemented (RED 51b88f7 / GREEN 4b56cdb)
 Slice line: every entry-tier item a quest chain asks for is reachable by a
 fresh character; quest-gated recipes enforce their gate; a reachability
 test pins the whole class.

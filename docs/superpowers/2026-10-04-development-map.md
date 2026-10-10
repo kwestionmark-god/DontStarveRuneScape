@@ -388,10 +388,51 @@ law shapes it.
        fix. A progression-graph audit TOOL (recipe → quest → stat →
        XP-source reachability) would prevent this class permanently —
        natural extension of the cross-skill audit item.
-     - **Skills-arc tails**: workers reading their own sub-stats
-       (RecruitNpc.Skills inherits catalogs; gather/production math
-       still level-only), per-stat tooltips in the panel, and the
-       cross-skill audit (its own roadmap item).
+     - **Cross-skill audit** — **done 2026-10-09 (two slices).** The audit
+       walked every XP entry point and gate chain in the tree and fixed
+       what it found, test-first. Slice A (RED `05f9017` / GREEN
+       `29cb967`): `GatherSkillFor` now mirrors the player's tool switch
+       exactly — workers chopping the 8 axe-tree species train
+       woodcutting (they silently trained MINING since the per-recruit
+       skills slice; the wood-yield branch was dead code matching no
+       real yield id), bucket water trains foraging, and the colony
+       node-gate consequently reads the skill the node actually trains.
+       Slice B (RED `51b88f7` / GREEN `4b56cdb`): the known rod→planks
+       deadlock dissolved — `quest_unlock` turned out to be DISPLAY-ONLY
+       (parsed, rendered as "Quest: …", enforced nowhere), so the fix was
+       honesty both ways: planks is day-1 craftable (flag removed from
+       the def and from goblin_diplomacy's rewards, which keep gear/
+       trophy/gold), while the remaining quest-locked recipes now
+       actually refuse in `Craft` + the panel until claimed (worker
+       auto-production stays ungated, stock convention). first_flame's
+       tree_sap got a crafting-1 recipe (`whittle_sap`, 1 oak_logs → 1
+       sap — logs buyable at the forest merchant, so axe-less starts
+       finish the tutorial quest), herb_gathering (defined, offered by
+       NOBODY) attached to Hemlock after timber_collection, and
+       `ProgressionReachabilityTests` now walks the whole item-source
+       graph (node yield + loot + trade + recipe closure) and the quest
+       prerequisite DAG every suite run — the backlog's
+       "progression-graph audit tool", landed as a test. Specs:
+       `2026-10-09-cross-skill-audit-xp-routing-design.md`,
+       `2026-10-09-cross-skill-audit-deadlocks-design.md`.
+       Pillars held: RS (XP lands in the skill whose grind you're doing —
+       player and worker agree), DS (the tutorial fire is craftable from
+       a fresh start with no axe), MC (the panel's quest flag and the
+       craft system's gate are the same fact now).
+       Audit findings NOT yet fixed (parked, unapproved in the clarify
+       round): 3 quests award skill_xp to nonexistent "combat" (170 XP
+       vanishes — should be attack), raw `AddXp` never recomputes Level
+       (construction/firemaking/cave-mining levels frozen mid-session;
+       acute for player construction, whose only in-session source is
+       raw), grass_rope recipe has duplicate xp_reward keys, and the
+       leader-panel E-fork (InteractSystem.cs:63-70 — leaders with
+       quests never open diplomacy via E).
+     - **NPC-quest breadth** — quests.json has 18 pinned by NpcDataTests;
+       adding any breaks that pin for a DATA reason (update the pin).
+       herb_gathering is now offered (attached in the audit slice).
+     - **Skills-arc tails** (still parked): workers reading their own
+       sub-stats (RecruitNpc.Skills inherits catalogs; gather/production
+       math still level-only) and per-stat tooltips in the panel.
    - The fusion is **not bound to the inspiration titles**: entirely
      new logic of our own is welcome and encouraged.
 
