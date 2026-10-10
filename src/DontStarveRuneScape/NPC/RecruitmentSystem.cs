@@ -717,16 +717,17 @@ public sealed class RecruitmentSystem
         }
     }
 
-    /// <summary>Which gathering skill a resource node trains: tool-required
-    /// nodes train mining (the convention the cave-mining path already
-    /// uses), wood-yield nodes train woodcutting, everything else
-    /// foraging.</summary>
-    private static string GatherSkillFor(ResourceDef? def)
+    /// <summary>Which gathering skill a resource node trains — mirrors the
+    /// player's tool switch (InteractSystem) exactly: axe → woodcutting,
+    /// pickaxe → mining, fishing_rod → fishing, everything else
+    /// (bucket water, no-tool nodes) → foraging. Internal for tests
+    /// (InternalsVisibleTo), the harness-helper convention.</summary>
+    internal static string GatherSkillFor(ResourceDef? def)
     {
         if (def == null) return "foraging";
-        // Rod-gated nodes train fishing (the one skill that can reach
-        // their gate); other tool nodes train mining (the convention the
-        // cave-mining path already uses).
+        // RED for the cross-skill audit: current behavior trains mining on
+        // every tool node (trees + water included) and the woodcutting
+        // branch below is dead (no yield item is literally wood/log/logs).
         if (def.ToolRequirement == "fishing_rod") return "fishing";
         if (def.RequiresTool) return "mining";
         return def.YieldItem is "wood" or "log" or "logs" ? "woodcutting" : "foraging";

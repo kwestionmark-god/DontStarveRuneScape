@@ -50,37 +50,8 @@ public sealed class Bootstrap
 
                 // Generate world
                 var biomeRegistry = new BiomeRegistry(dataLoader.Biomes);
-                var resourceRegistry = new ResourceRegistry(dataLoader.ResourcesData.Select(d =>
-                {
-                    var def = new ResourceDef();
-                    foreach (var kv in d)
-                    {
-                        var v = kv.Value?.ToString() ?? string.Empty;
-                        switch (kv.Key.ToLowerInvariant())
-                        {
-                            case "id": def.Id = v; break;
-                            case "name": def.Name = v; break;
-                            case "biome": def.Biome = v; break;
-                            case "tier": def.Tier = int.TryParse(v, out var t) ? t : 1; break;
-                            case "category": def.Category = v; break;
-                            case "base_density": def.Density = float.TryParse(v, out var d2) ? d2 : 0.1f; break;
-                            case "yield_item": def.YieldItem = v; break;
-                            case "yield_quantity": def.Yield = int.TryParse(v, out var y) ? y : 1; break;
-                            case "xp_reward": def.Xp = float.TryParse(v, out var xp) ? xp : 1f; break;
-                            case "depletion_count": def.DepletionCount = int.TryParse(v, out var dc) ? dc : 1; break;
-                            case "regrow_time": def.Regrow = float.TryParse(v, out var rt) ? rt : 0f; break;
-                            case "sprite_key": def.SpriteKey = v; break;
-                            case "requires_tool": def.ToolRequirement = string.IsNullOrEmpty(v) ? null : v; break;
-                            case "rarity": def.Rarity = string.IsNullOrEmpty(v) ? "common" : v; break;
-                            case "display_scale": def.DisplayScale = float.TryParse(v, out var ds) ? ds : 1f; break;
-                            case "size_variance": def.SizeVariance = float.TryParse(v, out var sv) ? sv : 0.2f; break;
-                            case "ground_decal": def.GroundDecal = v is "true" or "True" or "1"; break;
-                            case "disappears_when_depleted": def.DisappearsWhenDepleted = v is "true" or "True" or "1"; break;
-                            case "required_level": def.RequiredLevel = int.TryParse(v, out var rl) ? rl : 1; break;
-                        }
-                    }
-                    return def;
-                }));
+                var resourceRegistry = new ResourceRegistry(
+                    dataLoader.ResourcesData.Select(BuildResourceDef));
 
                 var tileMap = WorldGen.Generate(_game.Seed, biomeRegistry, resourceRegistry, _game.SeasonSystem, progress =>
                 {
@@ -439,5 +410,42 @@ public sealed class Bootstrap
         player.Inventory = _game.Inventory;
         player.Survival = _game.Survival;
         player.WeatherSystem = _game.WeatherSystem;
+    }
+
+    /// <summary>Convert one raw resources.json row into a ResourceDef —
+    /// the exact inline conversion Bootstrap performs at world-gen,
+    /// extracted so tests can build the real registry (raw-row seam).
+    /// Internal for InternalsVisibleTo (tests), same as the harness
+    /// helpers convention.</summary>
+    internal static ResourceDef BuildResourceDef(Dictionary<string, object> d)
+    {
+        var def = new ResourceDef();
+        foreach (var kv in d)
+        {
+            var v = kv.Value?.ToString() ?? string.Empty;
+            switch (kv.Key.ToLowerInvariant())
+            {
+                case "id": def.Id = v; break;
+                case "name": def.Name = v; break;
+                case "biome": def.Biome = v; break;
+                case "tier": def.Tier = int.TryParse(v, out var t) ? t : 1; break;
+                case "category": def.Category = v; break;
+                case "base_density": def.Density = float.TryParse(v, out var d2) ? d2 : 0.1f; break;
+                case "yield_item": def.YieldItem = v; break;
+                case "yield_quantity": def.Yield = int.TryParse(v, out var y) ? y : 1; break;
+                case "xp_reward": def.Xp = float.TryParse(v, out var xp) ? xp : 1f; break;
+                case "depletion_count": def.DepletionCount = int.TryParse(v, out var dc) ? dc : 1; break;
+                case "regrow_time": def.Regrow = float.TryParse(v, out var rt) ? rt : 0f; break;
+                case "sprite_key": def.SpriteKey = v; break;
+                case "requires_tool": def.ToolRequirement = string.IsNullOrEmpty(v) ? null : v; break;
+                case "rarity": def.Rarity = string.IsNullOrEmpty(v) ? "common" : v; break;
+                case "display_scale": def.DisplayScale = float.TryParse(v, out var ds) ? ds : 1f; break;
+                case "size_variance": def.SizeVariance = float.TryParse(v, out var sv) ? sv : 0.2f; break;
+                case "ground_decal": def.GroundDecal = v is "true" or "True" or "1"; break;
+                case "disappears_when_depleted": def.DisappearsWhenDepleted = v is "true" or "True" or "1"; break;
+                case "required_level": def.RequiredLevel = int.TryParse(v, out var rl) ? rl : 1; break;
+            }
+        }
+        return def;
     }
 }
