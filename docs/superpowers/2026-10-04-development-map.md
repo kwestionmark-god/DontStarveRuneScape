@@ -321,6 +321,27 @@ law shapes it.
      SpendPoint admits; respec surfaces as the green counter).
    - Parked sub-slice: refused-messaging on the work-order PANEL itself
      (the gate exists; the UI hint is follow-up).
+   - **Backlog (user-raised 2026-10-09, unsequenced — the ideas pool for
+     future slices)**:
+     - **Vertical building + terrain leveling.** The jump exists
+       (agility slice, Space); give it something to land on.
+       Wall/workbench BLOCKS at jump height, stackable, connectable;
+       jump must land on a placed block; building needs a FLAT pad or
+       the corner-stitched heightmap breaks stacking — so a terrain
+       LEVELING tool/method ships with it. Known seams: Player.TryJump
+       (`Player.cs:206`) and UpdateJump's arc
+       (JumpVisualOffset/JumpProgress) are visual-only — landing
+       checks are new; Tile.CornerElevations is the
+       min-corner-stitch convention (TileStitchingTests pins it);
+       Structure placement rides BuildingSystem.PlaceStructure's
+       biome/skill/material gates; structures occupy tiles but have no
+       vertical extent yet. Likely split: (1) block defs + placement +
+       flat-pad gate, (2) jump landing/standing on blocks, (3) stacking
+       + connection, (4) terrain leveling.
+     - **Skills-arc tails**: workers reading their own sub-stats
+       (RecruitNpc.Skills inherits catalogs; gather/production math
+       still level-only), per-stat tooltips in the panel, and the
+       cross-skill audit (its own roadmap item).
    - The fusion is **not bound to the inspiration titles**: entirely
      new logic of our own is welcome and encouraged.
 
