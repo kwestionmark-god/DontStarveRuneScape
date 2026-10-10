@@ -1,7 +1,7 @@
 # Animal taming — design
 
 Date: 2026-10-09
-Status: Draft (pre-RED)
+Status: Implemented (RED 7615462 / GREEN 2b47599 / wiring e8aed14)
 Slice line: feed-to-tame wild animals → follower or colony guard, gated by a new `taming` skill.
 
 ## Design law
@@ -162,3 +162,12 @@ TamedAnimalTests (new file, ColonySkillGateTests harness shape):
 
 - 2026-10-09: draft from clarify round (feed-to-tame, both paths,
   new taming skill, wander+guard colony behavior).
+- 2026-10-09: implemented. Notes from the build: (1) the guard test
+  taught us pets APPROACH first (dist > 48px) and strike when adjacent —
+  one tick at 32px lands the hit; (2) pets are rendered via RenderNPC
+  with a `monster/<species>` sprite key (RecruitBehavior "pet" +
+  non-empty SpeciesId), not a new renderer; (3) E-interact tests need
+  game.Inventory + game.SkillManager set at the GAME level too —
+  HandleInteract's null guard reads those, not the player's; (4) pet
+  persistence lives on SaveData.TamedAnimals (old saves read empty —
+  no pets to restore, no break).

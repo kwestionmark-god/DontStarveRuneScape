@@ -86,6 +86,42 @@ frontier section. Everything below is verified against the tree as of
   (`Program.cs`, applied BEFORE the Game ctor, VSync=false defaults)
   unblocked captures that used to deadlock on a locked session.
 
+## Taming seam map (added 2026-10-09, slice e8aed14)
+
+- **Core engine**: `NPC/TamingSystem.cs` — `TamingMath` (pure window
+  math: 35% base, ±5%/level delta, +2%/success_rate point, clamp
+  [5%,95%]), `TryTame(player, monster, combat)` (gates: Tamable flag →
+  taming level vs TameLevel → food in inventory; consumes food on
+  attempt, 4 XP; success +25 XP, removes the monster, stages a
+  RecruitNpc pet with RecruitBehavior "pet" + SpeciesId). `RollOverride`
+  (string?: null=rng, ""=forced fail, else forced success) + `Rng`
+  seed for tests — the RaidRollOverride convention.
+- **Player entry**: `InteractSystem.HandleInteract` — monster branch
+  between the NPC-panel branch and the fire-sleep check; 96px reach,
+  nearest live tamable wins; success green / failure red
+  notifications via the standard AddNotification idiom.
+- **Game loop**: `Game.Update` after RecruitmentSystem.Tick —
+  follower pets via `Taming.Tick` (PlayerX/PlayerY set first),
+  colony pets via `Taming.TickColonyGuard`; surface only
+  (`World is { IsCave: false }`).
+- **Rendering**: `Game` render pass draws TamedAnimals through
+  `RenderNPC` (depth-sorted with everything else);
+  `SpriteRenderer.RenderNPC` picks `monster/<SpeciesId>` when the
+  recruit is a pet — no new art, species sprites already exist.
+- **Persistence**: `SaveData.TamedAnimals`
+  (List<TamingSystem.TamedAnimalRecord>) — BuildSnapshot/Restore via
+  `RestoreTamedAnimals`; pets are NOT in NPCSystem (the registry
+  restore path drops unknown ids), so this is the only round-trip.
+- **Data**: monsters.json — `tame_food` + `tame_level` on all ten
+  tamable species (wolf 1/raw_meat, boar 2/berries, poison_frog 2 +
+  scorpion 3/worm_segment, snake 3 + crocodile 4 + crab 2/raw_fish,
+  eagle 4/raw_meat, hawk 1/grass, bear 5/honeycomb); untamable
+  species carry neither field (defaults: "" / 1).
+- **Skill**: `taming` in SkillManager's id list + SubStatCatalog
+  `["taming"] = ["success_rate"]` — lands with its consumer per the
+  stat-menus law. TamedAnimalTests pins the catalog entry.
+
+
 ## Next-arc candidates (user-approved order)
 
 1. **Fishing rare-drop table** — **done 2026-10-09 (RED `4f9acfa` /
@@ -94,8 +130,14 @@ frontier section. Everything below is verified against the tree as of
    successful catch on BOTH player and worker paths, visible
    full-inventory loss. Spec:
    `docs/superpowers/specs/2026-10-09-fishing-rare-drops-design.md`.
-   NEXT up: item 2 (animal taming).
-2. **Animal taming** — untouched territory; no groundwork exists yet.
+2. **Animal taming** — **done 2026-10-09 (RED `7615462` / GREEN
+   `2b47599` / wiring `e8aed14`).** Feed-to-tame via E on the ten
+   tamable species; new `taming` skill (attempt 4 XP, success 25 XP,
+   success_rate sub-stat); first pet bonds as follower (companion
+   tether), later pets colony-guard (approach-and-strike in a 6-tile
+   radius). Full seam notes below. Spec:
+   `docs/superpowers/specs/2026-10-09-animal-taming-design.md`.
+   NEXT up: item 3 (cross-skill audit).
 3. **Cross-skill audit** — find dark corners like the recruit-level
    gate one (e.g. what else trains the wrong skill, what nodes have
    unreachable gates).

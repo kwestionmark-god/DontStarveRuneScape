@@ -293,6 +293,36 @@ law shapes it.
      fisher, luckier water), DS (rares are dredged, never bought; the
      full-bag loss is honest and visible), MC (the catch message
      names the dredge; workers mirror the stock-ledger convention).
+   - **Animal taming (feed-to-tame + pets)** — **done 2026-10-09.** The
+     ten `tamable` species in monsters.json are now feedable: E on a
+     live tamable monster within reach consumes its species food
+     (`tame_food`) and rolls a tame window — 35% at parity, ±5% per
+     taming-level delta vs the species `tame_level` gate, +2% per
+     success_rate point, clamped [5%, 95%] (`TamingMath`, pure/static,
+     hook-free tests; `RollOverride` string + seeded `Rng` for the
+     probabilistic paths, raid convention). Attempts cost the food
+     even on failure and award 4 XP to the new top-level `taming`
+     skill; successes award 25 more, remove the wild monster, and
+     stage a pet (RecruitNpc, RecruitBehavior "pet", SpeciesId —
+     rendered via RenderNPC with the species `monster/` sprite).
+     First pet bonds as the follower (companion tether contract:
+     follow, 14-tile drop-off, 7-tile resume); later pets are
+     colony-assigned — approach-and-strike any hostile inside a 6-tile
+     guard radius of their post, hold position otherwise. Level-gated
+     attempts refuse visibly and consume NOTHING (a gate is not a
+     loss); wrong/missing food tells the player what the animal wants.
+     Pets persist via `SaveData.TamedAnimals` (not the NPC registry —
+     the restore path skips registry-missing rows; old saves read an
+     empty list). Player path: InteractSystem E-branch between NPC
+     panels and resource gather; game loop ticks followers and guards
+     surface-side only. Spec:
+     `docs/superpowers/specs/2026-10-09-animal-taming-design.md`.
+     Pillars held: RS (a real taming skill with per-species level
+     gates — wolf 1, boar 2, scorpion 3, snake 3, eagle 4, croc 4,
+     bear 5), DS (the food is spent on the attempt — grind honesty;
+     the level gate refuses instead of silently eating), MC (the
+     refusal/wants-food messages reuse the notification vocabulary;
+     pets render as their species, no new art).
    - **Individual stat menus (per-skill sub-stat catalogs)** — **done
      2026-10-09.** The skills panel's one-size-fits-all five sub-stats
      are gone: every skill now has its own menu, single-sourced in
