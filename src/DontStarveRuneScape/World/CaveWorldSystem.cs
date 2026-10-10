@@ -417,7 +417,7 @@ public sealed class CaveWorldSystem
         }
     }
 
-    private static CombatSystem CreateCaveCombat(MonsterRegistry? monsterRegistry, QuestSystem? questSystem, TileMap cave)
+    internal static CombatSystem CreateCaveCombat(MonsterRegistry? monsterRegistry, QuestSystem? questSystem, TileMap cave)
     {
         var combat = new CombatSystem { Quests = questSystem };
         // Spawn a few initial cave monsters
