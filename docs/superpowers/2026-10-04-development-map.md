@@ -338,6 +338,26 @@ law shapes it.
        vertical extent yet. Likely split: (1) block defs + placement +
        flat-pad gate, (2) jump landing/standing on blocks, (3) stacking
        + connection, (4) terrain leveling.
+     - **Progression accounting (user playtest finding, 2026-10-09).**
+       The fishing rod is entry-tier by design but hangs on a deadlock:
+       rod → planks → `goblin_diplomacy` (goblin CHIEF's quest, not
+       Shaman Kree's) → intelligence level 5 (388 XP) + commerce 3 +
+       persuasion 5. Intelligence XP exists ONLY as quest rewards
+       (`QuestSystem.cs:214` — no action/craft/activity trains it);
+       the whole catalog awards ~470 int XP, with goblin_truce's 60
+       circular behind diplomacy itself. Net: reaching the rod's gate
+       needs nearly every faction's quest line first. Related UI
+       finds: `InteractSystem.cs:63-70` — a leader with listed quests
+       NEVER opens the diplomacy panel via E (L-key is the only path
+       to negotiation); the quest panel lists unmeetable quests with
+       only a one-line status (the "incomplete menu" report); quest
+       ownership is undiscoverable (user attributed the chief's quest
+       to Kree). Candidate remedies when the slice is drafted:
+       un-gate planks for entry-tier tools vs. add a grindable
+       intelligence XP source vs. both; plus the leader-panel fork
+       fix. A progression-graph audit TOOL (recipe → quest → stat →
+       XP-source reachability) would prevent this class permanently —
+       natural extension of the cross-skill audit item.
      - **Skills-arc tails**: workers reading their own sub-stats
        (RecruitNpc.Skills inherits catalogs; gather/production math
        still level-only), per-stat tooltips in the panel, and the
