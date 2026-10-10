@@ -391,39 +391,54 @@ public sealed class CaveWorldSystem
     private static void PlaceOreVeins(TileMap map, ResourceRegistry? resources, int seed)
     {
         if (resources == null) return;
-        var rand = new Random();
-        // Place a few ore veins in the cavern
-        for (int v = 0; v < 8; v++)
+
+        // The cave slopes inward from the western exit. Place guaranteed,
+        // deterministic ore pockets along that route so the first visit has
+        // an immediately useful copper vein and rarer finds reward
+        // exploring. REAL registry defs carry sprite_keys — the 566ed8b
+        // regression built inline defs without them, so ore rendered as
+        // the green fallback planes.
+        var veins = new (string Id, (int X, int Y)[] Tiles)[]
         {
-            int x = rand.Next(1, map.Width - 1);
-            int y = rand.Next(1, map.Height - 1);
-            if (!WorkerPathfinder.CanStand(map, x, y)) continue;
-            string oreId = rand.Next(3) switch
+            ("copper_rock", [(12, 27), (14, 35), (17, 30), (19, 38)]),
+            ("iron_rock", [(25, 25), (27, 37), (30, 29), (33, 35)]),
+            ("gold_vein", [(40, 26), (43, 38), (47, 31)]),
+            ("gemstone", [(50, 27), (53, 36)])
+        };
+        var random = new Random(seed ^ 0x4F524553);
+        foreach (var (id, spots) in veins)
+        {
+            var def = resources.GetResource(id);
+            if (def == null) continue;
+            foreach (var (x, y) in spots)
             {
-                0 => "copper_ore",
-                1 => "tin_ore",
-                _ => "iron_ore",
-            };
-            map.GetTile(x, y)!.ResourceNode = new ResourceNode($"ore_{oreId}_{x}_{y}", new ResourceDef
-            {
-                Id = oreId,
-                Name = oreId,
-                YieldItem = oreId,
-                Yield = 3,
-                Xp = 5f,
-                DepletionCount = 5,
-                Seasons = [],
-            }, 1f);
+                var tile = map.GetTile(x, y);
+                if (tile == null || tile.IsCaveExit) continue;
+                int charges = Math.Max(1, def.DepletionCount);
+                tile.ResourceNode = new ResourceNode(id, def, charges)
+                {
+                    SizeScale = 1f + (float)random.NextDouble() * def.SizeVariance
+                };
+            }
         }
     }
 
     internal static CombatSystem CreateCaveCombat(MonsterRegistry? monsterRegistry, QuestSystem? questSystem, TileMap cave)
     {
         var combat = new CombatSystem { Quests = questSystem };
-        // Spawn a few initial cave monsters
-        if (monsterRegistry != null)
+        // The cave's one big monster: the troll is looked up directly by
+        // id across biomes (it lives under "mountains" in monsters.json,
+        // but the cave biome is "cavern" — SpawnFromRegistry is biome-
+        // keyed and would spawn NOTHING; the 566ed8b regression did
+        // exactly that and emptied the caves).
+        var troll = monsterRegistry?.MonstersByBiome.Values
+            .SelectMany(monsters => monsters.Values)
+            .FirstOrDefault(def => def.MonsterId == "cave_troll");
+        if (troll != null)
         {
-            combat.SpawnFromRegistry(monsterRegistry, cave, null);
+            float x = (43.5f) * Constants.TileSize;
+            float y = (cave.SpawnY + 0.5f) * Constants.TileSize;
+            combat.SpawnMonster(troll, x, y, "cavern");
         }
         return combat;
     }
