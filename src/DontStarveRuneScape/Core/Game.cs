@@ -125,6 +125,8 @@ public sealed class Game
     public RecruitPanel? RecruitPanel { get; set; }
     public DiplomacyPanel? DiplomacyPanel { get; set; }
     public DashboardPanel? Dashboard { get; set; }
+    /// <summary>Multi-role NPC role menu (quests / trade / recruit / diplomacy).</summary>
+    public NpcHubPanel? NpcHub { get; set; }
     public TitleScreen? TitleScreen { get; set; }
     public LoadingScreen? LoadingScreen { get; set; }
     public CharacterSelectPanel? CharacterSelectPanel { get; set; }

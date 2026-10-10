@@ -277,3 +277,90 @@ public sealed class DiplomacyPanel
 }
 
 public sealed class FactionInfo { public string FactionId{get;set;}=""; public string Name{get;set;}=""; }
+
+/// <summary>
+/// Multi-role NPC menu — an NPC offering more than one interaction (quests,
+/// trade, recruit, diplomacy) opens this tab strip FIRST instead of being
+/// hard-routed into one of its panels (the old E-fork: a leader with quests
+/// could never reach diplomacy). The dashboard's own idiom applied to NPCs:
+/// the strip selects a role, and Game.OpenNpcHubTab launches the existing
+/// role panel, so every panel stays the single source of its behaviour.
+/// </summary>
+public sealed class NpcHubPanel
+{
+    public const string QuestsTab = "quests";
+    public const string TradeTab = "trade";
+    public const string RecruitTab = "recruit";
+    public const string DiplomacyTab = "diplomacy";
+
+    public bool Visible { get; private set; }
+    public Npc? Session { get; private set; }
+    public List<string> Tabs { get; private set; } = [];
+    public string ActiveTab { get; private set; } = string.Empty;
+    public string Status { get; private set; } = "";
+
+    /// <summary>Fired with the chosen tab id when the player confirms.</summary>
+    public Action<string>? OnTabSelected { get; set; }
+
+    /// <summary>The interactions an NPC actually offers, in menu order. THE
+    /// single source of truth: the menu, the E-key routing and tests all
+    /// read this.</summary>
+    public static List<string> RolesFor(Npc npc)
+    {
+        var roles = new List<string>();
+        if (npc.AvailableQuests.Count > 0) roles.Add(QuestsTab);
+        if (npc is MerchantNpc) roles.Add(TradeTab);
+        if (npc is RecruitNpc) roles.Add(RecruitTab);
+        if (npc.NpcType == "faction_leader") roles.Add(DiplomacyTab);
+        return roles;
+    }
+
+    public void OpenSession(Npc npc, IReadOnlyList<string> roles)
+    {
+        Session = npc;
+        Tabs = [.. roles];
+        ActiveTab = Tabs.Count > 0 ? Tabs[0] : string.Empty;
+        Status = "";
+        Visible = true;
+    }
+
+    public void SetActive(string tab) { if (Tabs.Contains(tab)) ActiveTab = tab; }
+
+    public void HandleKey(Key key)
+    {
+        if (Tabs.Count == 0) return;
+        int i = Math.Max(0, Tabs.IndexOf(ActiveTab));
+        if (key is Key.Left or Key.Up) ActiveTab = Tabs[(i + Tabs.Count - 1) % Tabs.Count];
+        else if (key is Key.Right or Key.Down) ActiveTab = Tabs[(i + 1) % Tabs.Count];
+    }
+
+    public void HandleConfirm()
+    {
+        if (ActiveTab.Length == 0) return;
+        OnTabSelected?.Invoke(ActiveTab);
+    }
+
+    public void Close() { Visible = false; Session = null; Tabs = []; ActiveTab = string.Empty; }
+
+    /// <summary>Display name for a role tab.</summary>
+    public static string RoleLabel(string tab) => tab switch
+    {
+        QuestsTab => "Quests",
+        TradeTab => "Trade",
+        RecruitTab => "Recruit",
+        DiplomacyTab => "Diplomacy",
+        _ => tab,
+    };
+
+    public void Render(PrimitiveBatch b, TextRenderer? t, int w, int h)
+    {
+        NpcPanelLayout.Frame(b, t, w, h, "MENU", out var x, out var y);
+        if (t == null) return;
+        NpcPanelLayout.Label(b, t, Session?.Name ?? "NPC", x, y + 14, 16, bold: true);
+        for (int i = 0; i < Tabs.Count; i++)
+            NpcPanelLayout.Row(b, t, x, y + 38 + i * NpcPanelLayout.RowH, 650,
+                RoleLabel(Tabs[i]), "OPEN", Tabs[i] == ActiveTab);
+        NpcPanelLayout.Label(b, t, string.IsNullOrEmpty(Status)
+            ? "↑/↓ choose   Enter open   Esc close" : Status, x + 325, y + 400, 12, 200, 180, 130);
+    }
+}

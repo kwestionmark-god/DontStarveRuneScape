@@ -54,6 +54,9 @@ public enum GameState
     /// <summary>Unified tabbed menu (inventory/skills/crafting/building/gear) is open.</summary>
     DashboardOpen,
 
+    /// <summary>Multi-role NPC role menu is open (quests / trade / recruit / diplomacy).</summary>
+    NpcHub,
+
     /// <summary>Pause menu open. The world is frozen: no system ticks at all.</summary>
     Paused,
 
@@ -74,7 +77,7 @@ public static class GameStateExtensions
         GameState.InventoryOpen, GameState.SkillPanel, GameState.CraftingPanel,
         GameState.BuildingPanel, GameState.GearPanel, GameState.TradePanel,
         GameState.QuestPanel, GameState.RecruitPanel, GameState.DiplomacyPanel,
-        GameState.CharacterSelect, GameState.DashboardOpen,
+        GameState.CharacterSelect, GameState.DashboardOpen, GameState.NpcHub,
     ];
 
     /// <summary>
