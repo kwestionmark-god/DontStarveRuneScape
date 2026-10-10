@@ -29,6 +29,7 @@ public sealed class SkillManager
         ["construction"] = ["build_speed", "efficiency"],
         ["intelligence"] = ["commerce", "persuasion"],
         ["agility"] = ["sprint_cost", "jump_cost"],
+        ["taming"] = ["success_rate"],
     };
 
     /// <summary>Display names shared across skills (keys are reused by
@@ -58,7 +59,7 @@ public sealed class SkillManager
         {
             "attack", "woodcutting", "mining", "foraging", "fishing", "cooking",
             "firemaking", "crafting", "metallurgy", "construction", "intelligence",
-            "agility"
+            "agility", "taming"
         };
 
         foreach (var id in skillIds)

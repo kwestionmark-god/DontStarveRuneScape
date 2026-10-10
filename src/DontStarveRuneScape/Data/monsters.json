@@ -18,6 +18,8 @@
         "is_hostile": true,
         "tamable": true,
         "faction_owned": true,
+        "tame_food": "raw_meat",
+        "tame_level": 1,
         "sprite_key": "monster/wolf",
         "loot_table": [
           {"item_id": "wolf_pelt", "chance": 0.5},
@@ -39,6 +41,8 @@
         "is_hostile": true,
         "tamable": true,
         "faction_owned": false,
+        "tame_food": "honeycomb",
+        "tame_level": 5,
         "sprite_key": "monster/bear",
         "loot_table": [
           {"item_id": "bear_hide", "chance": 0.5},
@@ -82,6 +86,8 @@
         "is_hostile": true,
         "tamable": true,
         "faction_owned": true,
+        "tame_food": "worm_segment",
+        "tame_level": 2,
         "sprite_key": "monster/poison_frog",
         "special": "poison",
         "loot_table": [
@@ -102,6 +108,8 @@
         "is_hostile": true,
         "tamable": true,
         "faction_owned": true,
+        "tame_food": "raw_fish",
+        "tame_level": 4,
         "sprite_key": "monster/crocodile",
         "special": "ambush",
         "loot_table": [
@@ -146,6 +154,8 @@
         "is_hostile": true,
         "tamable": true,
         "faction_owned": true,
+        "tame_food": "worm_segment",
+        "tame_level": 3,
         "sprite_key": "monster/scorpion",
         "special": "poison",
         "loot_table": [
@@ -231,6 +241,8 @@
         "is_hostile": true,
         "tamable": true,
         "faction_owned": false,
+        "tame_food": "raw_meat",
+        "tame_level": 4,
         "sprite_key": "monster/eagle",
         "special": "aerial",
         "loot_table": [
@@ -274,6 +286,8 @@
         "is_hostile": true,
         "tamable": true,
         "faction_owned": false,
+        "tame_food": "berries",
+        "tame_level": 2,
         "sprite_key": "monster/boar",
         "loot_table": [
           {"item_id": "boar_meat", "chance": 0.6},
@@ -294,6 +308,8 @@
         "is_hostile": true,
         "tamable": true,
         "faction_owned": false,
+        "tame_food": "raw_fish",
+        "tame_level": 3,
         "sprite_key": "monster/snake",
         "special": "poison",
         "loot_table": [
@@ -315,6 +331,8 @@
         "is_hostile": true,
         "tamable": true,
         "faction_owned": false,
+        "tame_food": "grass",
+        "tame_level": 1,
         "sprite_key": "monster/hawk",
         "special": "aerial",
         "loot_table": [
@@ -338,6 +356,8 @@
         "is_hostile": false,
         "tamable": true,
         "faction_owned": false,
+        "tame_food": "raw_fish",
+        "tame_level": 2,
         "sprite_key": "monster/crab",
         "loot_table": [
           {"item_id": "crab_claw", "chance": 0.6},

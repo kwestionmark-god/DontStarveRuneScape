@@ -281,6 +281,8 @@ public class TamedAnimalTests
 
         // Walk the pet toward a far-away player: it closes distance or says why not.
         player.WorldX += 10f * Constants.TileSize;
+        taming.PlayerX = player.WorldX;
+        taming.PlayerY = player.WorldY;
         float startDist = System.MathF.Abs(pet.WorldX - player.WorldX);
         taming.Tick(0.25f, pet);
         float afterDist = System.MathF.Abs(pet.WorldX - player.WorldX);
@@ -316,7 +318,7 @@ public class TamedAnimalTests
         var goblinDef = registry.GetMonster("goblin");
         Assert.NotNull(goblinDef);
         var goblin = combat.SpawnMonster(goblinDef!,
-            guard.WorldX + 2f * Constants.TileSize, guard.WorldY, "forest");
+            guard.WorldX + 32f, guard.WorldY, "forest");
         int hpBefore = goblin.Health;
 
         taming.TickColonyGuard(0.25f, guard, combat);

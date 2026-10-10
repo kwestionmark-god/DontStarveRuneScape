@@ -49,6 +49,14 @@ public sealed class MonsterDef : DataRecord
     [JsonPropertyName("faction_owned")]
     public bool FactionOwned { get; init; } = false;
 
+    /// <summary>Item id this species must be fed to roll a tame (empty = not feedable).</summary>
+    [JsonPropertyName("tame_food")]
+    public string TameFood { get; init; } = string.Empty;
+
+    /// <summary>Taming level required to attempt this species (1 = untrained-tamable).</summary>
+    [JsonPropertyName("tame_level")]
+    public int TameLevel { get; init; } = 1;
+
     [JsonPropertyName("sprite_key")]
     public string SpriteKey { get; init; } = string.Empty;
 

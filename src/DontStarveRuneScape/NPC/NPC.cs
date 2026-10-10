@@ -128,6 +128,14 @@ public sealed class RecruitNpc : Npc
     /// Runtime-only; a save/load resets the cadence, not the skill.</summary>
     public int GatherIntervalsSinceBonus { get; set; }
 
+    /// <summary>Taming: the monster def id this pet was tamed from
+    /// ("" for non-pet recruits).</summary>
+    public string SpeciesId { get; set; } = string.Empty;
+
+    /// <summary>Taming: true when this pet is colony-assigned (wander/guard)
+    /// rather than the bonded follower.</summary>
+    public bool IsColonyAssigned { get; set; }
+
     public RecruitNpc()
     {
         NpcType = "recruit";
