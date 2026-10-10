@@ -72,7 +72,7 @@
       "min_total_intelligence": 5,
       "acceptance_threshold": 0.7,
       "xp_reward": 200.0,
-      "skill_xp_rewards": {"combat": 50.0},
+      "skill_xp_rewards": {"attack": 50.0},
       "recipe_unlocks": [],
       "gear_unlocks": ["wooden_sword", "leather_helmet"],
       "item_rewards": [["goblin_trophy", 1], ["gold", 25]],
@@ -184,7 +184,7 @@
       "min_total_intelligence": 7,
       "acceptance_threshold": 0.65,
       "xp_reward": 250.0,
-      "skill_xp_rewards": {"combat": 80.0},
+      "skill_xp_rewards": {"attack": 80.0},
       "recipe_unlocks": ["smelt_iron", "craft_fired_brick"],
       "gear_unlocks": ["iron_chestplate", "iron_helmet"],
       "item_rewards": [["serpent_scale", 2], ["gold", 60]],
@@ -359,7 +359,7 @@
       "min_total_intelligence": 3,
       "acceptance_threshold": 0.5,
       "xp_reward": 130.0,
-      "skill_xp_rewards": {"combat": 40.0},
+      "skill_xp_rewards": {"attack": 40.0},
       "recipe_unlocks": [],
       "gear_unlocks": [],
       "item_rewards": [["gold", 20]],
@@ -615,6 +615,163 @@
       "prerequisite_quests": ["settling_in"],
       "repeatable": false,
       "sprite_key": "quest/forest_friends"
+    },
+    {
+      "quest_id": "plains_harvest",
+      "name": "Plains Harvest",
+      "description": "Hayward's wheat stands ready in the wild plains. Bring him six sheaves before the boars take the rest.",
+      "giver_npc_type": "quest_giver",
+      "giver_faction": "forest_villagers",
+      "min_commerce": 0,
+      "min_persuasion": 0,
+      "min_total_intelligence": 1,
+      "acceptance_threshold": 0.3,
+      "xp_reward": 60.0,
+      "skill_xp_rewards": {"foraging": 30.0},
+      "recipe_unlocks": [],
+      "gear_unlocks": [],
+      "item_rewards": [["berries", 3]],
+      "conditions": [
+        {
+          "condition_type": "collect_item",
+          "target": "wheat",
+          "required_count": 6,
+          "description": "Gather 6 wheat"
+        }
+      ],
+      "fail_conditions": [],
+      "required_faction_status": null,
+      "prerequisite_quests": [],
+      "repeatable": false,
+      "sprite_key": "quest/herbs"
+    },
+    {
+      "quest_id": "boar_hunt",
+      "name": "Boar Hunt",
+      "description": "The plains boars trample the wheat faster than Hayward can reap it. Thin the herd.",
+      "giver_npc_type": "quest_giver",
+      "giver_faction": "forest_villagers",
+      "min_commerce": 0,
+      "min_persuasion": 0,
+      "min_total_intelligence": 1,
+      "acceptance_threshold": 0.35,
+      "xp_reward": 70.0,
+      "skill_xp_rewards": {"attack": 40.0},
+      "recipe_unlocks": [],
+      "gear_unlocks": [],
+      "item_rewards": [["healing_herbs", 2]],
+      "conditions": [
+        {
+          "condition_type": "kill_monster",
+          "target": "boar",
+          "required_count": 2,
+          "description": "Kill 2 boars"
+        }
+      ],
+      "fail_conditions": [],
+      "required_faction_status": null,
+      "prerequisite_quests": ["plains_harvest"],
+      "repeatable": false,
+      "sprite_key": "quest/first_blood"
+    },
+    {
+      "quest_id": "plains_provender",
+      "name": "Plains Provender",
+      "description": "Carry the hunt's meat to Joss at the plains camp and settle the supply bargain for Hayward.",
+      "giver_npc_type": "quest_giver",
+      "giver_faction": "forest_villagers",
+      "min_commerce": 0,
+      "min_persuasion": 1,
+      "min_total_intelligence": 2,
+      "acceptance_threshold": 0.4,
+      "xp_reward": 90.0,
+      "skill_xp_rewards": {"cooking": 30.0},
+      "recipe_unlocks": [],
+      "gear_unlocks": [],
+      "item_rewards": [["gold", 15]],
+      "conditions": [
+        {
+          "condition_type": "deliver_item",
+          "target": "boar_meat",
+          "required_count": 2,
+          "description": "Deliver 2 boar meat"
+        },
+        {
+          "condition_type": "trade_at_location",
+          "target": "merchant_plains_1",
+          "required_count": 1,
+          "description": "Trade with the plains merchant"
+        }
+      ],
+      "fail_conditions": [],
+      "required_faction_status": null,
+      "prerequisite_quests": ["boar_hunt"],
+      "repeatable": false,
+      "sprite_key": "quest/desert_trade"
+    },
+    {
+      "quest_id": "herbal_remedy",
+      "name": "Herbal Remedy",
+      "description": "Elder Mara's clinic has run dry. Bring the forest village six bundles of herb.",
+      "giver_npc_type": "faction_leader",
+      "giver_faction": "forest_villagers",
+      "min_commerce": 0,
+      "min_persuasion": 1,
+      "min_total_intelligence": 2,
+      "acceptance_threshold": 0.45,
+      "xp_reward": 70.0,
+      "skill_xp_rewards": {"foraging": 30.0},
+      "recipe_unlocks": [],
+      "gear_unlocks": [],
+      "item_rewards": [["healing_herbs", 2]],
+      "conditions": [
+        {
+          "condition_type": "collect_item",
+          "target": "herb",
+          "required_count": 6,
+          "description": "Gather 6 herbs"
+        }
+      ],
+      "fail_conditions": [],
+      "required_faction_status": null,
+      "prerequisite_quests": ["timber_collection"],
+      "repeatable": false,
+      "sprite_key": "quest/forest_friends"
+    },
+    {
+      "quest_id": "guardians_request",
+      "name": "The Guardian's Request",
+      "description": "The Stone Guardian wants the pass cairns rebuilt and the eagles driven off the ridge.",
+      "giver_npc_type": "faction_leader",
+      "giver_faction": "mountain_clans",
+      "min_commerce": 0,
+      "min_persuasion": 2,
+      "min_total_intelligence": 3,
+      "acceptance_threshold": 0.45,
+      "xp_reward": 110.0,
+      "skill_xp_rewards": {"mining": 40.0},
+      "recipe_unlocks": [],
+      "gear_unlocks": [],
+      "item_rewards": [["gold", 25]],
+      "conditions": [
+        {
+          "condition_type": "kill_monster",
+          "target": "eagle",
+          "required_count": 2,
+          "description": "Kill 2 eagles"
+        },
+        {
+          "condition_type": "collect_item",
+          "target": "stone",
+          "required_count": 8,
+          "description": "Gather 8 stone"
+        }
+      ],
+      "fail_conditions": [],
+      "required_faction_status": null,
+      "prerequisite_quests": ["mountain_pass"],
+      "repeatable": false,
+      "sprite_key": "quest/gem_mining"
     }
   ]
 }

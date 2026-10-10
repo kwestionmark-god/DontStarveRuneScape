@@ -228,6 +228,39 @@
    "giver_faction": "desert_djinn"
   },
   {
+   "npc_id": "quest_giver_plains_1",
+   "name": "Hayward the Reaper",
+   "npc_type": "quest_giver",
+   "world_x": 152,
+   "world_y": 152,
+   "sprite_key": "npc/quest_giver_male_0",
+   "faction": "forest_villagers",
+   "dialogue_lines": [
+    "The plains feed the forest, and I feed the plains.",
+    "Joss buys my wheat — when the boars leave me any.",
+    "Lend me a hand with the harvest, would you?"
+   ],
+   "behavior": "idle",
+   "patrol_area": [
+    140,
+    140,
+    165,
+    165
+   ],
+   "is_active": true,
+   "is_recruited": false,
+   "recruit_behavior": null,
+   "hostility_level": 0.2,
+   "health": 15,
+   "max_health": 15,
+   "available_quest_ids": [
+    "plains_harvest",
+    "boar_hunt",
+    "plains_provender"
+   ],
+   "giver_faction": "forest_villagers"
+  },
+  {
    "npc_id": "elder_mara",
    "name": "Elder Mara",
    "npc_type": "faction_leader",
@@ -255,7 +288,10 @@
    "max_health": 25,
    "faction_id": "forest_villagers",
    "faction_strength": 1.0,
-   "hostile_monster_types": []
+   "hostile_monster_types": [],
+   "available_quest_ids": [
+    "herbal_remedy"
+   ]
   },
   {
    "npc_id": "goblin_chief_grak",
@@ -433,6 +469,9 @@
    "faction_strength": 1.0,
    "hostile_monster_types": [
     "stone_golem"
+   ],
+   "available_quest_ids": [
+    "guardians_request"
    ]
   },
   {
@@ -597,7 +636,8 @@
    "tile_x": 150,
    "tile_y": 150,
    "npc_types": [
-    "merchant"
+    "merchant",
+    "quest_giver"
    ],
    "faction": null,
    "biome": "plains",

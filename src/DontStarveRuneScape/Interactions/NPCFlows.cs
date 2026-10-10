@@ -43,6 +43,48 @@ public sealed class NPCFlows
             _game.Player.ActionSystem.AddNotification($"{npc.Name} has no quests available right now.", ((byte)180, (byte)150, (byte)60));
     }
 
+    /// <summary>Open the NPC's interaction: a single-role NPC opens its panel
+    /// directly (unchanged behaviour for merchants, recruits and plain quest
+    /// givers), a multi-role NPC opens the tabbed role menu. This is the one
+    /// E-key entry point — the old per-type fork lived here and hid a
+    /// leader's diplomacy behind their quest board.</summary>
+    public void OpenNpcHub(Npc npc)
+    {
+        var roles = UI.NpcHubPanel.RolesFor(npc);
+        if (roles.Count <= 1)
+        {
+            OpenSingleRole(npc, roles.Count == 1 ? roles[0] : null);
+            return;
+        }
+        if (_game.NpcHub == null || _game.Player == null) return;
+
+        // Transition first, populate after: SetState closes every open panel
+        // on a panel-to-panel move, so a session opened before it is wiped.
+        _game.SetState(GameState.NpcHub);
+        _game.NpcHub.OpenSession(npc, roles);
+    }
+
+    /// <summary>The panel a single-role NPC opens; an NPC with nothing to
+    /// offer keeps the (honest) "no quests available" notification.</summary>
+    private void OpenSingleRole(Npc npc, string? role)
+    {
+        switch (role)
+        {
+            case UI.NpcHubPanel.TradeTab when npc is MerchantNpc merchant:
+                OpenTradePanel(merchant);
+                return;
+            case UI.NpcHubPanel.RecruitTab:
+                OpenRecruitPanel(npc);
+                return;
+            case UI.NpcHubPanel.DiplomacyTab:
+                OpenDiplomacyPanel(npc.FactionId);
+                return;
+            default:
+                OpenQuestPanel(npc);
+                return;
+        }
+    }
+
     /// <summary>Open the recruit panel for the given NPC.</summary>
     public bool OpenRecruitPanel(Npc npc)
     {

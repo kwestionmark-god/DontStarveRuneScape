@@ -385,6 +385,48 @@ public sealed class Game
         }
     }
 
+    /// <summary>Launch the panel behind the multi-role NPC menu's active tab
+    /// (the dashboard idiom, NPC-scoped): the role panels stay the single
+    /// source of their own behaviour, the hub only routes to them.
+    /// Order matters: entering a panel state CLOSES every open panel
+    /// (SetState → CloseAllPanels on panel-to-panel moves), so the target
+    /// panel is populated AFTER the transition — filling it first is wiped.
+    /// The menu itself closes with the handoff; press E again to return.</summary>
+    public void OpenNpcHubTab(string tab)
+    {
+        if (NpcHub?.Session is not { } npc || Player == null) return;
+        switch (tab)
+        {
+            case NpcHubPanel.QuestsTab:
+                if (QuestPanel == null) return;
+                SetState(GameState.QuestPanel);
+                QuestPanel.SetPlayer(Player);
+                QuestPanel.OpenSession(npc);
+                break;
+            case NpcHubPanel.DiplomacyTab:
+                if (DiplomacyPanel == null) return;
+                SetState(GameState.DiplomacyPanel);
+                DiplomacyPanel.Player = Player;
+                DiplomacyPanel.Registry = FactionRegistry;
+                DiplomacyPanel.System = FactionSystem;
+                DiplomacyPanel.FactionInfo = new UI.FactionInfo { FactionId = npc.FactionId, Name = npc.Name };
+                DiplomacyPanel.Visible = true;
+                break;
+            case NpcHubPanel.RecruitTab:
+                if (RecruitPanel == null || npc is not RecruitNpc recruit) return;
+                SetState(GameState.RecruitPanel);
+                RecruitPanel.Player = Player;
+                RecruitPanel.OpenSession(recruit);
+                break;
+            case NpcHubPanel.TradeTab:
+                if (TradePanel == null || npc is not MerchantNpc merchant) return;
+                SetState(GameState.TradePanel);
+                TradePanel.Player = Player;
+                TradePanel.OpenSession(merchant);
+                break;
+        }
+    }
+
     /// <summary>Return to the dashboard when the current panel was opened from it.</summary>
     public bool TryReturnToDashboard()
     {
@@ -2031,6 +2073,9 @@ public sealed class Game
                 break;
             case GameState.DiplomacyPanel:
                 DiplomacyPanel?.Render(batch, TextRenderer, screenWidth, screenHeight);
+                break;
+            case GameState.NpcHub:
+                NpcHub?.Render(batch, TextRenderer, screenWidth, screenHeight);
                 break;
             case GameState.Paused:
                 PauseMenu?.Render(batch, TextRenderer, screenWidth, screenHeight);

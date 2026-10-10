@@ -83,6 +83,14 @@ public sealed class InputRouter
                 else
                     HandleGenericPanelInput(key);
                 break;
+            case GameState.NpcHub:
+                if (key == Key.Left || key == Key.Right || key == Key.Up || key == Key.Down)
+                    _game.NpcHub?.HandleKey(key);
+                else if (key == Key.Enter || key == Key.Space)
+                    _game.NpcHub?.HandleConfirm();
+                else
+                    HandleGenericPanelInput(key);
+                break;
             case GameState.DashboardOpen:
                 if (key == Key.Escape || key == Key.Q)
                     _game.SetState(GameState.Playing);
@@ -258,7 +266,7 @@ public sealed class InputRouter
         return state is GameState.InventoryOpen or GameState.SkillPanel or GameState.CraftingPanel
             or GameState.BuildingPanel or GameState.GearPanel or GameState.TradePanel
             or GameState.QuestPanel or GameState.RecruitPanel or GameState.DiplomacyPanel
-            or GameState.DashboardOpen;
+            or GameState.DashboardOpen or GameState.NpcHub;
     }
 
     /// <summary>Close all open panels.</summary>
@@ -273,6 +281,7 @@ public sealed class InputRouter
         if (_game.QuestPanel != null) _game.QuestPanel.Close();
         if (_game.RecruitPanel != null) _game.RecruitPanel.Close();
         if (_game.DiplomacyPanel != null) _game.DiplomacyPanel.Close();
+        if (_game.NpcHub != null) _game.NpcHub.Close();
         if (_game.Dashboard != null) _game.Dashboard.Visible = false;
     }
 }

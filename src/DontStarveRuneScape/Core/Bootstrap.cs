@@ -372,6 +372,7 @@ public sealed class Bootstrap
         _game.QuestPanel = new QuestPanel();
         _game.RecruitPanel = new RecruitPanel();
         _game.DiplomacyPanel = new DiplomacyPanel();
+        _game.NpcHub = new UI.NpcHubPanel();
         _game.Dashboard = new DashboardPanel { Game = _game };
         _game.TitleScreen = new TitleScreen();
         _game.LoadingScreen = new LoadingScreen();
@@ -390,6 +391,7 @@ public sealed class Bootstrap
         _game.DiplomacyPanel.System = _game.FactionSystem;
         _game.DiplomacyPanel.OnAction = npcFlows.HandleDiplomacyAction;
         _game.Dashboard.OnTabSelected = _game.OpenDashboardTab;
+        _game.NpcHub.OnTabSelected = _game.OpenNpcHubTab;
         _game.InteractSystem = new Interactions.InteractSystem(_game, npcFlows);
         _game.FireInteraction = new Interactions.FireInteraction(_game);
         _game.InputRouter = new InputRouter(_game, _game.InteractSystem, _game.FireInteraction, npcFlows);

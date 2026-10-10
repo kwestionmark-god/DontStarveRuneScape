@@ -47,32 +47,18 @@ public sealed class InteractSystem
             return;
         }
 
-        // NPC interaction: the nearest NPC opens its type-appropriate panel.
+        // NPC interaction: the nearest NPC opens its interaction — a
+        // single-role NPC goes straight to its panel, a multi-role one (a
+        // faction leader with quests, say) gets the tabbed role menu. The
+        // old hard fork is gone: a leader's quests no longer hide the
+        // diplomacy/negotiation its own quest line needs.
         if (game.NPCSystem != null && _npcFlows != null)
         {
             var npc = game.NPCSystem.CheckProximity(game.Player);
             if (npc != null)
             {
-                switch (npc.NpcType)
-                {
-                    case "merchant" when npc is MerchantNpc merchant:
-                        _npcFlows.OpenTradePanel(merchant);
-                        return;
-                    case "recruit" when npc is RecruitNpc recruit:
-                        _npcFlows.OpenRecruitPanel(recruit);
-                        return;
-                    case "faction_leader":
-                        // Leaders with available quests open the quest panel;
-                        // the rest open the faction overview.
-                        if (npc.AvailableQuests.Count > 0)
-                            _npcFlows.OpenQuestPanel(npc);
-                        else
-                            _npcFlows.OpenDiplomacyPanel(npc.FactionId);
-                        return;
-                    default: // quest_giver and any other type
-                        _npcFlows.OpenQuestPanel(npc);
-                        return;
-                }
+                _npcFlows.OpenNpcHub(npc);
+                return;
             }
         }
 

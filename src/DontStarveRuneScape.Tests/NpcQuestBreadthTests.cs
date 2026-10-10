@@ -339,4 +339,95 @@ public class NpcQuestBreadthTests
         var accepted = system.AcceptQuest(player, mara, "herbal_remedy");
         Assert.True(accepted.Success, accepted.Message);
     }
+
+    // ─── Hub tabs launch the role panels ───────────────────────────────
+
+    [Fact]
+    public void HubTab_LaunchesTheRolePanel()
+    {
+        var leader = new FactionLeaderNpc
+        {
+            NpcId = "grak",
+            NpcType = "faction_leader",
+            FactionId = "goblins",
+            Name = "Goblin Chief Grak",
+        };
+        leader.AvailableQuests.Add("goblin_diplomacy");
+        var game = HubGame(leader);
+
+        var interact = new Interactions.InteractSystem(game, new Interactions.NPCFlows(game));
+        interact.HandleInteract();
+        Assert.Equal(GameState.NpcHub, game.State);
+
+        // Diplomacy tab: the surface the old fork made unreachable by E.
+        game.OpenNpcHubTab(NpcHubPanel.DiplomacyTab);
+        Assert.Equal(GameState.DiplomacyPanel, game.State);
+        Assert.Equal("goblins", game.DiplomacyPanel!.FactionInfo?.FactionId);
+
+        // E again reopens the menu — and the quests tab reaches the same
+        // NPC's board (the handoff closes the menu, as any panel move does).
+        interact.HandleInteract();
+        Assert.Equal(GameState.NpcHub, game.State);
+        game.OpenNpcHubTab(NpcHubPanel.QuestsTab);
+        Assert.Equal(GameState.QuestPanel, game.State);
+    }
+
+    [Fact]
+    public void HubDiplomacyTab_NegotiateRaisesStanding()
+    {
+        var leader = new FactionLeaderNpc
+        {
+            NpcId = "grak",
+            NpcType = "faction_leader",
+            FactionId = "goblins",
+            Name = "Grak",
+        };
+        leader.AvailableQuests.Add("goblin_diplomacy");
+        var game = HubGame(leader);
+        game.FactionSystem = new FactionSystem();
+        game.FactionRegistry = new FactionRegistry();
+        game.FactionRegistry.LoadAll();
+        var flows = new Interactions.NPCFlows(game);
+        game.DiplomacyPanel!.OnAction = flows.HandleDiplomacyAction; // Bootstrap's wiring
+
+        var interact = new Interactions.InteractSystem(game, flows);
+        interact.HandleInteract();
+        game.OpenNpcHubTab(NpcHubPanel.DiplomacyTab);
+
+        float before = game.FactionSystem.StandingOf("goblins");
+        game.DiplomacyPanel.HandleConfirm(); // NEGOTIATE
+
+        Assert.True(game.FactionSystem.StandingOf("goblins") > before,
+            "negotiating from the hub's diplomacy tab must raise standing");
+    }
+
+    // ─── Helpers ───────────────────────────────────────────────────────
+
+    /// <summary>Bare-Game harness with the NPC staged in reach of the player
+    /// (PauseFlowTests shape; the game-level Inventory/SkillManager are the
+    /// ones HandleInteract's null-guard reads).</summary>
+    private static Game HubGame(Npc npc)
+    {
+        var game = new Game();
+        var player = new Player(5.5f * Constants.TileSize, 5.5f * Constants.TileSize)
+        {
+            ActionSystem = new ActionSystem(),
+            SkillManager = new SkillManager(),
+            Inventory = new Inv(),
+        };
+        game.Player = player;
+        game.World = new TileMap(24, 24);
+        game.Inventory = player.Inventory;
+        game.SkillManager = player.SkillManager;
+        game.NPCSystem = new NPCSystem();
+        game.QuestPanel = new QuestPanel();
+        game.DiplomacyPanel = new DiplomacyPanel();
+        game.NpcHub = new NpcHubPanel();
+        game.SetState(GameState.Playing);
+
+        npc.WorldX = player.WorldX + 20f;
+        npc.WorldY = player.WorldY;
+        game.NPCSystem.NPCs.Add(npc);
+        return game;
+    }
 }
