@@ -430,11 +430,27 @@ law shapes it.
      - **NPC-quest breadth** — quests.json has 18 pinned by NpcDataTests;
        adding any breaks that pin for a DATA reason (update the pin).
        herb_gathering is now offered (attached in the audit slice).
+     - **Unlock-as-event (banked idea, 2026-10-10):** a quest-bound
+       craftable needn't be a completion REWARD — unlock it mid-quest as
+       a story beat (learn the recipe from the hermit when you REACH him,
+       not when you turn the quest in). Verified shape today:
+       quest_unlock recipes hide until the named VALUE is in
+       `Player.UnlockedRecipes`; the ONLY writer is
+       `QuestSystem.Claim` (QuestSystem.cs:230) adding the entries of
+       `quest.recipe_unlocks` (recipe ids), i.e. recipe-id keyed and
+       already decoupled from quest ids. Claim also handles
+       `gear_unlocks` → UnlockedGear (:231). So an event-unlock is CHEAP:
+       the storage is already right; only the write needs a new trigger
+       fired at step completion (or on prerequisite chaining) instead of
+       at claim. Claim then merely surfaces the already-known provision.
+       The display layer needs no fix-up — both Panels2.cs:2417 and
+       Craft consult UnlockedRecipes live. Banked for a later slice;
+       audit-B's enforced quest_unlock is the gate this reads from.
      - **Skills-arc tails** (still parked): workers reading their own
        sub-stats (RecruitNpc.Skills inherits catalogs; gather/production
        math still level-only) and per-stat tooltips in the panel.
-   - The fusion is **not bound to the inspiration titles**: entirely
-     new logic of our own is welcome and encouraged.
+     - The fusion is **not bound to the inspiration titles**: entirely
+       new logic of our own is welcome and encouraged.
 
 ## Distributable track
 
