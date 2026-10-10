@@ -1,6 +1,7 @@
 namespace DontStarveRuneScape.Tests;
 
 using System.Linq;
+using DontStarveRuneScape.Core;
 using DontStarveRuneScape.Crafting;
 using DontStarveRuneScape.Data;
 using DontStarveRuneScape.Skills;
@@ -122,20 +123,38 @@ public class ProgressionReachabilityTests
             .ToHashSet();
         var recipes = Recipes();
 
-        // Items a fresh character can obtain without any quest:
-        // buyable (any commerce_requirement <= 3 is reachable from early
-        // quest flat XP; merchant stock is the source), or the output of
-        // a recipe whose inputs are themselves reachable, or carried by
-        // a starter pack.
+        // Anything a fresh character can obtain without any quest:
+        // - buyable at a merchant within early commerce reach,
+        // - carried by a starter pack,
+        // - the yield of ANY resource node (grindable: every node trains
+        //   the skill its own gate reads — the slice-A law — so nodes are
+        //   reachable by doing, no matter the level), or
+        // - the loot of any monster (killable), or
+        // - the closed output of recipes over the above.
         var trade = new TradeItemRegistry();
         trade.LoadAll();
-        var buyable = trade.TradeItems.Values
+        var baseReachable = trade.TradeItems.Values
             .Where(t => t.CommerceRequirement <= 3)
             .Select(t => t.ItemId)
             .ToHashSet();
 
         string[] packs = ["axe", "torch", "berries", "pickaxe", "raw_meat", "raw_fish"];
-        var baseReachable = new HashSet<string>(buyable.Concat(packs));
+        foreach (var p in packs) baseReachable.Add(p);
+
+        var monsters = new MonsterRegistry();
+        monsters.LoadAll();
+        foreach (var biome in monsters.MonstersByBiome.Values)
+            foreach (var def in biome.Values)
+                foreach (var loot in def.LootTable)
+                    baseReachable.Add(loot.ItemId);
+
+        var resources = new ResourceRegistry(
+            loader.ResourcesData.Select(Bootstrap.BuildResourceDef));
+        foreach (var def in resources.Resources.Values)
+            baseReachable.Add(def.YieldItem);
+        // "gold" is income: any sellable item converts to gold via trade.
+        baseReachable.Add("gold");
+
         // Recipe closure: keep growing until stable.
         bool grew = true;
         while (grew)
@@ -144,7 +163,7 @@ public class ProgressionReachabilityTests
             foreach (var r in recipes.Recipes.Values)
             {
                 if (baseReachable.Contains(r.OutputItem)) continue;
-                if (r.RequiredLevel > 10) continue; // deep-skill recipes aren't fresh-reachable alone
+                if (r.RequiredLevel > 10) continue; // deep-skill recipes ride their skill's grind
                 if (r.Inputs.All(i => baseReachable.Contains(i.ItemId)))
                 {
                     baseReachable.Add(r.OutputItem);

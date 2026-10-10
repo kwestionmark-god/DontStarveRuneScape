@@ -20,10 +20,11 @@ public sealed class CraftingSystem
 
     public void Tick(float dt) { }
 
-    /// <summary>Try to craft a recipe: skill gate, ingredient gate, all-or-nothing
-    /// consume/produce, XP grant. Returns a result with a player-facing message.
-    /// RED scaffold: unlockedRecipes is accepted but not yet enforced (the
-    /// enforcement lands in GREEN with the audit slice).</summary>
+    /// <summary>Try to craft a recipe: skill gate, quest gate, ingredient
+    /// gate, all-or-nothing consume/produce, XP grant. Returns a result with
+    /// a player-facing message. unlockedRecipes: the player's completed-quest
+    /// recipe unlocks; null (the worker auto-production path) is ungated by
+    /// the colony stock-visibility convention.</summary>
     public CraftResult Craft(string recipeId, IItemStorage inventory, SkillManager skillManager,
         IReadOnlySet<string>? availableStructures = null,
         IReadOnlySet<string>? unlockedRecipes = null)
@@ -31,6 +32,17 @@ public sealed class CraftingSystem
         var recipe = Registry?.GetRecipe(recipeId);
         if (recipe == null)
             return new CraftResult { Success = false, Message = "Unknown recipe." };
+
+        // Quest gate: recipes flagged quest_unlock refuse until the owning
+        // quest's claim added the recipe to the unlock set. Display and
+        // enforcement share one flag — what the panel says is what happens.
+        if (unlockedRecipes != null && recipe.QuestUnlock != null
+            && !unlockedRecipes.Contains(recipe.QuestUnlock))
+            return new CraftResult
+            {
+                Success = false,
+                Message = $"Requires quest unlock: {recipe.QuestUnlock}.",
+            };
 
         if (skillManager.GetSkillLevel(recipe.RequiredSkill) < recipe.RequiredLevel)
             return new CraftResult

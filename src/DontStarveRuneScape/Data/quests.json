@@ -73,7 +73,7 @@
       "acceptance_threshold": 0.7,
       "xp_reward": 200.0,
       "skill_xp_rewards": {"combat": 50.0},
-      "recipe_unlocks": ["planks"],
+      "recipe_unlocks": [],
       "gear_unlocks": ["wooden_sword", "leather_helmet"],
       "item_rewards": [["goblin_trophy", 1], ["gold", 25]],
       "conditions": [

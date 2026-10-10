@@ -16,7 +16,6 @@
       "processing_chain": "wood_chain",
       "tier": 1,
       "skill_affects_yield": "woodcutting",
-      "quest_unlock": "goblin_diplomacy",
       "required_skill": "crafting",
       "required_level": 1
     },

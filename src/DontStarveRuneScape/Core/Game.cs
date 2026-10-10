@@ -713,7 +713,7 @@ public sealed class Game
             && Inventory != null && SkillManager != null && InputManager != null)
         {
             CraftingPanel.Update(InputManager.InputState, Crafting, Inventory, SkillManager,
-                _lastScreenW, _lastScreenH, GetAvailableStructureIds());
+                _lastScreenW, _lastScreenH, GetAvailableStructureIds(), Player?.UnlockedRecipes);
         }
 
         if (State == GameState.BuildingPanel && BuildingPanel != null && BuildingSystem != null
@@ -2007,7 +2007,8 @@ public sealed class Game
                 break;
             case GameState.CraftingPanel:
                 CraftingPanel?.Render(batch, TextRenderer, SpriteRenderer, Crafting, Inventory,
-                    SkillManager, screenWidth, screenHeight, GetAvailableStructureIds());
+                    SkillManager, screenWidth, screenHeight, GetAvailableStructureIds(),
+                    Player?.UnlockedRecipes);
                 break;
             case GameState.BuildingPanel:
                 BuildingPanel?.Render(batch, TextRenderer, SpriteRenderer, BuildingSystem,

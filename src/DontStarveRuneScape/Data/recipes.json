@@ -25,6 +25,28 @@
       "required_level": 1
     },
     {
+      "recipe_id": "whittle_sap",
+      "name": "Tap Sap",
+      "input_items": [
+        [
+          "oak_logs",
+          1
+        ]
+      ],
+      "output_item": "tree_sap",
+      "output_quantity": 1,
+      "requires_campfire": false,
+      "xp_reward": 4.0,
+      "processing_chain": "wood_chain",
+      "tier": 1,
+      "requires_structure": "",
+      "skill": null,
+      "season": "all",
+      "skill_affects_yield": "crafting",
+      "required_skill": "crafting",
+      "required_level": 1
+    },
+    {
       "recipe_id": "charcoal",
       "name": "Kiln Charcoal",
       "input_items": [

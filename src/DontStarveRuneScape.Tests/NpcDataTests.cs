@@ -37,10 +37,12 @@ public class NpcDataTests
         var giver = registry.GetNpc("quest_giver_forest_1");
         Assert.NotNull(giver);
         // First Steps chain (frontier slice 4) rides ahead of the original
-        // side quest; the giver offers all seven.
-        Assert.Equal(7, giver!.AvailableQuestIds.Length);
+        // side quests; herb_gathering joined Hemlock's board in the
+        // cross-skill audit slice B (it was defined but offered by nobody).
+        Assert.Equal(8, giver!.AvailableQuestIds.Length);
         Assert.Equal("first_flame", giver.AvailableQuestIds[0]);
         Assert.Contains("timber_collection", giver.AvailableQuestIds);
+        Assert.Contains("herb_gathering", giver.AvailableQuestIds);
 
         var leader = registry.GetNpc("goblin_chief_grak");
         Assert.NotNull(leader);

@@ -877,10 +877,13 @@ public sealed class CraftingPanel
         if (SelectedIndex >= _scroll + VisibleRows) _scroll = SelectedIndex - VisibleRows + 1;
     }
 
-    /// <summary>Mouse handling + craft action; call once per frame from Game.Update while open.</summary>
+    /// <summary>Mouse handling + craft action; call once per frame from Game.Update while open.
+    /// unlockedRecipes: the player's quest recipe unlocks (quest-locked recipes
+    /// refuse without them); null leaves quest gating off.</summary>
     public void Update(InputState input, CraftingSystem crafting, Inventory inventory,
         SkillManager skills, int screenW, int screenH,
-        IReadOnlySet<string>? availableStructures = null)
+        IReadOnlySet<string>? availableStructures = null,
+        IReadOnlySet<string>? unlockedRecipes = null)
     {
         HandleKeyRepeats(input);
         Refresh(crafting);
@@ -910,7 +913,8 @@ public sealed class CraftingPanel
 
         if (SelectedIndex < _sorted.Count && (ui.TryClick(_craftX, _craftY, CraftW, CraftH) || _pendingCraft))
         {
-            var result = crafting.Craft(_sorted[SelectedIndex].RecipeId, inventory, skills, availableStructures);
+            var result = crafting.Craft(_sorted[SelectedIndex].RecipeId, inventory, skills,
+                availableStructures, unlockedRecipes);
             _status = result.Message;
             _statusOk = result.Success;
             _statusExtra.Clear();
@@ -921,7 +925,8 @@ public sealed class CraftingPanel
 
     public void Render(PrimitiveBatch batch, TextRenderer? text, SpriteRenderer? sprites,
         CraftingSystem crafting, Inventory inventory, SkillManager skills,
-        int screenW, int screenHeight, IReadOnlySet<string>? availableStructures = null)
+        int screenW, int screenHeight, IReadOnlySet<string>? availableStructures = null,
+        IReadOnlySet<string>? unlockedRecipes = null)
     {
         Refresh(crafting);
         Layout(screenW, screenHeight);
@@ -930,7 +935,7 @@ public sealed class CraftingPanel
         PanelChrome.Draw(batch, text, screenW, screenHeight, "CRAFTING", ContentW, ContentH,
             out _, out _, out _, out _);
 
-        int craftable = _sorted.Count(r => CanCraft(r, inventory, skills, availableStructures));
+        int craftable = _sorted.Count(r => CanCraft(r, inventory, skills, availableStructures, unlockedRecipes));
         float headerY = _cy - HeaderH + 13f;
         DrawLeft(batch, text, $"Recipes: {_sorted.Count}", _cx, headerY, 15,
             PanelChrome.TextR, PanelChrome.TextG, PanelChrome.TextB, bold: true);
@@ -938,9 +943,9 @@ public sealed class CraftingPanel
             150, 200, 120, bold: true);
 
         for (int i = 0; i < VisibleRows && _scroll + i < _sorted.Count; i++)
-            RenderRow(batch, text, sprites, _sorted[_scroll + i], _scroll + i, inventory, skills, availableStructures);
+            RenderRow(batch, text, sprites, _sorted[_scroll + i], _scroll + i, inventory, skills, availableStructures, unlockedRecipes);
 
-        RenderDetail(batch, text, sprites, inventory, skills, availableStructures);
+        RenderDetail(batch, text, sprites, inventory, skills, availableStructures, unlockedRecipes);
     }
 
     private void Refresh(CraftingSystem? crafting)
@@ -956,12 +961,12 @@ public sealed class CraftingPanel
 
     private void RenderRow(PrimitiveBatch batch, TextRenderer text, SpriteRenderer? sprites,
         Data.CraftRecipe recipe, int index, Inventory inventory, SkillManager skills,
-        IReadOnlySet<string>? availableStructures)
+        IReadOnlySet<string>? availableStructures, IReadOnlySet<string>? unlockedRecipes = null)
     {
         float y = _rowY[index - _scroll];
         float cx = _rowX + _rowW * 0.5f, cy = y + RowH * 0.5f;
         bool selected = index == SelectedIndex;
-        bool craftable = CanCraft(recipe, inventory, skills, availableStructures);
+        bool craftable = CanCraft(recipe, inventory, skills, availableStructures, unlockedRecipes);
 
         // Row well: warm wash for craftable, darker for gated; selection on top.
         if (selected)
@@ -996,7 +1001,8 @@ public sealed class CraftingPanel
     }
 
     private void RenderDetail(PrimitiveBatch batch, TextRenderer text, SpriteRenderer? sprites,
-        Inventory inventory, SkillManager skills, IReadOnlySet<string>? availableStructures)
+        Inventory inventory, SkillManager skills, IReadOnlySet<string>? availableStructures,
+        IReadOnlySet<string>? unlockedRecipes = null)
     {
         float dividerX = _detailX - 10f;
         batch.DrawScreenQuad(dividerX, _detailY + 200f, 0.5f, 200f,
@@ -1050,7 +1056,7 @@ public sealed class CraftingPanel
             DrawLeft(batch, text, flags.TrimEnd(), _detailX, _detailY + 230f, 13, 200, 170, 60);
 
         // CRAFT button: gold when craftable, dim when gated.
-        bool craftable = CanCraft(recipe, inventory, skills, availableStructures);
+        bool craftable = CanCraft(recipe, inventory, skills, availableStructures, unlockedRecipes);
         bool craftSelected = _selectionMode == 1;
         byte br = craftable ? (craftSelected ? (byte)250 : PanelChrome.BorderR) : (byte)110;
         byte bg = craftable ? (craftSelected ? (byte)225 : PanelChrome.BorderG) : (byte)95;
@@ -1071,8 +1077,10 @@ public sealed class CraftingPanel
     // Panel-side craftable check for coloring; matches CraftingSystem's skill,
     // ingredient, and available-station gates.
     private static bool CanCraft(Data.CraftRecipe recipe, Inventory inventory, SkillManager skills,
-        IReadOnlySet<string>? availableStructures)
+        IReadOnlySet<string>? availableStructures, IReadOnlySet<string>? unlockedRecipes = null)
     {
+        if (unlockedRecipes != null && recipe.QuestUnlock != null
+            && !unlockedRecipes.Contains(recipe.QuestUnlock)) return false;
         if (skills.GetSkillLevel(recipe.RequiredSkill) < recipe.RequiredLevel) return false;
         if (availableStructures != null && !string.IsNullOrEmpty(recipe.RequiresStructure)
             && !availableStructures.Contains(recipe.RequiresStructure)) return false;
