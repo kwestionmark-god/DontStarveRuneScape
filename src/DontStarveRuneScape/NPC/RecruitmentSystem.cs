@@ -725,12 +725,13 @@ public sealed class RecruitmentSystem
     internal static string GatherSkillFor(ResourceDef? def)
     {
         if (def == null) return "foraging";
-        // RED for the cross-skill audit: current behavior trains mining on
-        // every tool node (trees + water included) and the woodcutting
-        // branch below is dead (no yield item is literally wood/log/logs).
-        if (def.ToolRequirement == "fishing_rod") return "fishing";
-        if (def.RequiresTool) return "mining";
-        return def.YieldItem is "wood" or "log" or "logs" ? "woodcutting" : "foraging";
+        return def.ToolRequirement switch
+        {
+            "axe" => "woodcutting",
+            "pickaxe" => "mining",
+            "fishing_rod" => "fishing",
+            _ => "foraging",
+        };
     }
 
     /// <summary>True when the worker holds the board reservation for a tile.
