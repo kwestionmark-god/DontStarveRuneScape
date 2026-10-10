@@ -21,9 +21,12 @@ public sealed class CraftingSystem
     public void Tick(float dt) { }
 
     /// <summary>Try to craft a recipe: skill gate, ingredient gate, all-or-nothing
-    /// consume/produce, XP grant. Returns a result with a player-facing message.</summary>
+    /// consume/produce, XP grant. Returns a result with a player-facing message.
+    /// RED scaffold: unlockedRecipes is accepted but not yet enforced (the
+    /// enforcement lands in GREEN with the audit slice).</summary>
     public CraftResult Craft(string recipeId, IItemStorage inventory, SkillManager skillManager,
-        IReadOnlySet<string>? availableStructures = null)
+        IReadOnlySet<string>? availableStructures = null,
+        IReadOnlySet<string>? unlockedRecipes = null)
     {
         var recipe = Registry?.GetRecipe(recipeId);
         if (recipe == null)
