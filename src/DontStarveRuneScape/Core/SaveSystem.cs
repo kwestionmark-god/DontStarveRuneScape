@@ -94,7 +94,16 @@ public sealed class SaveSystem
         RestoreWorld(saveData, game);
         RestoreSeasons(saveData, game);
         game.DayNight?.RestoreSnapshot(saveData.DayNight);
+        RestoreTamedAnimals(saveData, game);
         RestoreCave(saveData, game);
+    }
+
+    /// <summary>Pets are owned by the taming system (not registry NPCs),
+    /// so they restore through its dedicated snapshot.</summary>
+    private void RestoreTamedAnimals(SaveData data, Game game)
+    {
+        if (game.Taming == null || game.Player == null) return;
+        game.Taming.RestoreSnapshot(data.TamedAnimals ?? [], game.Player);
     }
 
     /// <summary>Restore the cave expedition: re-enters the cave when the save
@@ -174,6 +183,7 @@ public sealed class SaveSystem
             Seasons = game.SeasonSystem?.GetSnapshot() ?? new SeasonSnapshot(),
             DayNight = game.DayNight?.GetSnapshot() ?? new World.DayNightSnapshot(),
             Cave = game.CaveWorlds?.GetSnapshot() ?? new World.CaveSnapshot(),
+            TamedAnimals = game.Taming?.BuildSnapshot() ?? [],
         };
     }
 
@@ -311,6 +321,9 @@ public sealed class SaveData
     public SeasonSnapshot Seasons { get; set; } = new();
     public World.DayNightSnapshot DayNight { get; set; } = new();
     public World.CaveSnapshot Cave { get; set; } = new();
+    /// <summary>Tamed animals (taming slice). Old saves deserialize this
+    /// as an empty list — no pets to restore.</summary>
+    public List<TamingSystem.TamedAnimalRecord> TamedAnimals { get; set; } = [];
 }
 
 /// <summary>

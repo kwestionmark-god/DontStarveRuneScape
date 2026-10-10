@@ -1,6 +1,7 @@
 namespace DontStarveRuneScape.Tests;
 
 using System.Linq;
+using DontStarveRuneScape.Actions;
 using DontStarveRuneScape.Combat;
 using DontStarveRuneScape.Config;
 using DontStarveRuneScape.Core;
@@ -356,6 +357,80 @@ public class TamedAnimalTests
     }
 
     // ── Persistence ──────────────────────────────────────────────────
+
+    [Fact]
+    public void E_InteractTamesMonsterWhenFoodHeld()
+    {
+        // Bare-Game harness (PauseFlowTests shape): E routes through
+        // InteractSystem into TamingSystem when a tamable monster is in
+        // reach and the food is held. RollOverride forces the outcome.
+        var game = new Core.Game();
+        var player = new Player(5.5f * Constants.TileSize, 5.5f * Constants.TileSize)
+        {
+            ActionSystem = new ActionSystem(),
+            SkillManager = new SkillManager(),
+            Inventory = new Inv(),
+            Survival = new SurvivalSystem(),
+        };
+        game.Player = player;
+        game.World = new TileMap(24, 24);
+        game.Inventory = player.Inventory;
+        game.SkillManager = player.SkillManager;
+        game.CombatSystem = new CombatSystem();
+        game.Taming = new TamingSystem { RollOverride = "success" };
+        player.Inventory.AddItem("raw_meat", 2);
+
+        var registry = MakeMonsters();
+        var def = registry.GetMonster("wolf");
+        Assert.NotNull(def);
+        game.CombatSystem.SpawnMonster(def!, player.WorldX + 40f, player.WorldY, "forest");
+
+        var interact = new Interactions.InteractSystem(game);
+        interact.HandleInteract();
+
+        Assert.Single(game.Taming.TamedAnimals);
+        Assert.Equal(1, player.Inventory.GetItemQuantity("raw_meat"));
+        // The visible notification landed (flushed by the system under test
+        // or still pending — assert the outcome, not the queue state).
+        Assert.DoesNotContain(game.CombatSystem.Monsters, m => m.MonsterId == "wolf");
+    }
+
+    [Fact]
+    public void E_InteractNotifiesWantsFoodWhenNoneHeld()
+    {
+        var game = new Core.Game();
+        var player = new Player(5.5f * Constants.TileSize, 5.5f * Constants.TileSize)
+        {
+            ActionSystem = new ActionSystem(),
+            SkillManager = new SkillManager(),
+            Inventory = new Inv(),
+            Survival = new SurvivalSystem(),
+        };
+        game.Player = player;
+        game.World = new TileMap(24, 24);
+        game.Inventory = player.Inventory;
+        game.SkillManager = player.SkillManager;
+        game.CombatSystem = new CombatSystem();
+        game.Taming = new TamingSystem { RollOverride = "success" };
+        // no raw_meat held
+
+        var registry = MakeMonsters();
+        var def = registry.GetMonster("wolf");
+        Assert.NotNull(def);
+        game.CombatSystem.SpawnMonster(def!, player.WorldX + 40f, player.WorldY, "forest");
+
+        var interact = new Interactions.InteractSystem(game);
+        interact.HandleInteract();
+
+        // No tame happened, the wolf is still wild, and the player was told
+        // what it wants (message visible via AddNotification; flushed next
+        // game frame — assert the world state here).
+        Assert.Empty(game.Taming.TamedAnimals);
+        Assert.Contains(game.CombatSystem.Monsters, m => m.MonsterId == "wolf");
+        player.ActionSystem.FlushNotifications();
+        Assert.Contains(player.ActionSystem.Notifications,
+            n => n.Text.Contains("wants"));
+    }
 
     [Fact]
     public void TamedAnimalsRoundTripThroughSnapshot()

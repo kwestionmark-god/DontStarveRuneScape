@@ -91,6 +91,7 @@ public sealed class Game
     public FactionSystem? FactionSystem { get; set; }
     public NpcRegistry? NpcRegistry { get; set; }
     public MonsterRegistry? MonsterRegistry { get; set; }
+    public TamingSystem? Taming { get; set; }
     public TradeItemRegistry? TradeRegistry { get; set; }
     public QuestRegistry? QuestRegistry { get; set; }
     public FactionRegistry? FactionRegistry { get; set; }
@@ -898,6 +899,20 @@ public sealed class Game
             FactionRegistry, FactionSystem, WeatherSystem, Firemaking);
         NPCSystem?.TickFactionNPCs(dt);
 
+        // Pets: follower follow-tick + colony guard (surface only — pets
+        // don't follow into caves yet, like the companion contract).
+        if (Taming != null && Player != null && CombatSystem != null && World is { IsCave: false })
+        {
+            Taming.PlayerX = Player.WorldX;
+            Taming.PlayerY = Player.WorldY;
+            foreach (var pet in Taming.TamedAnimals)
+            {
+                if (!pet.IsActive || pet.Health <= 0) continue;
+                if (pet.IsColonyAssigned) Taming.TickColonyGuard(dt, pet, CombatSystem);
+                else Taming.Tick(dt, pet);
+            }
+        }
+
         // Trade
         TradeSystem?.Tick(dt);
 
@@ -1696,6 +1711,24 @@ public sealed class Game
 
                     if (npc == nearbyNpc)
                         drawables.Add((sortY, seq++, () => SpriteRenderer.RenderProximityPrompt(n, batch, Camera, elev, TextRenderer)));
+                }
+            }
+
+            // Pets (tamed animals): same depth-sorted sprite pass as NPCs,
+            // drawn from the taming system's own list — they are not
+            // registry NPCs and never appear in NPCSystem.NPCs.
+            if (!World.IsCave && Taming != null)
+            {
+                foreach (var pet in Taming.TamedAnimals)
+                {
+                    if (!pet.IsActive || pet.Health <= 0) continue;
+                    var pTile = World.GetTile((int)(pet.WorldX / Constants.TileSize), (int)(pet.WorldY / Constants.TileSize));
+                    float elev = pTile != null
+                        ? (pTile.HasWater ? pTile.GetSurfaceElevation() : pTile.GetElevationAt(0.5f, 0.5f))
+                        : 0f;
+                    float sortY = GetDepthSort(pet.WorldX, pet.WorldY, elev);
+                    var p = pet;
+                    drawables.Add((sortY, seq++, () => SpriteRenderer.RenderNPC(p, batch, Camera, elev, Dt)));
                 }
             }
 

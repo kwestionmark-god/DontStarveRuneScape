@@ -1216,10 +1216,15 @@ public sealed class SpriteRenderer : IDisposable
         float elevation, float dt = 0f)
     {
         // Real NPC sprite by type (npcs/*.png), colored quad fallback.
+        // Pets (tamed animals) render their species monster sprite.
+        var petRecruit = npc as RecruitNpc;
+        bool isPet = petRecruit != null && petRecruit.RecruitBehavior == "pet"
+                     && !string.IsNullOrEmpty(petRecruit.SpeciesId);
         string spriteKey = npc.NpcType switch
         {
             "merchant" => "npcs/merchant",
             "quest_giver" => "npcs/quest_giver",
+            "recruit" when isPet => $"monster/{petRecruit!.SpeciesId}",
             "recruit" => "npcs/recruit",
             "faction_leader" => "npcs/faction_leader",
             _ => "npcs/quest_giver",

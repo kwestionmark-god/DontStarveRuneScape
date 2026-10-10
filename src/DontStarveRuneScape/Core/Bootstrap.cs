@@ -226,6 +226,9 @@ public sealed class Bootstrap
         _game.CombatSystem.SpawnFromRegistry(_game.MonsterRegistry, tileMap, player);
         _game.CombatSystem.Quests = _game.QuestSystem;
 
+        // Taming (pets: feed-to-tame engine; owned by the game loop)
+        _game.Taming = new NPC.TamingSystem();
+
         // Building
         _game.BuildingSystem = new BuildingSystem();
         _game.BuildingSystem.Registry = new Data.StructureDefRegistry();

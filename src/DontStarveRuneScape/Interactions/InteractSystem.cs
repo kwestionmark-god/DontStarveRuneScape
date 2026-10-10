@@ -1,6 +1,7 @@
 namespace DontStarveRuneScape.Interactions;
 
 using DontStarveRuneScape.Actions;
+using DontStarveRuneScape.Combat;
 using DontStarveRuneScape.Core;
 using DontStarveRuneScape.NPC;
 using DontStarveRuneScape.World;
@@ -72,6 +73,36 @@ public sealed class InteractSystem
                         _npcFlows.OpenQuestPanel(npc);
                         return;
                 }
+            }
+        }
+
+        // Taming: a live tamable monster in reach, before resources. The
+        // system gates (level, food) and reports visibly; a tamable monster
+        // the player can't feed yet still tells them what it wants.
+        if (game.CombatSystem != null && game.Taming != null)
+        {
+            Monster? tameTarget = null;
+            float tameBestSq = 96f * 96f; // same reach band as gathering
+            foreach (var monster in game.CombatSystem.Monsters)
+            {
+                if (!monster.IsAlive() || monster.Def == null || !monster.Def.Tamable) continue;
+                float dx = monster.WorldX - game.Player.WorldX;
+                float dy = monster.WorldY - game.Player.WorldY;
+                float sq = dx * dx + dy * dy;
+                if (sq <= tameBestSq)
+                {
+                    tameBestSq = sq;
+                    tameTarget = monster;
+                }
+            }
+            if (tameTarget != null)
+            {
+                var tameResult = game.Taming.TryTame(game.Player, tameTarget, game.CombatSystem);
+                if (!tameResult.Success)
+                    actionSys.AddNotification(tameResult.Message, Game.ErrorColor);
+                else
+                    actionSys.AddNotification(tameResult.Message, Game.SuccessColor);
+                return;
             }
         }
 
