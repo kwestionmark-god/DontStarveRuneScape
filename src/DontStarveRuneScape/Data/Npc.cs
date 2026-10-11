@@ -68,6 +68,12 @@ public sealed class NpcDef : DataRecord
 
     [JsonPropertyName("available_behaviors")]
     public string[] AvailableBehaviors { get; init; } = [];
+
+    /// <summary>Authored shop biome (merchants): when set, stock matching is
+    /// deterministic across seeds instead of tile-derived. Empty = derive
+    /// from the def's world tile as before.</summary>
+    [JsonPropertyName("biome")]
+    public string Biome { get; init; } = string.Empty;
 }
 
 /// <summary>

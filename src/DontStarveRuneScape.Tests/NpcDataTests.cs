@@ -20,8 +20,9 @@ public class NpcDataTests
         registry.LoadAll();
 
         // 16 original defs + companion_mara (starting-companion slice)
-        // + quest_giver_plains_1 (NPC-quest breadth).
-        Assert.Equal(18, registry.Npcs.Count);
+        // + quest_giver_plains_1 (NPC-quest breadth)
+        // + merchant_swamp_1 (coastal/swamp side quests).
+        Assert.Equal(19, registry.Npcs.Count);
         Assert.Equal(14, registry.SpawnPoints.Count);
 
         var merchant = registry.GetNpc("merchant_forest_1");
@@ -110,7 +111,7 @@ public class NpcDataTests
         var registry = new QuestRegistry();
         registry.LoadAll();
 
-        Assert.Equal(23, registry.Quests.Count); // 12 originals + First Steps (6) + quest breadth (5)
+        Assert.Equal(29, registry.Quests.Count); // 12 originals + First Steps (6) + quest breadth (5) + coastal/swamp (6)
 
         var timber = registry.GetQuest("timber_collection");
         Assert.NotNull(timber);
@@ -217,7 +218,7 @@ public class NpcDataTests
         var registry = new NpcRegistry();
         registry.LoadAll();
 
-        Assert.Equal(4, registry.GetNpcsOfType("merchant").Count());
+        Assert.Equal(5, registry.GetNpcsOfType("merchant").Count());
         Assert.Equal(4, registry.GetNpcsOfType("quest_giver").Count());
         Assert.Equal(6, registry.GetNpcsOfType("faction_leader").Count());
         // 3 original recruits + companion_mara.
