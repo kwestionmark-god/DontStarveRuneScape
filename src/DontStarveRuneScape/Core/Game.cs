@@ -1079,6 +1079,20 @@ public sealed class Game
                 result.Success ? ((byte)100, (byte)255, (byte)100) : ((byte)255, (byte)150, (byte)100));
     }
 
+    /// <summary>The shovel flatten verb (key V): levels the tile the player
+    /// stands on into a flat pad for block building. Refusals surface as
+    /// notifications; nothing mutates on a refuse.</summary>
+    public void HandleFlattenInput()
+    {
+        if (Player == null || World == null || Player.ActionSystem == null) return;
+        int tx = (int)(Player.WorldX / Constants.TileSize);
+        int ty = (int)(Player.WorldY / Constants.TileSize);
+        var err = Player.ActionSystem.StartAction(Actions.ActionType.Flattening, null,
+            SkillManager!, Player.Inventory!, tileXy: (tx, ty));
+        if (err != null)
+            Player.ActionSystem.AddNotification(err, ((byte)255, (byte)150, (byte)100));
+    }
+
     /// <summary>Soft-death handling (Survival.OnDeath, wired at boot): count the
     /// death, restore HP/hunger fractions, apply the XP penalty, and clear the
     /// monsters so the respawn is safe.</summary>

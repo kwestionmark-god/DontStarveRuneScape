@@ -91,27 +91,44 @@ public sealed class TileMap
         }
     }
 
-    private readonly List<TerrainEditSnapshot>? _terrainEditsStub = null;
+    private readonly List<TerrainEditSnapshot> _terrainEdits = [];
 
     /// <summary>Apply a player-driven terrain elevation edit (the shovel's
-    /// flatten action). Applies the elevation immediately, records it so
-    /// SaveSystem can persist the edit, and refreshes corner quads.</summary>
+    /// flatten action): sets the tile's elevation, records the edit for
+    /// SaveSystem persistence (deduped per tile — a re-flatten replaces the
+    /// earlier record), and refreshes the corner-stitch quads so placement
+    /// gates and renderers read the new shape immediately.</summary>
     public void SetElevationOverride(int x, int y, float elevation)
     {
-        // RED stub: elevation applied for in-session tests; the edit record +
-        // corner refresh land in GREEN.
         var tile = GetTile(x, y);
-        if (tile != null) tile.Elevation = elevation;
+        if (tile == null) return;
+        tile.Elevation = elevation;
+        _terrainEdits.RemoveAll(e => e.TileX == x && e.TileY == y);
+        _terrainEdits.Add(new TerrainEditSnapshot { TileX = x, TileY = y, Elevation = elevation });
+        BuildCornerElevations();
     }
 
     /// <summary>Player-made elevation edits for persistence (spec:
     /// 2026-10-11-vertical-building-foundations-design.md).</summary>
-    public List<TerrainEditSnapshot> GetTerrainEdits() =>
-        _terrainEditsStub ?? new List<TerrainEditSnapshot>();
+    public List<TerrainEditSnapshot> GetTerrainEdits() => new(_terrainEdits);
 
-    /// <summary>Rebuild corner quads from current tile elevations (the
-    /// neighbor-stitch convention TileStitchingTests pins).</summary>
-    public void RefreshCornerElevations() => BuildCornerElevations();
+    /// <summary>Restore player-made elevation edits after the seeded world
+    /// rebuild at load, then re-derive corner quads (the stitch convention
+    /// TileStitchingTests pins).</summary>
+    public void RestoreTerrainEdits(IEnumerable<TerrainEditSnapshot> edits)
+    {
+        bool any = false;
+        foreach (var e in edits)
+        {
+            var tile = GetTile(e.TileX, e.TileY);
+            if (tile == null) continue;
+            tile.Elevation = e.Elevation;
+            _terrainEdits.RemoveAll(t => t.TileX == e.TileX && t.TileY == e.TileY);
+            _terrainEdits.Add(new TerrainEditSnapshot { TileX = e.TileX, TileY = e.TileY, Elevation = e.Elevation });
+            any = true;
+        }
+        if (any) BuildCornerElevations();
+    }
 
     /// <summary>
     /// Update all tiles (regrowth, seasonal changes).

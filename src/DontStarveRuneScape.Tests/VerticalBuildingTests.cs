@@ -226,14 +226,14 @@ public class VerticalBuildingTests
     public void Flatten_Refuses_SinkBelowSea()
     {
         var h = new Harness();
-        // Corners average 4 (deep well) — leveling would sink the tile underwater.
+        // Land tile above a deep well: corner sources [16.5,4,4,4] — median
+        // 4 would sink the tile underwater.
         h.World.Tiles[5, 4].Elevation = 4f;
         h.World.Tiles[5, 5].Elevation = 4f;
         h.World.Tiles[4, 5].Elevation = 4f;
-        h.World.Tiles[4, 4].Elevation = 4f;
         var err = TryFlatten(h, 4, 4);
         Assert.Equal("That would flood.", err);
-        Assert.Equal(4f, h.World.GetTile(4, 4)!.Elevation); // untouched
+        Assert.Equal(Constants.SeaLevel + 5f, h.World.GetTile(4, 4)!.Elevation); // untouched
     }
 
     // ── 5. XP routing wiring ────────────────────────────────────────────────

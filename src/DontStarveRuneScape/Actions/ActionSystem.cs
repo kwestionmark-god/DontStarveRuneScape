@@ -212,6 +212,32 @@ public sealed class ActionSystem
             if (action.Baited)
                 AddNotification("Baited hook...", (150, 220, 160));
         }
+        else if (actionType == ActionType.Flattening)
+        {
+            // Terrain-levelling tool action (vertical-building slice): the
+            // shovel turns one tile's elevation to the median of its corner
+            // sources — the level the agreeing neighbors already share.
+            if (_tileMap == null || tileXy == null)
+                return "No valid target.";
+            var ftile = _tileMap.GetTile(tileXy.Value.X, tileXy.Value.Y);
+            if (ftile == null)
+                return "No valid target.";
+            if (FindEquippedTool(inventory, "shovel") == null)
+                return "Needs a shovel.";
+            if (ftile.HasWater)
+                return "Can't level water.";
+            if (ftile.Structure != null)
+                return "Clear the structure first.";
+            if (ftile.ResourceNode != null)
+                return "Clear the resource node first.";
+            float flat = FlattenTarget(_tileMap, tileXy.Value.X, tileXy.Value.Y);
+            if (flat <= Constants.SeaLevel)
+                return "That would flood."; // levelling must never make water
+
+            action.XpReward = 10f; // the same rate a structure placement pays
+            action.DurationRemaining = Constants.FlattenSeconds;
+            AddNotification("You get to work on the ground...", (200, 170, 120));
+        }
         else if (actionType == ActionType.Cooking && recipeId != null)
         {
             action.RecipeId = recipeId;
@@ -300,6 +326,15 @@ public sealed class ActionSystem
             }
         }
 
+        // Flattening produces no item: its XP pays out directly here, routed
+        // by the same ActionType->skill map the gathers use (the fishing-
+        // through-foraging bug class: keep the enum, keep the arm).
+        if (Active.ActionType == ActionType.Flattening && result.Xp > 0f)
+        {
+            foreach (var msg in skillManager.AddXpWithNotification(ActionTypeToSkillId(), result.Xp))
+                AddNotification(msg, (255, 215, 0));
+        }
+
         // Show success message
         if (!string.IsNullOrEmpty(result.Message))
             AddNotification(result.Message);
@@ -361,7 +396,9 @@ public sealed class ActionSystem
 
         var result = action.ActionType is ActionType.Woodcutting or ActionType.Mining or ActionType.Foraging or ActionType.Fishing
             ? CompleteGathering(action)
-            : null;
+            : action.ActionType == ActionType.Flattening
+                ? CompleteFlattening(action)
+                : null;
 
         // Actions resolve instantly; return to idle whatever the type (a
         // cooking action previously never reset and would have permanently
@@ -496,6 +533,38 @@ public sealed class ActionSystem
             // Failure — no yield; the stamina already spent gates the next try
             return ActionResult.Failure("You fail to harvest the resource.");
         }
+    }
+
+    /// <summary>Median of the tile's corner sources (its own elevation plus
+    /// the three forward neighbors BuildCornerElevations stitches from —
+    /// TileMap.cs:74). The median is the level agreeing neighbors already
+    /// share; it never invents a height between two real ones.</summary>
+    private static float FlattenTarget(TileMap map, int x, int y)
+    {
+        float Elev(int tx, int ty) =>
+            map.GetTile(tx, ty)?.Elevation ?? map.GetTile(x, y)!.Elevation;
+        var sources = new[] { Elev(x, y), Elev(x + 1, y), Elev(x + 1, y + 1), Elev(x, y + 1) };
+        Array.Sort(sources);
+        return (sources[1] + sources[2]) * 0.5f;
+    }
+
+    /// <summary>Complete the shovel flatten: re-check the no-flood line against
+    /// the live tile, apply the level, refresh the corner stitch, and record the
+    /// edit for persistence.</summary>
+    private ActionResult CompleteFlattening(ActiveAction action)
+    {
+        if (_tileMap == null || !action.TileXy.HasValue)
+            return ActionResult.Failure("No ground to level.");
+        var (x, y) = action.TileXy.Value;
+        var tile = _tileMap.GetTile(x, y);
+        if (tile == null)
+            return ActionResult.Failure("No ground to level.");
+        float target = FlattenTarget(_tileMap, x, y);
+        if (target <= Constants.SeaLevel)
+            return ActionResult.Failure("That would flood.");
+
+        _tileMap.SetElevationOverride(x, y, target);
+        return ActionResult.SuccessResult(string.Empty, 0, action.XpReward, "Ground levelled.");
     }
 
     /// <summary>

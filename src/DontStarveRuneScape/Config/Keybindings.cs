@@ -48,6 +48,7 @@ public static class Keybindings
         ["confirm_alt"] = Key.Space,
         ["light_fire"] = Key.F,
         ["attack"] = Key.J,
+        ["level_ground"] = Key.V,
 
         // Camera
         ["orbit_ccw"] = Key.Left,

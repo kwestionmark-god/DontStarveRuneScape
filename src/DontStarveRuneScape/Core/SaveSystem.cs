@@ -180,6 +180,7 @@ public sealed class SaveSystem
             World = new WorldSnapshot
             {
                 DepletedNodes = game.World?.GetDepletedNodes() ?? [],
+                TerrainEdits = game.World?.GetTerrainEdits() ?? [],
             },
             Seasons = game.SeasonSystem?.GetSnapshot() ?? new SeasonSnapshot(),
             DayNight = game.DayNight?.GetSnapshot() ?? new World.DayNightSnapshot(),
@@ -297,6 +298,11 @@ public sealed class SaveSystem
     private void RestoreWorld(SaveData data, Game game)
     {
         game.World?.RestoreDepletedNodes(data.World.DepletedNodes);
+        // Player-made terrain edits ride the same convention as depleted
+        // nodes: the world rebuilt from the seed is the base, this layer
+        // re-applies what the shovel did (and re-stitches the corner quads).
+        if (data.World.TerrainEdits.Count > 0)
+            game.World?.RestoreTerrainEdits(data.World.TerrainEdits);
     }
 
     private void RestoreSeasons(SaveData data, Game game)

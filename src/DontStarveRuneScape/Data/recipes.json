@@ -195,6 +195,32 @@
       "required_level": 2
     },
     {
+      "recipe_id": "craft_shovel",
+      "name": "Shape Shovel",
+      "input_items": [
+        [
+          "stick",
+          2
+        ],
+        [
+          "stone",
+          1
+        ]
+      ],
+      "output_item": "shovel",
+      "output_quantity": 1,
+      "xp_reward": 5.0,
+      "processing_chain": "wood_chain",
+      "tier": 1,
+      "requires_campfire": false,
+      "requires_structure": "",
+      "skill": null,
+      "season": "all",
+      "skill_affects_yield": "crafting",
+      "required_skill": "crafting",
+      "required_level": 1
+    },
+    {
       "recipe_id": "paper",
       "name": "Make Paper",
       "input_items": [

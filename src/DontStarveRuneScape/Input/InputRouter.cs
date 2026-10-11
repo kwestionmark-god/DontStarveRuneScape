@@ -169,6 +169,8 @@ public sealed class InputRouter
             _fireInteraction.HandleLightFire();
         else if (key == Key.Space)
             _game.Player?.TryJump();
+        else if (key == Key.V)
+            _game.HandleFlattenInput();
         else if (key == Key.J)
             _game.HandleAttackInput();
         else if (key == Key.O)

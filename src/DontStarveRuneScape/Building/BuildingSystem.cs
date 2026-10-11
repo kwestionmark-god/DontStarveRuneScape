@@ -51,6 +51,22 @@ public sealed class BuildingSystem
                 && s.TileX == tileX && s.TileY == tileY))
             return (false, "That tile already has a structure.");
 
+        // Blocks are ground with vertical extent: they need a flat pad (the
+        // corner-stitch quad agrees) and dry land. Non-block defs keep the
+        // legacy gates bit-identical — existing structures place on slopes.
+        if (def.IsBlock)
+        {
+            if (tile.HasWater)
+                return (false, "Can't build a block in water.");
+            var corners = tile.CornerElevations;
+            if (corners is { Length: 4 })
+            {
+                float spread = corners.Max() - corners.Min();
+                if (spread > Constants.FlatPadMaxSpread)
+                    return (false, "Needs flat ground — level this tile with a shovel.");
+            }
+        }
+
         if (tile.Biome != null && def.BiomeCompatibility.Length > 0 &&
             !def.BiomeCompatibility.Contains(tile.Biome.Id))
             return (false, $"A {def.Name} can't be built on {tile.Biome.Id}.");
