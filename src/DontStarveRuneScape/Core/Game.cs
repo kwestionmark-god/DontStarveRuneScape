@@ -56,7 +56,7 @@ public sealed class Game
     // ─── NPC hub return (Esc from a hub-launched tab panel) ────────────
     // Set by OpenNpcHubTab before the handoff (SetState wipes the hub
     // session via CloseAllPanels), cleared on any world transition like
-    // the dashboard flag. RED stubs: null/false until GREEN wires them.
+    // the dashboard flag.
     /// <summary>The NPC whose hub menu launched the current panel, if any.</summary>
     public DontStarveRuneScape.NPC.Npc? HubReturnNpc { get; set; }
     /// <summary>The hub tab that was active at handoff time.</summary>
@@ -235,7 +235,13 @@ public sealed class Game
         State = newState;
 
         if (newState is GameState.Playing or GameState.Paused or GameState.SettingsPanel)
+        {
             DashboardReturnAvailable = false;
+            // A world transition ends any hub conversation — the Esc return
+            // must not resurrect a menu the player walked away from.
+            HubReturnNpc = null;
+            HubReturnTab = string.Empty;
+        }
 
         // Handle panel closing (Paused/SettingsPanel also demand a clean slate:
         // the pause menu is only ever shown over a closed-panel state).
@@ -409,6 +415,11 @@ public sealed class Game
     public void OpenNpcHubTab(string tab)
     {
         if (NpcHub?.Session is not { } npc || Player == null) return;
+        // Remember the conversation before the handoff: SetState wipes the
+        // hub (CloseAllPanels), so the Game holds the npc + active tab for
+        // the Esc return (TryReturnToNpcHub).
+        HubReturnNpc = npc;
+        HubReturnTab = NpcHub.ActiveTab;
         switch (tab)
         {
             case NpcHubPanel.QuestsTab:
@@ -452,10 +463,21 @@ public sealed class Game
 
     /// <summary>Return to the NPC hub menu from a panel it launched
     /// (OpenNpcHubTab handoff). Restores the session and the tab that was
-    /// active at handoff. RED stub: always false.</summary>
+    /// active at handoff; a direct-opened panel (no handoff) closes to
+    /// Playing as before.</summary>
     public bool TryReturnToNpcHub()
     {
-        return false; // RED stub — GREEN restores the hub session
+        if (HubReturnNpc == null || NpcHub == null
+            || State is GameState.NpcHub or GameState.Playing)
+            return false;
+        // Transition first, populate after — SetState closes every open
+        // panel on a panel-to-panel move (the hub session would be wiped
+        // if it were restored before the transition).
+        SetState(GameState.NpcHub);
+        NpcHub.OpenSession(HubReturnNpc, UI.NpcHubPanel.RolesFor(HubReturnNpc));
+        if (!string.IsNullOrEmpty(HubReturnTab))
+            NpcHub.SetActive(HubReturnTab);
+        return true;
     }
 
     /// <summary>
