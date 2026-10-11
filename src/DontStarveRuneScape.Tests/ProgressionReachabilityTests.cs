@@ -97,8 +97,9 @@ public class ProgressionReachabilityTests
         var refused = crafting.Craft(locked.RecipeId, inv, skills, null, empty);
         Assert.False(refused.Success, "quest-locked recipe must refuse without the unlock");
 
-        // With the unlock: crafts as before.
-        var unlocked = new HashSet<string> { locked.QuestUnlock! };
+        // With the unlock: crafts as before. The set is RECIPE-id keyed —
+        // Claim and the unlock event both write recipe ids.
+        var unlocked = new HashSet<string> { locked.RecipeId };
         var crafted = crafting.Craft(locked.RecipeId, inv, skills, null, unlocked);
         Assert.True(crafted.Success, $"with the unlock it should craft, got: {crafted.Message}");
 

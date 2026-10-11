@@ -324,6 +324,11 @@ public sealed class SaveData
     /// <summary>Tamed animals (taming slice). Old saves deserialize this
     /// as an empty list — no pets to restore.</summary>
     public List<TamingSystem.TamedAnimalRecord> TamedAnimals { get; set; } = [];
+
+    /// <summary>Learned recipe/gear unlocks (unlock-as-event slice). Old
+    /// saves deserialize these as empty lists — nothing persisted before.</summary>
+    public List<string> UnlockedRecipes { get; set; } = [];
+    public List<string> UnlockedGear { get; set; } = [];
 }
 
 /// <summary>

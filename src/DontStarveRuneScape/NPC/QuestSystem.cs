@@ -23,6 +23,10 @@ public sealed class QuestSystem
     /// the standing acceptance gate.</summary>
     public FactionSystem? Factions { get; set; }
 
+    /// <summary>Recipe registry for unlock-event notification honesty
+    /// (wired in Bootstrap); unlocks still land without it, silently.</summary>
+    public RecipeRegistry? Recipes { get; set; }
+
     /// <summary>Faction standing a fresh relationship starts at (0–1).</summary>
     public const float DefaultStanding = 0.5f;
 
@@ -32,8 +36,9 @@ public sealed class QuestSystem
     public IReadOnlyList<ActiveQuest> Active => _active;
     public IReadOnlyCollection<string> Completed => _completed;
 
-    public void Tick(float dt, Player? player, TileMap? world)
+    public void Tick(float dt, Player? player, TileMap? world, Inventory? inventory = null)
     {
+        _ = inventory; // unlock-event sweep lands in the GREEN commit
         // visit_location progress: standing in the target biome completes it.
         if (player == null || world == null) return;
         var (tx, ty) = player.GetTilePosition();
