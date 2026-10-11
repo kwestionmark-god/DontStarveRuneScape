@@ -90,6 +90,7 @@ public sealed class SaveSystem
         RestoreNPCs(saveData, game);
         RestoreColony(saveData, game);
         RestoreQuests(saveData, game);
+        RestoreUnlocks(saveData, game);
         RestoreFactions(saveData, game);
         RestoreWorld(saveData, game);
         RestoreSeasons(saveData, game);
@@ -184,6 +185,8 @@ public sealed class SaveSystem
             DayNight = game.DayNight?.GetSnapshot() ?? new World.DayNightSnapshot(),
             Cave = game.CaveWorlds?.GetSnapshot() ?? new World.CaveSnapshot(),
             TamedAnimals = game.Taming?.BuildSnapshot() ?? [],
+            UnlockedRecipes = game.Player != null ? [.. game.Player.UnlockedRecipes] : [],
+            UnlockedGear = game.Player != null ? [.. game.Player.UnlockedGear] : [],
         };
     }
 
@@ -270,6 +273,17 @@ public sealed class SaveSystem
         {
             game.QuestSystem?.RestoreSnapshot(data.Quests, game.DataLoader);
         }
+    }
+
+    /// <summary>Learned recipes/gear are one-way knowledge; union the saved
+    /// ids into the player's sets (old saves carry empty lists).</summary>
+    private void RestoreUnlocks(SaveData data, Game game)
+    {
+        if (game.Player == null) return;
+        if (data.UnlockedRecipes != null)
+            game.Player.UnlockedRecipes.UnionWith(data.UnlockedRecipes);
+        if (data.UnlockedGear != null)
+            game.Player.UnlockedGear.UnionWith(data.UnlockedGear);
     }
 
     private void RestoreFactions(SaveData data, Game game)

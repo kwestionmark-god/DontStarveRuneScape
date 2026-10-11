@@ -38,9 +38,33 @@ public sealed class QuestSystem
 
     public void Tick(float dt, Player? player, TileMap? world, Inventory? inventory = null)
     {
-        _ = inventory; // unlock-event sweep lands in the GREEN commit
+        if (player == null) return;
+
+        // Unlock-as-event: a quest whose objectives are all met teaches its
+        // recipes immediately — knowledge is permanent, claim only surfaces
+        // it. The HashSet is the fire-once dedupe; only newly learned ids
+        // the data actually gates get the "Recipe learned" line.
+        if (inventory != null && Registry != null)
+        {
+            foreach (var aq in _active)
+            {
+                var quest = Registry.GetQuest(aq.QuestId);
+                if (quest == null || quest.RecipeUnlocks.Length == 0) continue;
+                if (!ConditionsMet(quest, inventory)) continue;
+                foreach (var id in quest.RecipeUnlocks)
+                {
+                    if (player.UnlockedRecipes.Add(id)
+                        && Recipes?.GetRecipe(id)?.QuestUnlock != null)
+                    {
+                        player.ActionSystem?.AddNotification(
+                            $"Recipe learned: {id}", (255, 215, 0));
+                    }
+                }
+            }
+        }
+
         // visit_location progress: standing in the target biome completes it.
-        if (player == null || world == null) return;
+        if (world == null) return;
         var (tx, ty) = player.GetTilePosition();
         string? biome = world.GetTile(tx, ty)?.Biome?.Id;
         if (string.IsNullOrEmpty(biome)) return;
@@ -267,6 +291,10 @@ public sealed class QuestSystem
             }
             list.Add(new QuestDataSnapshot { QuestId = aq.QuestId, State = "active", Progress = progress });
         }
+        // Completed quests persist too, so claimed quests neither re-offer
+        // nor re-pay after a reload.
+        foreach (var done in _completed)
+            list.Add(new QuestDataSnapshot { QuestId = done, State = "completed" });
         snapshot.Quests = [.. list];
         return snapshot;
     }
@@ -275,10 +303,16 @@ public sealed class QuestSystem
     public void RestoreSnapshot(QuestSnapshot snapshot, DataLoader dataLoader)
     {
         _active.Clear();
+        _completed.Clear();
         if (snapshot.Quests != null)
         {
             foreach (var q in snapshot.Quests)
             {
+                if (q.State == "completed")
+                {
+                    _completed.Add(q.QuestId);
+                    continue;
+                }
                 var aq = new ActiveQuest { QuestId = q.QuestId };
                 if (q.Progress != null)
                 {

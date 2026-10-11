@@ -395,7 +395,7 @@
       "acceptance_threshold": 0.55,
       "xp_reward": 200.0,
       "skill_xp_rewards": {"intelligence": 45.0, "mining": 60.0},
-      "recipe_unlocks": ["smelt_steel", "craft_bone_powder"],
+      "recipe_unlocks": ["smelt_steel", "grind_bone"],
       "gear_unlocks": ["steel_sword", "steel_boots"],
       "item_rewards": [["gemstone", 3], ["gold", 35]],
       "conditions": [

@@ -1086,7 +1086,7 @@ public sealed class CraftingPanel
         IReadOnlySet<string>? availableStructures, IReadOnlySet<string>? unlockedRecipes = null)
     {
         if (unlockedRecipes != null && recipe.QuestUnlock != null
-            && !unlockedRecipes.Contains(recipe.QuestUnlock)) return false;
+            && !unlockedRecipes.Contains(recipe.RecipeId)) return false;
         if (skills.GetSkillLevel(recipe.RequiredSkill) < recipe.RequiredLevel) return false;
         if (availableStructures != null && !string.IsNullOrEmpty(recipe.RequiresStructure)
             && !availableStructures.Contains(recipe.RequiresStructure)) return false;

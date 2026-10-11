@@ -144,8 +144,16 @@ public class QuestEventUnlockTests
                 }],
             });
         system.Recipes = recipes;
-        StageActive(system, "gated_lesson");
-        StageActive(system, "plain_lesson");
+        // Both quests active in ONE snapshot — each RestoreSnapshot clears
+        // the active list first.
+        system.RestoreSnapshot(new QuestSnapshot
+        {
+            Quests =
+            [
+                new QuestDataSnapshot { QuestId = "gated_lesson", State = "active" },
+                new QuestDataSnapshot { QuestId = "plain_lesson", State = "active" },
+            ],
+        }, new DataLoader());
         var player = MakePlayer();
         var inv = new Inv();
         inv.AddItem("stick", 1);

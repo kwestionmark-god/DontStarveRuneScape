@@ -1020,8 +1020,9 @@ public sealed class Game
         // Trade
         TradeSystem?.Tick(dt);
 
-        // Quests
-        QuestSystem?.Tick(dt, Player, World);
+        // Quests (inventory-fed so collect/deliver objectives can fire the
+        // unlock-as-event sweep the tick they complete)
+        QuestSystem?.Tick(dt, Player, World, Player?.Inventory);
 
         // Weather
         WeatherSystem?.Tick(dt);

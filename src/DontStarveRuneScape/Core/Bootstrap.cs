@@ -237,6 +237,7 @@ public sealed class Bootstrap
         _game.QuestSystem.Factions = _game.FactionSystem;
         _game.TradeSystem.Factions = _game.FactionSystem;
         _game.Crafting.OnCrafted = item => _game.QuestSystem.NotifyCraft(item);
+        _game.QuestSystem.Recipes = _game.Crafting.Registry;
         _game.TradeSystem.Quests = _game.QuestSystem;
 
         // Soft death: the survival hook runs the game's death handling.

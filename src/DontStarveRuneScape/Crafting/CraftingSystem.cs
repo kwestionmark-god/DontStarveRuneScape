@@ -34,10 +34,11 @@ public sealed class CraftingSystem
             return new CraftResult { Success = false, Message = "Unknown recipe." };
 
         // Quest gate: recipes flagged quest_unlock refuse until the owning
-        // quest's claim added the recipe to the unlock set. Display and
+        // quest added the RECIPE id to the unlock set (Claim and the
+        // objectives-complete event both write recipe ids). Display and
         // enforcement share one flag — what the panel says is what happens.
         if (unlockedRecipes != null && recipe.QuestUnlock != null
-            && !unlockedRecipes.Contains(recipe.QuestUnlock))
+            && !unlockedRecipes.Contains(recipe.RecipeId))
             return new CraftResult
             {
                 Success = false,
