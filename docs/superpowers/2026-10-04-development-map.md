@@ -480,22 +480,16 @@ law shapes it.
        hunt is your choice), MC (both lines are pure DATA on the 7
        condition hooks; the code changes are the two infra
        honesty fixes the content needs to function).
-     - **Unlock-as-event (banked idea, 2026-10-10):** a quest-bound
-       craftable needn't be a completion REWARD — unlock it mid-quest as
-       a story beat (learn the recipe from the hermit when you REACH him,
-       not when you turn the quest in). Verified shape today:
-       quest_unlock recipes hide until the named VALUE is in
-       `Player.UnlockedRecipes`; the ONLY writer is
-       `QuestSystem.Claim` (QuestSystem.cs:230) adding the entries of
-       `quest.recipe_unlocks` (recipe ids), i.e. recipe-id keyed and
-       already decoupled from quest ids. Claim also handles
-       `gear_unlocks` → UnlockedGear (:231). So an event-unlock is CHEAP:
-       the storage is already right; only the write needs a new trigger
-       fired at step completion (or on prerequisite chaining) instead of
-       at claim. Claim then merely surfaces the already-known provision.
-       The display layer needs no fix-up — both Panels2.cs:2417 and
-       Craft consult UnlockedRecipes live. Banked for a later slice;
-       audit-B's enforced quest_unlock is the gate this reads from.
+     - **Unlock-as-event — done 2026-10-11 (RED `d01ce2d` / GREEN
+       `d625fd5`).** Quest recipe unlocks fire the tick objectives
+       complete (`QuestSystem.Tick` gains the inventory; HashSet =
+       fire-once; gold "Recipe learned" only for newly gated ids);
+       the three quest_unlock gate sites are now recipe-id keyed (the
+       quest-id keying was dead enforcement — writer wrote recipe ids);
+       gem_mining's dead `craft_bone_powder` → `grind_bone`; completed
+       quests + both unlock sets persist across saves. Suite 531 → 540
+       (539 green / 1 pre-existing skip). Spec:
+       `2026-10-11-unlock-as-event-design.md`.
      - **Fire venue / firemaking narrowing — done 2026-10-10 (RED
        `20f0519` / GREEN `7d86810`).** The three incoherent fire
        methods are now one skill-owned venue. Every path feeds its

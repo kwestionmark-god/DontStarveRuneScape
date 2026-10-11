@@ -8,6 +8,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Unlock-as-event trigger + quest-unlock honesty** — a quest with
+  `recipe_unlocks` now teaches its recipes the tick its objectives
+  complete (the story beat — learn from the hermit when you REACH
+  him), posting a gold "Recipe learned: <id>" line only for newly
+  learned, actually gated ids; claim keeps its now-idempotent writes
+  as the backstop and knowledge is permanent. The quest-unlock gate
+  was dead in practice: all three enforcement sites (CraftingSystem,
+  crafting panel, fire menu) keyed on the quest id while the only
+  writer wrote recipe ids — the sets could never intersect. Now
+  recipe-id keyed end-to-end, gem_mining's dead `craft_bone_powder`
+  unlock repointed at the real `grind_bone`, completed quests
+  round-trip through the save (no more post-reload re-offer / XP
+  re-claim), and the unlock sets persist. Suite 531 → 540.
 - **Coastal/swamp side quests — the two biome lines live** — Maris
   (`merchant_coastal_1`) becomes the first merchant quest giver: her
   chain walks the coastal loop driftwood_scour → salt_run → crab_cove

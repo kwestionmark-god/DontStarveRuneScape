@@ -95,10 +95,10 @@ Quick wins (hours, no new systems):
    the quest slice: NpcHubPanel tab → panel → Esc lands in Playing,
    E again reopens the hub. Small UI-flow fix; the SetState/
    CloseAllPanels ordering pitfall in the skill applies.
-3. **Unlock-as-event trigger** — banked, cheap: `UnlockedRecipes` is
-   recipe-id keyed, the only writer is `QuestSystem.Claim`
-   (QuestSystem.cs:230); add a write at step completion instead of
-   claim. Display already reads live.
+3. ~~**Unlock-as-event trigger**~~ — DONE 2026-10-11 (RED `d01ce2d` /
+   GREEN `d625fd5`): fires at objectives-complete in the Tick sweep,
+   gate keying fixed recipe-id-side at all three sites, gem_mining's
+   dead id repointed, completed quests + unlock sets persist.
 4. **grass_rope dup xp_reward key** — last live parked finding; tiny
    data fix (dup JSON key, second silently wins — grep
    recipes.json).
