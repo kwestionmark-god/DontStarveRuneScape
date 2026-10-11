@@ -34,7 +34,8 @@ public sealed class BuildingSystem
     }
 
     /// <summary>Place a structure or found a colony construction site at the given tile: biome gate, skill gate,
-    /// material gate (all-or-nothing consume), then add to the world.</summary>
+    /// material gate (all-or-nothing consume), then add to the world. When firemaking is provided and the def
+    /// is a hearth (light_seconds > 0), the placed structure lights its fire and the build trains construction.</summary>
     public (bool Success, string Message) PlaceStructure(string structureId, int tileX, int tileY,
         TileMap world, Inv inventory, SkillManager skillManager, ColonySystem? colony = null,
         Skills.Firemaking.FiremakingSkill? firemaking = null)
@@ -110,6 +111,14 @@ public sealed class BuildingSystem
         Structures.Add(placed);
         if (def.OccupiesTile)
             tile.Structure = def;
+
+        // The player raised the hearth with their own hands: construction
+        // trains (10 XP, level recomputed — the AddXp root fix), and a hearth
+        // (light_seconds > 0) lights its fire on placement when firemaking is
+        // wired. Skill/level gates read the player, so the XP is earned here.
+        skillManager.AddXp("construction", 10f);
+        if (firemaking != null && def.LightSeconds > 0f)
+            firemaking.LightHearth(def.LightSeconds, placed.WorldX, placed.WorldY, null);
 
         return (true, $"Built {def.Name}.");
     }

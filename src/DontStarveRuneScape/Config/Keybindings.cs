@@ -139,6 +139,13 @@ public static class Keybindings
             "interact",  // Negotiate
             "confirm",   // Accept
         ],
+        [GameState.FireMenu] =
+        [
+            "move_up", "move_down", "move_left", "move_right",
+            "close_panel",
+            "interact",  // Cook / rest
+            "confirm",   // Cook
+        ],
         [GameState.Paused] =
         [
             "close_panel",  // Resume

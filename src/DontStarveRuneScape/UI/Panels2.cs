@@ -956,7 +956,9 @@ public sealed class CraftingPanel
     {
         _sorted.Clear();
         if (crafting?.Registry == null) return;
-        foreach (var recipe in crafting.Registry.Recipes.Values.OrderBy(r => r.Tier).ThenBy(r => r.Name))
+        foreach (var recipe in crafting.Registry.Recipes.Values
+            .Where(r => !FireMenuPanel.IsFireRecipe(r))
+            .OrderBy(r => r.Tier).ThenBy(r => r.Name))
             _sorted.Add(recipe);
         if (SelectedIndex >= _sorted.Count)
             SelectedIndex = Math.Max(0, _sorted.Count - 1);

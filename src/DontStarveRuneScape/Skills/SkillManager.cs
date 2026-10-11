@@ -116,6 +116,12 @@ public sealed class SkillManager
 
     /// <summary>Add XP to a skill and return level-up messages.</summary>
     public List<string> AddXpWithNotification(string skillId, float xp)
+        => AddXp(skillId, xp);
+
+    /// <summary>Add raw XP to a skill. Recomputes the level (the frozen-level
+    /// bug class died here: every XP writer now levels up), grants stat points
+    /// per level crossed, and returns the level-up messages.</summary>
+    public List<string> AddXp(string skillId, float xp)
     {
         var messages = new List<string>();
         if (!_skills.TryGetValue(skillId, out var skill))
@@ -123,14 +129,9 @@ public sealed class SkillManager
 
         skill.Xp += xp;
         int oldLevel = skill.Level;
-
-        // OSRS XP formula: XP = floor(level + 300 * 2^(level/7)) / 4
-        // Reverse: find level from XP
         int newLevel = CalculateLevelFromXp(skill.Xp);
         if (newLevel > oldLevel)
         {
-            // One message + points per level gained; a single big XP award (e.g. quest
-            // reward) must grant points for every level crossed.
             for (int lvl = oldLevel + 1; lvl <= newLevel; lvl++)
             {
                 messages.Add($"Congratulations! Your {skillId} level is now {lvl}!");
@@ -138,15 +139,7 @@ public sealed class SkillManager
             }
             skill.Level = newLevel;
         }
-
         return messages;
-    }
-
-    /// <summary>Add raw XP to a skill.</summary>
-    public void AddXp(string skillId, float xp)
-    {
-        if (_skills.TryGetValue(skillId, out var skill))
-            skill.Xp += xp;
     }
 
     /// <summary>Soft-death XP penalty: every skill loses the given fraction of

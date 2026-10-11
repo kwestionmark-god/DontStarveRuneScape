@@ -127,6 +127,7 @@ public sealed class Game
     public DashboardPanel? Dashboard { get; set; }
     /// <summary>Multi-role NPC role menu (quests / trade / recruit / diplomacy).</summary>
     public NpcHubPanel? NpcHub { get; set; }
+    public FireMenuPanel? FireMenuPanel { get; set; }
     public TitleScreen? TitleScreen { get; set; }
     public LoadingScreen? LoadingScreen { get; set; }
     public CharacterSelectPanel? CharacterSelectPanel { get; set; }
@@ -277,6 +278,9 @@ public sealed class Game
             case GameState.DiplomacyPanel:
                 if (DiplomacyPanel != null) DiplomacyPanel.Visible = true;
                 break;
+            case GameState.FireMenu:
+                if (FireMenuPanel != null) FireMenuPanel.Visible = true;
+                break;
             case GameState.DashboardOpen:
                 if (Dashboard != null) Dashboard.Visible = true;
                 break;
@@ -307,6 +311,7 @@ public sealed class Game
         if (newState != GameState.QuestPanel && QuestPanel != null) QuestPanel.Visible = false;
         if (newState != GameState.RecruitPanel && RecruitPanel != null) RecruitPanel.Visible = false;
         if (newState != GameState.DiplomacyPanel && DiplomacyPanel != null) DiplomacyPanel.Visible = false;
+        if (newState != GameState.FireMenu && FireMenuPanel != null) FireMenuPanel.Visible = false;
 
         // The settings panel replaces the pause menu plate while it is open;
         // the menu itself shows only in the Paused state.
@@ -521,6 +526,15 @@ public sealed class Game
     }
 
     /// <summary>
+    /// Open the fire menu (E near a lit fire or heat station): cooking and
+    /// heat recipes plus rest-until-dawn, all at the fire.
+    /// </summary>
+    public void OpenFireMenu()
+    {
+        SetState(GameState.FireMenu);
+    }
+
+    /// <summary>
     /// Per-frame placement mode: Esc/Q cancels, the mouse picks the target tile
     /// (ghost preview), and a click places via BuildingSystem.
     /// </summary>
@@ -550,7 +564,7 @@ public sealed class Game
         if (!input.MouseLeftClick) return;
 
         var (success, message) = BuildingSystem.PlaceStructure(
-            BuildingPendingId, tx, ty, World, Inventory, SkillManager, ColonySystem);
+            BuildingPendingId, tx, ty, World, Inventory, SkillManager, ColonySystem, Firemaking);
         var tint = success ? ((byte)100, (byte)255, (byte)100) : ((byte)255, (byte)100, (byte)100);
         Player?.ActionSystem?.AddNotification(message, tint);
         if (success)
@@ -757,6 +771,13 @@ public sealed class Game
             && Inventory != null && SkillManager != null && InputManager != null)
         {
             CraftingPanel.Update(InputManager.InputState, Crafting, Inventory, SkillManager,
+                _lastScreenW, _lastScreenH, GetAvailableStructureIds(), Player?.UnlockedRecipes);
+        }
+
+        if (State == GameState.FireMenu && FireMenuPanel != null && Crafting != null
+            && Inventory != null && SkillManager != null && InputManager != null)
+        {
+            FireMenuPanel.Update(InputManager.InputState, Crafting, Inventory, SkillManager,
                 _lastScreenW, _lastScreenH, GetAvailableStructureIds(), Player?.UnlockedRecipes);
         }
 
@@ -2024,10 +2045,21 @@ public sealed class Game
     {
         var ids = new HashSet<string>(StringComparer.Ordinal);
         if (BuildingSystem == null) return ids;
-        foreach (var structure in BuildingSystem.Structures)
+        float radiusSq = MathF.Pow(Constants.TileSize * Constants.CampfireSearchRadiusTiles, 2f);
+        if (Player != null)
         {
-            if (structure.IsActive && !structure.IsUnderConstruction)
-                ids.Add(structure.StructureId);
+            foreach (var structure in BuildingSystem.Structures)
+            {
+                if (!structure.IsActive || structure.IsUnderConstruction)
+                    continue;
+                // Proximity honesty: a station only enables its crafts while
+                // the player stands near it — owning one anywhere is not a
+                // global unlock.
+                float dx = structure.WorldX - Player.WorldX;
+                float dy = structure.WorldY - Player.WorldY;
+                if (dx * dx + dy * dy <= radiusSq)
+                    ids.Add(structure.StructureId);
+            }
         }
         if (Player != null && Firemaking?.GetFiresInRadius(Player.WorldX, Player.WorldY,
                 Constants.TileSize * Constants.CampfireSearchRadiusTiles).Count > 0)
@@ -2076,6 +2108,12 @@ public sealed class Game
                 break;
             case GameState.NpcHub:
                 NpcHub?.Render(batch, TextRenderer, screenWidth, screenHeight);
+                break;
+            case GameState.FireMenu:
+                if (Crafting != null && Inventory != null && SkillManager != null)
+                    FireMenuPanel?.Render(batch, TextRenderer, SpriteRenderer, Crafting, Inventory,
+                        SkillManager, screenWidth, screenHeight, GetAvailableStructureIds(),
+                        Player?.UnlockedRecipes);
                 break;
             case GameState.Paused:
                 PauseMenu?.Render(batch, TextRenderer, screenWidth, screenHeight);

@@ -59,29 +59,6 @@
       "required_level": 1
     },
     {
-      "recipe_id": "campfire",
-      "name": "Build Campfire",
-      "input_items": [
-        [
-          "oak_logs",
-          3
-        ],
-        [
-          "stone",
-          5
-        ]
-      ],
-      "output_item": "campfire",
-      "output_quantity": 1,
-      "requires_campfire": false,
-      "xp_reward": 30.0,
-      "processing_chain": "wood_chain",
-      "tier": 1,
-      "skill_affects_yield": "woodcutting",
-      "required_skill": "crafting",
-      "required_level": 1
-    },
-    {
       "recipe_id": "craft_fired_brick",
       "name": "Fire Brick",
       "input_items": [

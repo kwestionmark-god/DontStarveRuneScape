@@ -315,7 +315,7 @@ public class SubStatCatalogTests
 
         Assert.True(result.Success);
         var fire = Assert.Single(firemaking.GetActiveFires());
-        Assert.Equal(50f, fire.MaxTime, 3); // 30 base + 4 pts * 5s
+        Assert.Equal(80f, fire.MaxTime, 3); // 60 fuel-table (2 log × 30s) + 4 pts * 5s
     }
 
     [Fact]
@@ -345,7 +345,7 @@ public class SubStatCatalogTests
 
         Assert.True(result.Success);
         var fire = Assert.Single(firemaking.GetActiveFires());
-        Assert.Equal(30f, fire.MaxTime, 3); // flat legacy 30s
+        Assert.Equal(60f, fire.MaxTime, 3); // fuel-table: 2 log × 30s, no bonus
         Assert.Equal(0, inv.GetItemQuantity("log"));
     }
 

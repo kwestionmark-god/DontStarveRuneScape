@@ -326,6 +326,11 @@ public sealed class RecruitmentSystem
                         constructionSite.WorkProgress = 0f;
                         constructionSite.AssignedNpcId = null;
                         constructionSite.WorkStatus = "Construction complete";
+                        // A worker-finished hearth lights like a placed one:
+                        // the stones are ready, the fire starts on completion.
+                        if (firemaking != null && constructionSite.StructureDef?.LightSeconds > 0f)
+                            firemaking.LightHearth(constructionSite.StructureDef.LightSeconds,
+                                constructionSite.WorldX, constructionSite.WorldY, null);
                     }
                     skills?.AddXp("construction", 10f);
                     // Per-recruit XP: the builder who finished the site

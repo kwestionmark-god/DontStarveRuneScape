@@ -92,6 +92,16 @@ public sealed class InteractSystem
             }
         }
 
+        // The fire venue: E near a lit fire or heat station opens the fire
+        // menu (cooking, heat work, rest) — the venue is the single honest
+        // surface. Checked before TrySleep: the menu's rest row handles
+        // night-only sleeping.
+        if (game.FireInteraction?.CanOpenFireMenu() == true)
+        {
+            game.OpenFireMenu();
+            return;
+        }
+
         // Sleeping at a lit fire or shelter (night only) takes precedence
         // over resource gathering.
         if (game.FireInteraction?.TrySleep() == true)

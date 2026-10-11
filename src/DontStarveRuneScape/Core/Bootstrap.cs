@@ -373,6 +373,7 @@ public sealed class Bootstrap
         _game.RecruitPanel = new RecruitPanel();
         _game.DiplomacyPanel = new DiplomacyPanel();
         _game.NpcHub = new UI.NpcHubPanel();
+        _game.FireMenuPanel = new UI.FireMenuPanel();
         _game.Dashboard = new DashboardPanel { Game = _game };
         _game.TitleScreen = new TitleScreen();
         _game.LoadingScreen = new LoadingScreen();
@@ -392,6 +393,9 @@ public sealed class Bootstrap
         _game.DiplomacyPanel.OnAction = npcFlows.HandleDiplomacyAction;
         _game.Dashboard.OnTabSelected = _game.OpenDashboardTab;
         _game.NpcHub.OnTabSelected = _game.OpenNpcHubTab;
+        // The fire menu's Rest row shares the sleep flow: the same gate
+        // (night + valid spot) refuses visibly in the menu status line.
+        _game.FireMenuPanel.OnRest = _ => { _game.FireInteraction?.TrySleep(); };
         _game.InteractSystem = new Interactions.InteractSystem(_game, npcFlows);
         _game.FireInteraction = new Interactions.FireInteraction(_game);
         _game.InputRouter = new InputRouter(_game, _game.InteractSystem, _game.FireInteraction, npcFlows);

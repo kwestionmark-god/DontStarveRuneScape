@@ -82,6 +82,7 @@ public static class GameStateExtensions
         GameState.BuildingPanel, GameState.GearPanel, GameState.TradePanel,
         GameState.QuestPanel, GameState.RecruitPanel, GameState.DiplomacyPanel,
         GameState.CharacterSelect, GameState.DashboardOpen, GameState.NpcHub,
+        GameState.FireMenu,
     ];
 
     /// <summary>

@@ -122,6 +122,13 @@ public sealed class InputRouter
                 else
                     HandleGenericPanelInput(key);
                 break;
+            case GameState.FireMenu:
+                if (key == Key.Up || key == Key.Down || key == Key.Left || key == Key.Right
+                    || key == Key.Tab || key == Key.Enter || key == Key.Space)
+                    _game.FireMenuPanel?.HandleKey(key);
+                else
+                    HandleGenericPanelInput(key);
+                break;
             case GameState.BuildingPanel:
                 if (key == Key.Up || key == Key.Down || key == Key.Left || key == Key.Right
                     || key == Key.Tab || key == Key.Enter || key == Key.Space)
@@ -266,7 +273,7 @@ public sealed class InputRouter
         return state is GameState.InventoryOpen or GameState.SkillPanel or GameState.CraftingPanel
             or GameState.BuildingPanel or GameState.GearPanel or GameState.TradePanel
             or GameState.QuestPanel or GameState.RecruitPanel or GameState.DiplomacyPanel
-            or GameState.DashboardOpen or GameState.NpcHub;
+            or GameState.DashboardOpen or GameState.NpcHub or GameState.FireMenu;
     }
 
     /// <summary>Close all open panels.</summary>
@@ -283,5 +290,6 @@ public sealed class InputRouter
         if (_game.DiplomacyPanel != null) _game.DiplomacyPanel.Close();
         if (_game.NpcHub != null) _game.NpcHub.Close();
         if (_game.Dashboard != null) _game.Dashboard.Visible = false;
+        if (_game.FireMenuPanel != null) _game.FireMenuPanel.Visible = false;
     }
 }

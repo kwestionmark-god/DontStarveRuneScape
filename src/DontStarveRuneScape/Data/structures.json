@@ -31,7 +31,39 @@
     ],
     "sprite_key": "structure/campfire",
     "occupies_tile": false,
-    "burnable": true
+    "burnable": true,
+    "light_seconds": 90.0
+   },
+   "firepit": {
+    "structure_id": "firepit",
+    "name": "Firepit",
+    "structure_type": "fixed",
+    "construction_sub_stat": "common",
+    "hp": 15,
+    "materials": [
+     [
+      "stone",
+      6
+     ],
+     [
+      "stick",
+      2
+     ]
+    ],
+    "requires_structure_level": 2,
+    "requires_skill_level": 3,
+    "biome_compatible": [
+     "forest",
+     "plains",
+     "coastal",
+     "swamp",
+     "mountains",
+     "desert"
+    ],
+    "sprite_key": "structure/campfire",
+    "occupies_tile": true,
+    "burnable": false,
+    "light_seconds": 240.0
    },
    "chest": {
     "structure_id": "chest",

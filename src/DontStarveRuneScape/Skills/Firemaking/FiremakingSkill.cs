@@ -17,11 +17,52 @@ public sealed class FireInstance
 }
 
 /// <summary>
-/// FiremakingSkill — Handles fire lighting and management.
+/// FiremakingSkill — Handles fire lighting and management. Burn duration is
+/// fuel-aware: Skills/Firemaking/data/fuel_table.json sets seconds per unit
+/// (stick 15s, logs 30s, charcoal 45s...), summed over the fuel queue; an
+/// unknown fuel keeps the flat 30s-per-unit legacy default.
 /// </summary>
 public sealed class FiremakingSkill
 {
     private readonly List<FireInstance> _activeFires = [];
+
+    /// <summary>Seconds one unit of an unlisted fuel burns (legacy flat rate).</summary>
+    public const float DefaultFuelSeconds = 30f;
+
+    private static Dictionary<string, float>? _fuelTable;
+
+    /// <summary>Fuel id -> burn seconds per unit, from
+    /// Skills/Firemaking/data/fuel_table.json; empty when the file is
+    /// missing (the legacy flat rate then applies to everything).</summary>
+    public static IReadOnlyDictionary<string, float> FuelTable
+    {
+        get
+        {
+            if (_fuelTable == null)
+            {
+                var table = new Dictionary<string, float>(StringComparer.Ordinal);
+                try
+                {
+                    var root = DontStarveRuneScape.Data.DataLoader.LoadJson(
+                        "Skills/Firemaking/data/fuel_table.json");
+                    if (root.ValueKind == System.Text.Json.JsonValueKind.Object
+                        && root.TryGetProperty("fuel_table", out var rows))
+                    {
+                        foreach (var row in rows.EnumerateObject())
+                        {
+                            if (row.Value.ValueKind == System.Text.Json.JsonValueKind.Object
+                                && row.Value.TryGetProperty("burn_seconds", out var secs)
+                                && secs.ValueKind == System.Text.Json.JsonValueKind.Number)
+                                table[row.Name] = secs.GetSingle();
+                        }
+                    }
+                }
+                catch { /* missing file: fall back to the flat default */ }
+                _fuelTable = table;
+            }
+            return _fuelTable;
+        }
+    }
 
     public IReadOnlyList<FireInstance> GetActiveFires() => _activeFires;
 
@@ -38,6 +79,16 @@ public sealed class FiremakingSkill
         return result;
     }
 
+    /// <summary>Seconds the given fuel queue burns: the table's per-unit
+    /// rate × quantity, summed; unlisted fuels use the flat legacy rate.</summary>
+    public static float FuelSeconds(List<(string ItemId, int Quantity)> fuelQueue)
+    {
+        float total = 0f;
+        foreach (var (itemId, qty) in fuelQueue)
+            total += (FuelTable.TryGetValue(itemId, out var secs) ? secs : DefaultFuelSeconds) * qty;
+        return total;
+    }
+
     public FireResult LightFire(List<(string ItemId, int Quantity)> fuelQueue, Inventory inventory, float x, float y,
         SkillManager? skills = null)
     {
@@ -50,10 +101,12 @@ public sealed class FiremakingSkill
             inventory.RemoveItem(itemId, qty);
         }
 
-        // firemaking.duration: invested points (raw) extend the burn
-        // +5s each; no manager = the flat legacy 30s.
+        // Burn time is fuel-aware (fuel_table.json per-unit seconds ×
+        // quantity, summed), and firemaking.duration: invested points
+        // (raw) extend the burn +5s each; no manager = no bonus.
+        float fuelSeconds = FuelSeconds(fuelQueue);
         float durationBonus = (skills?.GetSubStatPoints("firemaking", "duration") ?? 0f) * 5f;
-        float duration = 30f + durationBonus;
+        float duration = fuelSeconds + durationBonus;
         var fire = new FireInstance
         {
             WorldX = x,
@@ -74,6 +127,33 @@ public sealed class FiremakingSkill
         {
             Success = true,
             Message = "Fire lit!",
+            XpGained = 25f,
+        };
+    }
+
+    /// <summary>Light a structure's hearth fire: burns the def's
+    /// light_seconds flat (the hearth is the multiplier, fuel is the entry
+    /// fee), paying full firemaking XP. No skill manager = no bonus, still
+    /// lights.</summary>
+    public FireResult LightHearth(float lightSeconds, float x, float y,
+        SkillManager? skills = null)
+    {
+        if (lightSeconds <= 0f)
+            return new FireResult { Success = false, Message = "Not a hearth." };
+
+        float durationBonus = (skills?.GetSubStatPoints("firemaking", "duration") ?? 0f) * 5f;
+        float duration = lightSeconds + durationBonus;
+        _activeFires.Add(new FireInstance
+        {
+            WorldX = x,
+            WorldY = y,
+            RemainingTime = duration,
+            MaxTime = duration,
+        });
+        return new FireResult
+        {
+            Success = true,
+            Message = "Hearth lit!",
             XpGained = 25f,
         };
     }
