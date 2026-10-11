@@ -1203,12 +1203,60 @@ public sealed class Game
     /// scan (y outer, x inner) — no cave collar in its 3x3, no active NPC
     /// within the 128px interact band, no live monster within the 96px taming
     /// band — so a scripted E reaches the fire menu and nothing else eats it.
-    /// RED stub: returns null.
+    /// Null when no tile qualifies (the capture then reports nothing staged).
     /// </summary>
     internal static (int X, int Y)? FindFireMenuStageTile(TileMap world,
         NPCSystem? npcs, CombatSystem? combat)
     {
-        return null; // RED stub — GREEN implements the scan
+        const float interactBandSq = 128f * 128f;   // NPCSystem.FindNearby's band
+        const float tamingBandSq = 96f * 96f;        // HandleInteract's tame reach
+        for (int y = 0; y < world.Height; y++)
+        {
+            for (int x = 0; x < world.Width; x++)
+            {
+                var tile = world.GetTile(x, y);
+                if (tile == null || tile.Elevation < Constants.SeaLevel + 2f)
+                    continue;
+                // Cave collar: a 3x3 neighborhood with an entrance/exit
+                // anywhere in it wins E before anything else (InteractSystem
+                // scans the same 3x3 around the player).
+                bool blocked = false;
+                for (int dy = -1; dy <= 1 && !blocked; dy++)
+                {
+                    for (int dx = -1; dx <= 1 && !blocked; dx++)
+                    {
+                        var t = world.GetTile(x + dx, y + dy);
+                        if (t is { IsCaveEntrance: true } or { IsCaveExit: true })
+                            blocked = true;
+                    }
+                }
+                if (blocked) continue;
+                float cx = (x + 0.5f) * Constants.TileSize;
+                float cy = (y + 0.5f) * Constants.TileSize;
+                if (npcs != null)
+                {
+                    foreach (var npc in npcs.NPCs)
+                    {
+                        if (!npc.IsActive) continue;
+                        float dx = npc.WorldX - cx, dy = npc.WorldY - cy;
+                        if (dx * dx + dy * dy < interactBandSq) { blocked = true; break; }
+                    }
+                    if (blocked) continue;
+                }
+                if (combat != null)
+                {
+                    foreach (var monster in combat.Monsters)
+                    {
+                        if (!monster.IsActive || !monster.IsAlive()) continue;
+                        float dx = monster.WorldX - cx, dy = monster.WorldY - cy;
+                        if (dx * dx + dy * dy <= tamingBandSq) { blocked = true; break; }
+                    }
+                    if (blocked) continue;
+                }
+                return (x, y);
+            }
+        }
+        return null;
     }
 
     /// <summary>
@@ -1392,6 +1440,26 @@ public sealed class Game
                     }
                     if (planted) break;
                 }
+            }
+        }
+
+        // DSR_TEST_FIREMENU=1: stage the fire-venue smoketest — stand the
+        // player on the first clear dry tile (cave/NPC/monster-free so E is
+        // not eaten by a higher-priority branch) and grant fuel. Runs BEFORE
+        // the DSR_TEST_KEYS block below: a scripted "F,E" in the same batch
+        // lights a ground fire from the granted fuel and then opens the real
+        // fire menu through the real E path (HandleInteract → SetState).
+        if (Environment.GetEnvironmentVariable("DSR_TEST_FIREMENU") == "1"
+            && World != null && Player != null)
+        {
+            var stage = FindFireMenuStageTile(World, NPCSystem, CombatSystem);
+            if (stage != null)
+            {
+                Player.WorldX = (stage.Value.X + 0.5f) * Constants.TileSize;
+                Player.WorldY = (stage.Value.Y + 0.5f) * Constants.TileSize;
+                Player.TargetX = Player.WorldX;
+                Player.TargetY = Player.WorldY;
+                Inventory?.AddItem("oak_logs", 2);
             }
         }
 
