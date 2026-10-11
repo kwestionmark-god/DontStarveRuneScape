@@ -899,7 +899,7 @@ public sealed class Game
             Player.UpdateSprint(st.Sprint,
                 st.MoveUp || st.MoveDown || st.MoveLeft || st.MoveRight, dt);
             Player.UpdateJump(dt);
-            Player.ApplyKeyInput(st, dt, cameraYaw);
+            Player.ApplyKeyInput(st, dt, cameraYaw, World, BuildingSystem);
             Player.Update(dt);
             // Net velocity across all movement paths (WASD + click-to-move) —
             // drives the stepping gait, so feet track real body motion.
@@ -1840,7 +1840,12 @@ public sealed class Game
                 // the same value the camera focus anchors to.
                 float fx = Player.WorldX / Constants.TileSize - ptx;
                 float fy = Player.WorldY / Constants.TileSize - pty;
-                float elev = tile?.GetElevationAt(fx, fy) ?? 0f;
+                // Vertical building: standing on a block top lifts the body
+                // (and boots) by the tile's built block height.
+                float blockLift = ptx >= 0 && pty >= 0
+                    ? BlockStack.BlockHeightAt(World, BuildingSystem, ptx, pty)
+                    : 0f;
+                float elev = (tile?.GetElevationAt(fx, fy) ?? 0f) + blockLift;
                 // Per-foot elevation sampler so the directional boot sprites
                 // track slopes: each boot anchors to the ground under it.
                 SpriteRenderer.BootElevation = (wx, wy) =>
@@ -1851,7 +1856,7 @@ public sealed class Game
                     if (t == null) return 0f;
                     float lfx = Math.Clamp(wx / Constants.TileSize - tx, 0f, 1f);
                     float lfy = Math.Clamp(wy / Constants.TileSize - ty, 0f, 1f);
-                    return t.GetElevationAt(lfx, lfy);
+                    return t.GetElevationAt(lfx, lfy) + BlockStack.BlockHeightAt(World, BuildingSystem, tx, ty);
                 };
                 // Submergible: below the sea plane the player sinks with depth
                 // (ankle-deep at the shore, swimming in open water).
@@ -1942,6 +1947,9 @@ public sealed class Game
                         var sTile = World?.GetTile(structure.TileX, structure.TileY);
                         if (sTile != null)
                             elev = sTile.HasWater ? sTile.GetSurfaceElevation() : sTile.Elevation;
+                        // Blocks draw at their TOP (slice 2: a block you
+                        // can't see at its height is unteachable).
+                        elev = BlockStack.RenderTop(elev, structure);
                         float sortY = GetDepthSort(structure.WorldX, structure.WorldY, elev);
                         var s = structure;
                         drawables.Add((sortY, seq++, () => SpriteRenderer.RenderStructure(s, batch, Camera, elev)));

@@ -9,7 +9,7 @@
     "structure_type": "block",
     "construction_sub_stat": "common",
     "is_block": true,
-    "stack_height": 8,
+    "stack_height": 2,
     "hp": 20,
     "occupies_tile": true,
     "materials": [["stone", 2], ["stick", 1]],

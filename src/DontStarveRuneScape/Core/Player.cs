@@ -11,6 +11,7 @@ using DontStarveRuneScape.Seasons;
 using DontStarveRuneScape.Actions;
 using DontStarveRuneScape.World;
 using DontStarveRuneScape.Data;
+using DontStarveRuneScape.Building;
 
 /// <summary>
 /// Player entity with smooth movement and sub-tile precision.
@@ -149,8 +150,23 @@ public sealed class Player
             dy = rotatedY;
         }
 
-        WorldX += dx * EffectiveSpeed * dt;
-        WorldY += dy * EffectiveSpeed * dt;
+        float stepX = dx * EffectiveSpeed * dt;
+        float stepY = dy * EffectiveSpeed * dt;
+
+        // Block-wall gate (vertical-building slice 2): when a world+buildings
+        // context is supplied, stepping INTO a taller block top is refused
+        // axis-by-axis (slide, no bounce); descents and pure-terrain ascents
+        // stay legacy-free. Airborne steps climb up to BlockClimbCap levels.
+        if (world != null && (stepX != 0f || stepY != 0f))
+        {
+            if (stepX != 0f && !BlockStack.CanStep(world, buildings, WorldX, WorldY, WorldX + stepX, WorldY, IsJumping))
+                stepX = 0f;
+            if (stepY != 0f && !BlockStack.CanStep(world, buildings, WorldX, WorldY, WorldX, WorldY + stepY, IsJumping))
+                stepY = 0f;
+        }
+
+        WorldX += stepX;
+        WorldY += stepY;
 
         // Facing follows the last horizontal move direction.
         if (dx > 0.001f) Facing = 1f;

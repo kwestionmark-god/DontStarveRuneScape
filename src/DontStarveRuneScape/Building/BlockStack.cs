@@ -14,10 +14,20 @@ using DontStarveRuneScape.World;
 public static class BlockStack
 {
     /// <summary>Total block lift on a tile (summed stack heights of active,
-    /// completed block structures). Sites under construction are not solid.
-    /// RED stub: returns 0 until GREEN wires the Structures scan.</summary>
+    /// completed block structures). Sites under construction are not solid.</summary>
     public static float BlockHeightAt(TileMap world, BuildingSystem? buildings, int tx, int ty)
-        => 0f;
+    {
+        if (buildings == null) return 0f;
+        float height = 0f;
+        foreach (var s in buildings.Structures)
+        {
+            if (s.IsActive && !s.IsUnderConstruction
+                && s.StructureDef?.IsBlock == true
+                && s.TileX == tx && s.TileY == ty)
+                height += s.StructureDef.StackHeight;
+        }
+        return height;
+    }
 
     /// <summary>Where an entity at (worldX, worldY) effectively stands:
     /// terrain center elevation + the tile's block lift.</summary>
@@ -31,14 +41,36 @@ public static class BlockStack
     /// <summary>Movement rule: descents/flats always allowed; a block ascent
     /// (destination holds more stacked height than the source) is a wall
     /// unless the mover is airborne and the top delta fits the climb cap.
-    /// Pure-terrain ascents stay legacy-free. RED stub: always true.</summary>
+    /// Pure-terrain ascents stay legacy-free.</summary>
     public static bool CanStep(TileMap world, BuildingSystem? buildings,
         float fromX, float fromY, float toX, float toY, bool airborne)
-        => true;
+    {
+        float ts = Config.Constants.TileSize;
+        int fromTx = (int)(fromX / ts), fromTy = (int)(fromY / ts);
+        int toTx = (int)(toX / ts), toTy = (int)(toY / ts);
+        if (fromTx == toTx && fromTy == toTy) return true;
+
+        var fromTile = world.GetTile(fromTx, fromTy);
+        var toTile = world.GetTile(toTx, toTy);
+        if (fromTile == null || toTile == null) return true; // edge of map: legacy (bounds clamp handles)
+
+        float fromBlocks = BlockHeightAt(world, buildings, fromTx, fromTy);
+        float toBlocks = BlockHeightAt(world, buildings, toTx, toTy);
+        float fromTop = fromTile.Elevation + fromBlocks;
+        float toTop = toTile.Elevation + toBlocks;
+
+        if (toTop <= fromTop) return true;   // descents and flats: always free
+        if (toBlocks <= fromBlocks) return true; // pure-terrain ascent: legacy freedom
+
+        // Block ascent: a wall on foot; a hop within the cap airborne.
+        return airborne && (toTop - fromTop) <= Config.Constants.BlockClimbCap;
+    }
 
     /// <summary>Elevation a structure sprite draws at: blocks float at their
     /// top height; everything else draws at tile elevation as before.
-    /// RED stub: tile elevation only.</summary>
+    /// Construction sites sit on the ground until built.</summary>
     public static float RenderTop(float tileElevation, Structure structure)
-        => tileElevation;
+        => structure.StructureDef?.IsBlock == true && !structure.IsUnderConstruction
+            ? tileElevation + structure.StructureDef.StackHeight
+            : tileElevation;
 }
