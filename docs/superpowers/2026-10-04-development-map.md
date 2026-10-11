@@ -495,6 +495,29 @@ law shapes it.
        Follow-ups left open: `WarmthRadius` still has no consumer,
        `skill_affects_yield` still dead data (both noted in the
        spec's non-goals), and heat-station menus of their own.
+       SMOKETEST DEBT CLEARED 2026-10-11 (RED `bd06fb8` / GREEN
+       `07b97c8`): `DSR_TEST_FIREMENU=1` stages the player on the
+       first clear dry tile (`Game.FindFireMenuStageTile` — no cave
+       collar in its 3x3, no NPC within 128px, no live monster within
+       96px, so scripted E reaches the fire menu) and grants 2
+       oak_logs; `DSR_TEST_KEYS="F,E"` then lights a real ground fire
+       and opens the real panel. Pixel pass: chrome border bbox within
+       1px of the geometry predicted from ContentW/H + Pad + TitleH,
+       plate count 33x baseline, panel-rect mean diff 97.8 —
+       FireMenuPanel is rendered and layout-verified. Spec:
+       `2026-10-11-fire-menu-smoketest-design.md`.
+     - **grass_rope "duplicate xp_reward key" — PHANTOM, resolved
+       2026-10-11 (docs-only).** Full-history audit: a
+       dup-detecting JSON parse (object_pairs_hook) of every commit
+       that ever touched recipes.json, plus items/quests/npcs json,
+       shows zero duplicate keys or ids at any committed state — the
+       finding likely came from a transient parallel-session
+       working-tree artifact that never committed. The grass_rope
+       ITEM is alive and load-bearing: Twist Rope recipe output
+       (3 fibers, crafting 1, +4 xp) and the input both rod recipes
+       consume (FishingTests pins both). No data change; the
+       dev-map's earlier "parked" mention above is closed by this
+       entry.
      - **Crafted campfire item is inert (found 2026-10-10, verified in
        the tree).** `items.json` marks the campfire item
        `is_structure: true` and the crafting recipe

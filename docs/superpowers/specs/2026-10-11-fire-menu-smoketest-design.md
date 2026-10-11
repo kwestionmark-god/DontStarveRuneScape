@@ -1,7 +1,10 @@
 # Fire-menu smoketest — DSR_TEST_FIREMENU staging hook — design
 
 Date: 2026-10-11
-Status: draft
+Status: implemented + pixel-verified (RED `bd06fb8`; GREEN `07b97c8`;
+captures + PIL probes 2026-10-11 — border bbox (289,111)-(1310,788) vs
+predicted (289,111)-(1311,789), plate count 621k px, panel-rect mean
+abs diff 97.8 vs baseline)
 Slice: fire-venue debt closure — FireMenuPanel has never been rendered
 (the fire-venue handoff's PENDING verification item). One env-gated
 staging hook plus the pixel pass that retires the debt.

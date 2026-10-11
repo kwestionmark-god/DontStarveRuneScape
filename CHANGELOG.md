@@ -8,6 +8,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Fire-menu smoketest — the fire-venue debt closed** — FireMenuPanel
+  had never been rendered outside unit tests. New
+  `DSR_TEST_FIREMENU=1` staging hook (the fifth smoketest env hook):
+  stands the player on the first clear dry tile — no cave collar in
+  its 3x3, no NPC within the 128px interact band, no live monster
+  within the 96px taming band (`Game.FindFireMenuStageTile`, pinned
+  by 6 new tests) — and grants 2 oak_logs, so a scripted `F,E`
+  lights a real ground fire and opens the real menu through the real
+  input router. Pixel-verified: chrome border bbox within 1px of the
+  geometry predicted from the panel constants, plate fill 33x
+  baseline, panel rect mean-diff 97.8. Suite 507 → 513.
 - **Firemaking narrowing — the fire venue** — every fire method now
   feeds its owning skill, and cooking has its own home. A new fire
   menu (E near a lit fire, cooking station, furnace or smelter) holds
