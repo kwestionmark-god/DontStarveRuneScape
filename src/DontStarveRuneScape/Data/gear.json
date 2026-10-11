@@ -260,6 +260,19 @@
     }
   },
   "tools": {
+    "shovel": {
+      "item_id": "shovel",
+      "name": "Shovel",
+      "gear_type": "tool",
+      "damage": 0,
+      "attack_bonus": 0,
+      "defence_bonus": 0,
+      "speed_bonus": 0.0,
+      "required_combat_level": 1,
+      "sprite_key": "items/pickaxe",
+      "tier": 1,
+      "durability": 100
+    },
     "axe": {
       "item_id": "axe",
       "name": "Axe",

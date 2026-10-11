@@ -59,10 +59,13 @@ a block placed on your ground stands).
    (member + `GetSkillId` → "construction" + StartAction branch — the
    XP-routing minefield rule): holding/with the shovel equipped, the
    player runs a timed action on a target tile (the tile they stand on /
-   face). Completion levels the tile: `tile.Elevation` := round(mean of
-   the 4 corner elevations) clamped to (SeaLevel, ElevationLevels−1],
-   then the corner-stitch refresh (`TileMap.BuildCornerElevations()`)
-   re-derives the quads. Pays construction XP (10, the structureal
+   face). Completion levels the tile: `tile.Elevation` := the MEDIAN of
+   the 4 corner-source elevations (self + the 3 forward neighbors that
+   BuildCornerElevations pulls from, TileMap.cs:74); the median is the
+   value agreeing neighbors already hold, so a one-level step genuinely
+   becomes a flat pad, where a mean would land between levels and still
+   read sloped. Then the corner-stitch refresh
+   (`TileMap.BuildCornerElevations()`) re-derives the quads. Pays construction XP (10, the structureal
    placement rate) and notifies "Ground levelled."
 4. **Refusals, all notified:** water tile ("Can't level water."),
    tile with a structure or construction site ("Clear the structure
@@ -134,7 +137,8 @@ RED (new VerticalBuildingTests + edits):
    slope tile (corner spread 1.0) with the "level this tile" message;
    non-block def on the same slope still places (no regression).
 3. Flatten happy path: shovel-equipped timed action on a slope tile
-   levels it (Elevation := rounded corner mean), corner quads refresh,
+   levels it (Elevation := corner-source median — the value agreeing
+   neighbors already hold), corner quads refresh,
    a block then places on it; construction XP lands in construction,
    not elsewhere.
 4. Refusals: water, structure-occupied, resource-node, sink-below-sea,

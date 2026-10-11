@@ -91,6 +91,28 @@ public sealed class TileMap
         }
     }
 
+    private readonly List<TerrainEditSnapshot>? _terrainEditsStub = null;
+
+    /// <summary>Apply a player-driven terrain elevation edit (the shovel's
+    /// flatten action). Applies the elevation immediately, records it so
+    /// SaveSystem can persist the edit, and refreshes corner quads.</summary>
+    public void SetElevationOverride(int x, int y, float elevation)
+    {
+        // RED stub: elevation applied for in-session tests; the edit record +
+        // corner refresh land in GREEN.
+        var tile = GetTile(x, y);
+        if (tile != null) tile.Elevation = elevation;
+    }
+
+    /// <summary>Player-made elevation edits for persistence (spec:
+    /// 2026-10-11-vertical-building-foundations-design.md).</summary>
+    public List<TerrainEditSnapshot> GetTerrainEdits() =>
+        _terrainEditsStub ?? new List<TerrainEditSnapshot>();
+
+    /// <summary>Rebuild corner quads from current tile elevations (the
+    /// neighbor-stitch convention TileStitchingTests pins).</summary>
+    public void RefreshCornerElevations() => BuildCornerElevations();
+
     /// <summary>
     /// Update all tiles (regrowth, seasonal changes).
     /// </summary>

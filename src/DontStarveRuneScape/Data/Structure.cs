@@ -35,6 +35,14 @@ public sealed class StructureDef : DataRecord
     public bool OccupiesTile { get; init; } = true;
     public bool Burnable { get; init; }
 
+    /// <summary>Voxel block def (vertical-building slice): the structure is a
+    /// stackable world block, not a workstation (data key: is_block).</summary>
+    public bool IsBlock { get; init; }
+
+    /// <summary>Elevation levels one block adds to its tile's standing height
+    /// (data key: stack_height); required > 0 when IsBlock.</summary>
+    public float StackHeight { get; init; }
+
     /// <summary>How long a hearth fire lit at this structure burns, in
     /// seconds (data key: light_seconds); 0 = not a hearth.</summary>
     public float LightSeconds { get; init; }
@@ -123,6 +131,8 @@ public sealed class StructureDefRegistry
             BiomeCompatibility = ParseStrings(e, "biome_compatible"),
             OccupiesTile = GetBool(e, "occupies_tile"),
             Burnable = GetBool(e, "burnable"),
+            IsBlock = GetBool(e, "is_block"),
+            StackHeight = GetFloat(e, "stack_height"),
             LightSeconds = GetFloat(e, "light_seconds"),
             Hp = hp > 0f ? hp : 100f,
             Damage = GetFloatOrPrefix(e, "damage"),

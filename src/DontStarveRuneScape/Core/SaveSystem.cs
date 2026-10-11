@@ -504,6 +504,16 @@ public sealed class FactionDataSnapshot
 public sealed class WorldSnapshot
 {
     public DepletedNodeSnapshot[] DepletedNodes { get; set; } = [];
+    /// <summary>Player-made elevation edits (flatten actions); applied after
+    /// the seeded world rebuild at load. Old saves read empty.</summary>
+    public List<TerrainEditSnapshot> TerrainEdits { get; set; } = [];
+}
+
+public sealed class TerrainEditSnapshot
+{
+    public int TileX { get; set; }
+    public int TileY { get; set; }
+    public float Elevation { get; set; }
 }
 
 public sealed class DepletedNodeSnapshot

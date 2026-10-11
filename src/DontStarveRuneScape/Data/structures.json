@@ -3,6 +3,21 @@
  "_note": "Structures are grouped by construction sub-stat category.",
  "structures": {
   "common": {
+   "mound_block": {
+    "structure_id": "mound_block",
+    "name": "Dirt Mound",
+    "structure_type": "block",
+    "construction_sub_stat": "common",
+    "is_block": true,
+    "stack_height": 8,
+    "hp": 20,
+    "occupies_tile": true,
+    "materials": [["stone", 2], ["stick", 1]],
+    "requires_structure_level": 1,
+    "requires_skill_level": 1,
+    "biome_compatible": [],
+    "sprite_key": "structure/stone_wall"
+   },
    "campfire": {
     "structure_id": "campfire",
     "name": "Campfire",
