@@ -117,7 +117,8 @@ public sealed class Player
     /// Clamps to map bounds. Arrow keys control camera rotation
     /// (left/right = orbit, up/down = tilt).
     /// </summary>
-    public void ApplyKeyInput(InputState inputState, float dt, float cameraYaw = 0.0f)
+    public void ApplyKeyInput(InputState inputState, float dt, float cameraYaw = 0.0f,
+        World.TileMap? world = null, Building.BuildingSystem? buildings = null)
     {
         float dx = 0.0f, dy = 0.0f;
         if (inputState.MoveUp) dy -= 1.0f;

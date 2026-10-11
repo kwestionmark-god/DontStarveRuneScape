@@ -153,6 +153,7 @@ public static class Constants
     public const float FishingCastSeconds = 3.0f;
     public const float FlatPadMaxSpread = 0.01f;      // Block-def placement: corner spread must be ≤ this
     public const float FlattenSeconds = 3.0f;         // Shovel timed action duration
+    public const float BlockClimbCap = 2.05f;         // Max block-top levels a jump hop can climb (2 = one mound)
 
     // Tier-2 rod (bone): a faster cast is the upgrade — same spot, less
     // wait. Tier buys speed, not yield (yield is the bait economy's knob).
