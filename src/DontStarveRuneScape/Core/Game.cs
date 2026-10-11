@@ -1199,6 +1199,19 @@ public sealed class Game
     }
 
     /// <summary>
+    /// DSR_TEST_FIREMENU staging: the first clear dry tile in a deterministic
+    /// scan (y outer, x inner) — no cave collar in its 3x3, no active NPC
+    /// within the 128px interact band, no live monster within the 96px taming
+    /// band — so a scripted E reaches the fire menu and nothing else eats it.
+    /// RED stub: returns null.
+    /// </summary>
+    internal static (int X, int Y)? FindFireMenuStageTile(TileMap world,
+        NPCSystem? npcs, CombatSystem? combat)
+    {
+        return null; // RED stub — GREEN implements the scan
+    }
+
+    /// <summary>
     /// Smoketest runtime hooks (env vars, first Playing frame only):
     /// DSR_TEST_RESOURCE=1 teleports the player next to the first harvestable
     /// resource node; DSR_TEST_KEYS="E,I" routes comma-separated Silk.NET keys
