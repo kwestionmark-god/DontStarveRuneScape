@@ -241,6 +241,10 @@ public sealed class InputRouter
     {
         if (key == Key.Escape || key == Key.Q)
         {
+            // A panel launched from the NPC hub returns to the hub menu,
+            // not the world — the conversation continues where it left off.
+            if (_game.TryReturnToNpcHub())
+                return;
             CloseAllPanels();
             _game.SetState(GameState.Playing);
             return;

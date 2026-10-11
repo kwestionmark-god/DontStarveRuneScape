@@ -53,6 +53,15 @@ public sealed class Game
     /// <summary>True while a panel opened from the dashboard can return to it.</summary>
     public bool DashboardReturnAvailable { get; private set; }
 
+    // ─── NPC hub return (Esc from a hub-launched tab panel) ────────────
+    // Set by OpenNpcHubTab before the handoff (SetState wipes the hub
+    // session via CloseAllPanels), cleared on any world transition like
+    // the dashboard flag. RED stubs: null/false until GREEN wires them.
+    /// <summary>The NPC whose hub menu launched the current panel, if any.</summary>
+    public DontStarveRuneScape.NPC.Npc? HubReturnNpc { get; set; }
+    /// <summary>The hub tab that was active at handoff time.</summary>
+    public string HubReturnTab { get; set; } = string.Empty;
+
     // World & Player
     public TileMap? World { get; set; }
     public CaveWorldSystem? CaveWorlds { get; set; }
@@ -439,6 +448,14 @@ public sealed class Game
             return false;
         SetState(GameState.DashboardOpen);
         return true;
+    }
+
+    /// <summary>Return to the NPC hub menu from a panel it launched
+    /// (OpenNpcHubTab handoff). Restores the session and the tab that was
+    /// active at handoff. RED stub: always false.</summary>
+    public bool TryReturnToNpcHub()
+    {
+        return false; // RED stub — GREEN restores the hub session
     }
 
     /// <summary>
