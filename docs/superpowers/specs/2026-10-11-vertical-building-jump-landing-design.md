@@ -1,7 +1,7 @@
 # Vertical building, slice 2 — blocks are walls, jumps land on tops
 
 - Date: 2026-10-11
-- Status: drafted (decisions answered 2026-10-11)
+- Status: implemented (RED 9a5e249 / GREEN 83e045f, 2026-10-11)
 - Slice line: blocks stop your feet and carry your body — walking into a
   block taller than what you stand on is a wall, a jump hop of up to 2
   elevation levels lands you ON its top, walking off any edge drops you

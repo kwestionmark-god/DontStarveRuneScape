@@ -8,6 +8,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Vertical building, slice 2 — blocks are walls, jumps land on tops** —
+  walking into a block taller than your footing now REFUSES the step
+  (axis-slide, no bounce); a jump hop of up to 2.05 elevation levels
+  (`Constants.BlockClimbCap`) lands ON the block's top, and stepping or
+  jumping down from any edge is always free. Standing is a pure query —
+  `BlockStack.BlockHeightAt` sums the stack heights of BUILT blocks on a
+  tile (construction sites aren't solid), `StandingElevationAt` adds it
+  to the terrain — so the player sprite, the boot sampler, and the
+  movement gate all read one truth. Blocks render lifted to their top
+  (a block you can't see is unteachable) and pure-terrain slopes keep
+  legacy free movement (worldgen hills unchanged). mound_block becomes
+  2 levels = exactly one hop (an 8-level mound was ≈102 px vs the 26 px
+  jump peak — unclimbable forever). Suite 553 → 564.
 - **Vertical building, slice 1 — blocks, flat pads, and the shovel** —
   structures gain vertical extent data: `StructureDef` carries
   `is_block` + `stack_height` (the first def is entry-tier `mound_block`)

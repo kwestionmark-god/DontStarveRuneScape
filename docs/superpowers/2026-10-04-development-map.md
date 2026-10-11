@@ -382,18 +382,32 @@ law shapes it.
        them and SaveData.World.TerrainEdits round-trips through the
        seeded rebuild (RestoreWorld applies them after regen, same as
        depleted nodes). Suite 540 → 553 (13 new tests).
+       **Slice 2 DONE 2026-10-11 (spec
+       2026-10-11-vertical-building-jump-landing-design.md; RED 9a5e249 /
+       GREEN 83e045f; 11 new tests):** blocks are now walls and
+       trampoline tops: `Building/BlockStack.cs` holds the pure rules —
+       `BlockHeightAt` (summed stack heights of ACTIVE, BUILT blocks on
+       a tile; sites aren't solid), `StandingElevationAt` (tile center
+       elevation + block lift), `CanStep` (descents and pure-terrain
+       ascents stay legacy-free; stepping into a TALLER stack is a wall
+       on foot, a hop of ≤ `Constants.BlockClimbCap` = 2.05 levels
+       airborne — one mound = one hop), `RenderTop` (blocks draw at
+       their top height). `Player.ApplyKeyInput` gains optional
+       world/buildings params that apply the gate per-axis (axis-slide,
+       no bounce) — Game.cs:902 passes them; the render loop feeds the
+       player sprite and boot sampler the block-lifted elevation and
+       block sprites render at their top. mound_block stack_height
+       8 → 2 levels so one mound is exactly one jump (a wall of 8 was
+       ≈102 px vs the 26 px arc). Suite 553 → 564.
        Known seams: Player.TryJump
-       (`Player.cs:206`) and UpdateJump's arc
-       (JumpVisualOffset/JumpProgress) are visual-only — landing
-       checks are new; Tile.CornerElevations is the
-       min-corner-stitch convention (TileStitchingTests pins it);
-       Structure placement rides BuildingSystem.PlaceStructure's
-       biome/skill/material gates. Remaining: (2) jump
-       landing/standing on block tops (standing elevation = terrain +
-       stack height — contract #4 in the spec; player first, NPCs
-       later), (3) stacking + connection (occupancy currently refuses a
-       second structure on a block's tile — the stack container),
-       (4) renderer lift of blocks to their top height
+       (`Player.cs:206`) and UpdateJump's arc now MEAN something —
+       airborne + cap is the climb. Remaining: (3) stacking +
+       connection (occupancy refuses a second block on a tile; needs
+       the per-tile column container + the user's banked idea:
+       fence-style connecting wall segments, Minecraft-fashion —
+       blocks at partial width that visually link to neighbors),
+       (4) renderer polish (pixel-diff verification of lifted blocks +
+       player standing sprites; camera focus on block tops).
      - **Progression accounting (user playtest finding, 2026-10-09).**
        The fishing rod is entry-tier by design but hangs on a deadlock:
        rod → planks → `goblin_diplomacy` (goblin CHIEF's quest, not

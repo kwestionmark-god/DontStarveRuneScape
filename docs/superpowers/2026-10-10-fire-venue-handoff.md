@@ -121,13 +121,14 @@ Content slices (data-heavy, engine-light):
 
 Big feature slices (spec + clarify first):
 
-7. **Vertical building + terrain leveling** — slice 1 DONE 2026-10-11
-   (RED 8b53a0c / GREEN 20965a3): block defs + flat-pad gate + the
-   shovel flatten action + terrain-edit persistence. Remaining splits:
-   (2) jump landing/standing on block tops, (3) stacking + connection,
-   (4) renderer lift. Spec:
-   docs/superpowers/specs/2026-10-11-vertical-building-foundations-design.md;
-   seams + contracts banked in the dev-map backlog entry.
+7. **Vertical building + terrain leveling** — slices 1+2 DONE 2026-10-11
+   (s1 RED 8b53a0c / GREEN 20965a3: block defs + flat-pad gate + shovel
+   flatten + terrain-edit persistence; s2 RED 9a5e249 / GREEN 83e045f:
+   blocks-as-walls movement gate, jump landing on tops, top-height
+   render lift). Remaining: (3) stacking + connection (column container
+   + user's fence-style connecting wall segments note), (4) renderer
+   polish/pixel-diff verification. Specs in docs/superpowers/specs/
+   2026-10-11-vertical-building-*.
 8. **Skills-arc tails** (still parked): workers reading their own
    sub-stats (gather/production math still level-only) + per-stat
    tooltips in the panel.
