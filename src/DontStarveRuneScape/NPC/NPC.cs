@@ -89,6 +89,12 @@ public abstract class Npc
         npc.RecruitComposite = def.RecruitCompositeStat;
         npc.AvailableQuests.AddRange(def.AvailableQuestIds);
         npc.AvailableBehaviors.AddRange(def.AvailableBehaviors);
+        // Authored shop biome (merchants): the def's claim beats the tile's
+        // accident — proc-gen can stand a def on any biome, but Maris sells
+        // coastal stock wherever she stands. Empty def biome keeps the
+        // tile-derived value the writers assign.
+        if (!string.IsNullOrEmpty(def.Biome))
+            npc.Biome = def.Biome;
         foreach (var line in def.DialogueLines)
             npc.DialogueLines.Add(line);
         return npc;

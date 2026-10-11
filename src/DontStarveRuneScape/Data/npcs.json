@@ -31,7 +31,8 @@
    "inventory_tier": 1,
    "starting_gold": 200,
    "price_modifier": 1.0,
-   "commerce_requirement": 0
+   "commerce_requirement": 0,
+   "biome": "forest"
   },
   {
    "npc_id": "quest_giver_forest_1",
@@ -100,7 +101,8 @@
    "inventory_tier": 1,
    "starting_gold": 150,
    "price_modifier": 1.0,
-   "commerce_requirement": 0
+   "commerce_requirement": 0,
+   "biome": "plains"
   },
   {
    "npc_id": "merchant_coastal_1",
@@ -131,7 +133,13 @@
    "inventory_tier": 1,
    "starting_gold": 300,
    "price_modifier": 0.9,
-   "commerce_requirement": 0
+   "commerce_requirement": 0,
+   "available_quest_ids": [
+    "driftwood_scour",
+    "salt_run",
+    "crab_cove"
+   ],
+   "biome": "coastal"
   },
   {
    "npc_id": "quest_giver_mountains_1",
@@ -194,7 +202,8 @@
    "inventory_tier": 1,
    "starting_gold": 400,
    "price_modifier": 0.85,
-   "commerce_requirement": 5
+   "commerce_requirement": 5,
+   "biome": "desert"
   },
   {
    "npc_id": "quest_giver_desert_1",
@@ -473,6 +482,44 @@
    "available_quest_ids": [
     "guardians_request"
    ]
+  },
+  {
+   "npc_id": "merchant_swamp_1",
+   "name": "Fenwick the Bog Trader",
+   "npc_type": "merchant",
+   "world_x": 252,
+   "world_y": 248,
+   "sprite_key": "npc/merchant_male_0",
+   "faction": "swamp_factions",
+   "dialogue_lines": [
+    "Bog water's safer than the road here, friend.",
+    "Reeds, peat, glands — the swamp provides, if you know where to dig.",
+    "Shaman Kree gets the wisdom. I get the goods."
+   ],
+   "behavior": "trade",
+   "patrol_area": [
+    240,
+    236,
+    264,
+    260
+   ],
+   "is_active": true,
+   "is_recruited": false,
+   "recruit_behavior": null,
+   "hostility_level": 0.4,
+   "health": 20,
+   "max_health": 20,
+   "inventory_tier": 1,
+   "starting_gold": 250,
+   "price_modifier": 0.9,
+   "commerce_requirement": 0,
+   "available_quest_ids": [
+    "reed_cut",
+    "peat_dig",
+    "croc_bog"
+   ],
+   "giver_faction": "swamp_factions",
+   "biome": "swamp"
   },
   {
    "npc_id": "recruit_forest_assistant",

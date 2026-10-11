@@ -26,7 +26,11 @@ public sealed class NPCSystem
             npc.WorldX = (def.WorldX + 0.5f) * tileSize;
             npc.WorldY = (def.WorldY + 0.5f) * tileSize;
             var tile = world?.GetTile(def.WorldX, def.WorldY);
-            npc.Biome = tile?.Biome?.Id ?? string.Empty;
+            // Authored def biome wins (merchant stock determinism);
+            // tile-derived only when the def claims none.
+            npc.Biome = !string.IsNullOrEmpty(def.Biome)
+                ? def.Biome
+                : tile?.Biome?.Id ?? string.Empty;
             NPCs.Add(npc);
         }
     }
@@ -161,7 +165,11 @@ public sealed class NPCSystem
                 npc.WorldX = n.WorldX;
                 npc.WorldY = n.WorldY;
                 var tile = world?.GetTileAtWorld(npc.WorldX, npc.WorldY);
-                npc.Biome = tile?.Biome?.Id ?? string.Empty;
+                // Authored def biome wins (merchant stock determinism);
+                // tile-derived only when the def claims none.
+                npc.Biome = !string.IsNullOrEmpty(def.Biome)
+                    ? def.Biome
+                    : tile?.Biome?.Id ?? string.Empty;
                 npc.Health = (int)n.Health;
                 npc.IsActive = n.IsActive;
                 npc.RecruitedBy = n.RecruitedBy;

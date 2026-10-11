@@ -39,13 +39,13 @@
      Maris once. prereq salt_run. thr 0.4, minP 1, minI 2.
      XP 90 + cooking 30; reward gold×15.
    - `reed_cut` — collect 6 reed (swamp reed_bed, lvl-1 no-tool).
-     thr 0.35, minP 1, minI 2. XP 60 + foraging 30; reward
+     thr 0.35, minP 1, minI 1. XP 60 + foraging 30; reward
      poison_antidote×1.
    - `peat_dig` — collect 4 peat (swamp peat_mound, foraging 5).
-     thr 0.4, minP 1, minI 2. XP 70 + foraging 40; reward gold×10.
+     thr 0.4, minP 1, minI 1. XP 70 + foraging 40; reward gold×10.
    - `croc_bog` — kill 2 crocodiles + deliver 2 crocodile_tooth +
      trade with Fenwick once. prereq peat_dig. thr 0.45, minP 1,
-     minI 3. XP 100 + attack 50; reward gold×20.
+     minI 2. XP 100 + attack 50; reward gold×20.
 4. **Merchant-shop infra fixes (load-bearing, found by grounding):**
    - **Authored biome on merchant defs.** Today `npc.Biome` comes from
      the def's world tile (`NPCSystem.LoadFromRegistry` :29, snapshot

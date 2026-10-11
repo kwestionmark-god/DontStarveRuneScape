@@ -772,6 +772,204 @@
       "prerequisite_quests": ["mountain_pass"],
       "repeatable": false,
       "sprite_key": "quest/gem_mining"
+    },
+    {
+      "quest_id": "driftwood_scour",
+      "name": "Driftwood Scour",
+      "description": "The tide brings in good timber. Maris pays for a pile of clean driftwood.",
+      "giver_npc_type": "merchant",
+      "giver_faction": "coastal_merchants",
+      "min_commerce": 0,
+      "min_persuasion": 0,
+      "min_total_intelligence": 1,
+      "acceptance_threshold": 0.3,
+      "xp_reward": 60.0,
+      "skill_xp_rewards": {"foraging": 30.0},
+      "recipe_unlocks": [],
+      "gear_unlocks": [],
+      "item_rewards": [["shells", 3]],
+      "conditions": [
+        {
+          "condition_type": "collect_item",
+          "target": "driftwood",
+          "required_count": 6,
+          "description": "Collect 6 driftwood"
+        }
+      ],
+      "fail_conditions": [],
+      "required_faction_status": null,
+      "prerequisite_quests": [],
+      "repeatable": false,
+      "sprite_key": "quest/sea_trade"
+    },
+    {
+      "quest_id": "salt_run",
+      "name": "Salt Run",
+      "description": "Maris salts the day's catch by the barrel. Bring her raw salt from the deposits.",
+      "giver_npc_type": "merchant",
+      "giver_faction": "coastal_merchants",
+      "min_commerce": 0,
+      "min_persuasion": 0,
+      "min_total_intelligence": 1,
+      "acceptance_threshold": 0.35,
+      "xp_reward": 70.0,
+      "skill_xp_rewards": {"foraging": 40.0},
+      "recipe_unlocks": [],
+      "gear_unlocks": [],
+      "item_rewards": [["gold", 10]],
+      "conditions": [
+        {
+          "condition_type": "collect_item",
+          "target": "salt",
+          "required_count": 4,
+          "description": "Collect 4 salt"
+        }
+      ],
+      "fail_conditions": [],
+      "required_faction_status": null,
+      "prerequisite_quests": [],
+      "repeatable": false,
+      "sprite_key": "quest/desert_trade"
+    },
+    {
+      "quest_id": "crab_cove",
+      "name": "Crab Cove",
+      "description": "Big crabs pinch the drying racks and nobody misses them. Crack a few shells for Maris and leave the meat.",
+      "giver_npc_type": "merchant",
+      "giver_faction": "coastal_merchants",
+      "min_commerce": 0,
+      "min_persuasion": 1,
+      "min_total_intelligence": 2,
+      "acceptance_threshold": 0.4,
+      "xp_reward": 90.0,
+      "skill_xp_rewards": {"cooking": 30.0},
+      "recipe_unlocks": [],
+      "gear_unlocks": [],
+      "item_rewards": [["gold", 15]],
+      "conditions": [
+        {
+          "condition_type": "kill_monster",
+          "target": "crab",
+          "required_count": 2,
+          "description": "Kill 2 crabs"
+        },
+        {
+          "condition_type": "deliver_item",
+          "target": "crab_meat",
+          "required_count": 2,
+          "description": "Deliver 2 crab meat"
+        },
+        {
+          "condition_type": "trade_at_location",
+          "target": "merchant_coastal_1",
+          "required_count": 1,
+          "description": "Trade with Maris"
+        }
+      ],
+      "fail_conditions": [],
+      "required_faction_status": null,
+      "prerequisite_quests": ["salt_run"],
+      "repeatable": false,
+      "sprite_key": "quest/first_blood"
+    },
+    {
+      "quest_id": "reed_cut",
+      "name": "Reed Cut",
+      "description": "Fenwick binds his bundles with swamp reed. Bring him a good armful.",
+      "giver_npc_type": "merchant",
+      "giver_faction": "swamp_factions",
+      "min_commerce": 0,
+      "min_persuasion": 1,
+      "min_total_intelligence": 1,
+      "acceptance_threshold": 0.35,
+      "xp_reward": 60.0,
+      "skill_xp_rewards": {"foraging": 30.0},
+      "recipe_unlocks": [],
+      "gear_unlocks": [],
+      "item_rewards": [["poison_antidote", 1]],
+      "conditions": [
+        {
+          "condition_type": "collect_item",
+          "target": "reed",
+          "required_count": 6,
+          "description": "Collect 6 reed"
+        }
+      ],
+      "fail_conditions": [],
+      "required_faction_status": null,
+      "prerequisite_quests": [],
+      "repeatable": false,
+      "sprite_key": "quest/antidote"
+    },
+    {
+      "quest_id": "peat_dig",
+      "name": "Peat Dig",
+      "description": "The bog's peat burns slow and steady. Fenwick pays by the mound.",
+      "giver_npc_type": "merchant",
+      "giver_faction": "swamp_factions",
+      "min_commerce": 0,
+      "min_persuasion": 1,
+      "min_total_intelligence": 1,
+      "acceptance_threshold": 0.4,
+      "xp_reward": 70.0,
+      "skill_xp_rewards": {"foraging": 40.0},
+      "recipe_unlocks": [],
+      "gear_unlocks": [],
+      "item_rewards": [["gold", 10]],
+      "conditions": [
+        {
+          "condition_type": "collect_item",
+          "target": "peat",
+          "required_count": 4,
+          "description": "Dig 4 peat"
+        }
+      ],
+      "fail_conditions": [],
+      "required_faction_status": null,
+      "prerequisite_quests": [],
+      "repeatable": false,
+      "sprite_key": "quest/mountain_pass"
+    },
+    {
+      "quest_id": "croc_bog",
+      "name": "Croc Bog",
+      "description": "Crocodiles take a bite out of every trade run. Fenwick wants teeth — and proof.",
+      "giver_npc_type": "merchant",
+      "giver_faction": "swamp_factions",
+      "min_commerce": 0,
+      "min_persuasion": 1,
+      "min_total_intelligence": 2,
+      "acceptance_threshold": 0.45,
+      "xp_reward": 100.0,
+      "skill_xp_rewards": {"attack": 50.0},
+      "recipe_unlocks": [],
+      "gear_unlocks": [],
+      "item_rewards": [["gold", 20]],
+      "conditions": [
+        {
+          "condition_type": "kill_monster",
+          "target": "crocodile",
+          "required_count": 2,
+          "description": "Kill 2 crocodiles"
+        },
+        {
+          "condition_type": "deliver_item",
+          "target": "crocodile_tooth",
+          "required_count": 2,
+          "description": "Deliver 2 crocodile teeth"
+        },
+        {
+          "condition_type": "trade_at_location",
+          "target": "merchant_swamp_1",
+          "required_count": 1,
+          "description": "Trade with Fenwick"
+        }
+      ],
+      "fail_conditions": [],
+      "required_faction_status": null,
+      "prerequisite_quests": ["peat_dig"],
+      "repeatable": false,
+      "sprite_key": "quest/diplomacy"
     }
   ]
 }

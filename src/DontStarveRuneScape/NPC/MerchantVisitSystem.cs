@@ -183,6 +183,8 @@ public sealed class MerchantVisitSystem
     private void Notify(string text, byte r, byte g, byte b)
         => _game.Player?.ActionSystem?.AddNotification(text, (r, g, b));
 
+    private readonly HashSet<string> _spawnedVisitors = [];
+
     private NpcDef? FindMerchantDef(string factionId, string biome)
     {
         if (_game.NpcRegistry == null)
@@ -209,13 +211,18 @@ public sealed class MerchantVisitSystem
         merchant.WorldX = (anchorX + 0.5f) * Constants.TileSize;
         merchant.WorldY = (anchorY + 0.5f) * Constants.TileSize;
         merchant.FactionId = factionId;
-        merchant.Biome = _game.World.GetTile(
-            _game.ColonySystem.AnchorTileX, 
-            _game.ColonySystem.AnchorTileY)?.Biome?.Id ?? "plains";
+        // Authored def biome wins (the visitor sells its own stock wherever
+        // it visits); tile fallback only when the def claims none.
+        merchant.Biome = !string.IsNullOrEmpty(def.Biome)
+            ? def.Biome
+            : _game.World.GetTile(
+                _game.ColonySystem.AnchorTileX, 
+                _game.ColonySystem.AnchorTileY)?.Biome?.Id ?? "plains";
         merchant.IsActive = true;
 
         _game.NPCSystem.NPCs.Add(merchant);
         _activeMerchant = merchant;
+        _spawnedVisitors.Add(merchant.NpcId);
     }
 
     private void DepartMerchants()
@@ -223,14 +230,18 @@ public sealed class MerchantVisitSystem
         if (_game.NPCSystem == null)
             return;
 
-        // Remove all merchant NPCs that are not recruited
+        // Only the visitors this system spawned depart — the sweep must not
+        // eat the world's stationary shopkeepers (Maris at her post, the
+        // forest merchant at his) just because they are merchants too.
         var merchantsToRemove = _game.NPCSystem.NPCs
-            .Where(n => n.NpcType == "merchant" && !n.IsRecruited)
+            .Where(n => n.NpcType == "merchant" && !n.IsRecruited
+                && _spawnedVisitors.Contains(n.NpcId))
             .ToList();
 
         foreach (var merchant in merchantsToRemove)
         {
             _game.NPCSystem.NPCs.Remove(merchant);
+            _spawnedVisitors.Remove(merchant.NpcId);
         }
         _activeMerchant = null;
     }

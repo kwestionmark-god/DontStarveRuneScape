@@ -179,9 +179,21 @@ public class NpcColonyTests
     public void SnapshotRestore_RestoresMerchantBiome_FromSnapshotPosition()
     {
         // Merchant trade stock is biome-keyed; a restored world must keep the
-        // biome at the merchant's saved position, like a fresh boot does.
+        // biome at the merchant's saved position when the def claims none —
+        // the tile fallback (authored def biomes win by design, see
+        // CoastalSwampQuestTests).
         var registry = new NpcRegistry();
         registry.LoadAll();
+        // A def with NO authored biome, so the tile is the only source.
+        registry.Npcs["merchant_tile_biome_test"] = new NpcDef
+        {
+            NpcId = "merchant_tile_biome_test",
+            Name = "Tile Biome Merchant",
+            Type = "merchant",
+            Faction = "forest_villagers",
+            StartingGold = 100,
+            SpriteKey = "npc/merchant_male_0",
+        };
         var restored = new NPCSystem();
         var world = new World.TileMap(8, 8);
         world.Tiles[5, 2].Biome = new BiomeDef { Id = "swamp" };
@@ -191,7 +203,7 @@ public class NpcColonyTests
         {
             NPCs = [new NPCDataSnapshot
             {
-                NpcId = "merchant_forest_1",
+                NpcId = "merchant_tile_biome_test",
                 Type = "merchant",
                 WorldX = x,
                 WorldY = y,
