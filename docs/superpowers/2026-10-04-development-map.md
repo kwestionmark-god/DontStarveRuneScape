@@ -441,13 +441,45 @@ law shapes it.
        the multi-role menu. `EveryQuest_IsOfferedBySomeNpc` and
        `EveryQuestSkillReward_TargetsARegisteredSkill` pin the two laws
        this slice depends on (every quest has a giver; every XP reward
-       names a real skill). Follow-ups left open: coastal/swamp side
-       quests, and a panels-opened-from-the-menu get no return-to-menu
-       (E again reopens the hub).
+       names a real skill). Both follow-ups have since closed:
+       coastal/swamp side quests (2026-10-11 — the entry below), and
+       panels-opened-from-the-menu get no return-to-menu (2026-10-11 —
+       the hub-tab return slice).
        Pillars held: RS (a chain that walks you through plains
        foraging → combat → cooking), DS (wheat, boars and hunger supply
        the verbs), MC (pure DATA on the 7 existing condition hooks — no
        engine work; the one code change is UI routing).
+     - **Coastal/swamp side quests — done 2026-10-11 (RED `75f690c` /
+       GREEN `9a2ccb6`).** quests.json 23 → 29, npcs.json 18 → 19.
+       Maris (`merchant_coastal_1`) becomes the first MERCHANT
+       quest giver: her 3-link chain driftwood_scour → salt_run →
+       crab_cove (driftwood → salt → crab-kill + meat delivery + a
+       trade with her; crabs are non-hostile, so the hunt is your
+       aggression — RS crab-clubbing). New swamp merchant Fenwick the
+       Bog Trader (`merchant_swamp_1`, swamp_factions, near Kree)
+       carries reed_cut → peat_dig → croc_bog AND gives swamp its
+       first shop — the five swamp trade entries were dead data (no
+       merchant def claimed biome swamp). Two load-bearing infra
+       fixes found by grounding rode along: (1) merchant stock was a
+       per-seed lottery — npc.Biome came from the def's world tile and
+       the game seed is randomized (on seed 42 the forest merchant
+       stood on coastal and sold coastal stock); all five merchant
+       defs now carry an authored `biome` key that all three Biome
+       writers prefer (NpcDef.Biome + FromDef copy +
+       LoadFromRegistry/RestoreSnapshot/SpawnMerchant). (2)
+       DepartMerchants removed ALL non-recruited merchants daily at
+       10:00 — stationary shopkeepers like Maris vanished mid-session;
+       the sweep now removes only the visitors MerchantVisitSystem
+       itself spawned. Suite 517 → 531.
+       Spec:
+       `2026-10-11-coastal-swamp-side-quests-design.md`.
+       Pillars held: RS (each chain teaches its biome's gather →
+       hunt → trade loop; a merchant can hold a quest board like any
+       RS shopkeeper), DS (tide-washed driftwood, salt deposits,
+       bog peat and non-hostile crabs supply the verbs; the crab
+       hunt is your choice), MC (both lines are pure DATA on the 7
+       condition hooks; the code changes are the two infra
+       honesty fixes the content needs to function).
      - **Unlock-as-event (banked idea, 2026-10-10):** a quest-bound
        craftable needn't be a completion REWARD — unlock it mid-quest as
        a story beat (learn the recipe from the hermit when you REACH him,

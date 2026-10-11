@@ -8,6 +8,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Coastal/swamp side quests — the two biome lines live** — Maris
+  (`merchant_coastal_1`) becomes the first merchant quest giver: her
+  chain walks the coastal loop driftwood_scour → salt_run → crab_cove
+  (tide-washed driftwood → salt deposits → crabs — non-hostile, so the
+  hunt is your aggression — plus a crab-meat delivery and a trade with
+  her). New swamp merchant Fenwick the Bog Trader
+  (`merchant_swamp_1`) carries reed_cut → peat_dig → croc_bog and
+  gives swamp its first shop (the five swamp trade entries were dead
+  data — no merchant claimed the biome). quests.json 23 → 29,
+  npcs.json 18 → 19. Suite 517 → 531.
+- **Merchant shop honesty, two root fixes found by grounding** —
+  merchant trade stock was a per-seed lottery: `npc.Biome` came from
+  the def's world tile and every new game randomizes the seed (on seed
+  42 the forest merchant stood on coastal and sold coastal stock).
+  All five merchant defs now carry an authored `biome` key that every
+  Biome writer prefers over the tile (boot, save-restore, and daily
+  visitor spawns). And the daily 10:00 depart sweep removed ALL
+  non-recruited merchants — stationary shopkeepers like Maris vanished
+  mid-session on day one; it now removes only the visitors the visit
+  system itself spawned.
 - **Hub-tab return** — Esc (or Q) from a role panel the NPC hub
   launched now returns to that NPC's role menu with the session and
   active tab restored, instead of dropping the player into the world

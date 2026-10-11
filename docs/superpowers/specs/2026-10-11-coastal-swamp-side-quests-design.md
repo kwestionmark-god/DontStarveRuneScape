@@ -1,7 +1,8 @@
 # Coastal/swamp side quests — design
 
 - **Date:** 2026-10-11
-- **Status:** Drafted (awaiting RED)
+- **Status:** Implemented (RED `75f690c` / GREEN `9a2ccb6`; suite 531
+  total / 530 green / 1 pre-existing skip)
 - **Slice line:** "Coastal/swamp side quests" (fire-venue handoff item 6,
   quest-breadth follow-up; user-approved next on the menu).
 - **Design law:** RS = the quest web teaches the world's skills and
@@ -228,3 +229,12 @@ infra findings), CHANGELOG.
 - 2026-10-11: drafted from clarify answers + live-tree grounding;
   seed-42 biome probe run (probe test deleted after evidence
   collected).
+- 2026-10-11: implemented (RED `75f690c` / GREEN `9a2ccb6`). Design
+  adjustments during RED/GREEN: the swamp int gates settled at 1/1/2
+  (matching the coastal line and the plains fresh-accept pattern —
+  my drafted 2/2/3 contradicted the chain-entry law the user approved);
+  the tile-fallback biome pin in NpcColonyTests was re-pointed at a
+  def-less injected merchant (authored biomes win by design, so
+  merchant_forest_1 no longer takes its position's tile biome); the
+  trade_at_location hook for both deliver quests uses ExecuteBuy's
+  NotifyTrade, which is the sea_trade precedent.
