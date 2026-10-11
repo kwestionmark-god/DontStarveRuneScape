@@ -8,6 +8,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Vertical building, slice 1 — blocks, flat pads, and the shovel** —
+  structures gain vertical extent data: `StructureDef` carries
+  `is_block` + `stack_height` (the first def is entry-tier `mound_block`)
+  and block placement is gated on a FLAT pad — the tile's four
+  corner-stitch elevations must spread ≤ 0.01 levels, with an honest
+  "level this tile with a shovel" refusal; old defs keep byte-identical
+  gates on slopes (no retroactive refusals). The remedy ships beside
+  the gate: a craftable tier-1 `shovel` and the `ActionType.Flattening`
+  verb (V key) — a 3 s timed action that levels the tile to the median
+  of its corner-source neighbors (the level agreeing neighbors already
+  hold, where a mean lands between levels and stays sloped), pays
+  construction XP, re-stitches the corner quads, and refuses — always
+  with a notification — on water, occupied/resource tiles, and targets
+  that would sink below the sea. Terrain edits persist:
+  `WorldSnapshot.TerrainEdits` re-applies after the seeded world rebuild,
+  same convention as depleted nodes. Jump landing and stacking are
+  slices 2–4 (spec banked). Suite 540 → 553.
 - **Unlock-as-event trigger + quest-unlock honesty** — a quest with
   `recipe_unlocks` now teaches its recipes the tick its objectives
   complete (the story beat — learn from the hermit when you REACH

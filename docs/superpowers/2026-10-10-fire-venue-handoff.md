@@ -121,11 +121,13 @@ Content slices (data-heavy, engine-light):
 
 Big feature slices (spec + clarify first):
 
-7. **Vertical building + terrain leveling** — the backlog's scoped
-   4-split: (1) block defs + placement + flat-pad gate, (2) jump
-   landing/standing, (3) stacking + connection, (4) terrain leveling.
-   Known seams banked in the dev-map backlog entry (TryJump
-   Player.cs:206, CornerElevations stitching, PlaceStructure gates).
+7. **Vertical building + terrain leveling** — slice 1 DONE 2026-10-11
+   (RED 8b53a0c / GREEN 20965a3): block defs + flat-pad gate + the
+   shovel flatten action + terrain-edit persistence. Remaining splits:
+   (2) jump landing/standing on block tops, (3) stacking + connection,
+   (4) renderer lift. Spec:
+   docs/superpowers/specs/2026-10-11-vertical-building-foundations-design.md;
+   seams + contracts banked in the dev-map backlog entry.
 8. **Skills-arc tails** (still parked): workers reading their own
    sub-stats (gather/production math still level-only) + per-stat
    tooltips in the panel.

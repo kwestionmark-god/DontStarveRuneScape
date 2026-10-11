@@ -1,7 +1,7 @@
 # Vertical building, slice 1 — block defs + flat-pad gate + terrain flattening
 
 - Date: 2026-10-11
-- Status: drafted (decisions answered 2026-10-11)
+- Status: implemented — slice 1 (RED 8b53a0c / GREEN 20965a3, 2026-10-11)
 - Slice line: structures gain real vertical extent — block-typed defs in
   structures.json place on flat land only, and a shovel-driven "level the
   ground" timed action makes that flatness earnable, training construction.

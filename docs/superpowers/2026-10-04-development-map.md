@@ -358,16 +358,42 @@ law shapes it.
        Wall/workbench BLOCKS at jump height, stackable, connectable;
        jump must land on a placed block; building needs a FLAT pad or
        the corner-stitched heightmap breaks stacking — so a terrain
-       LEVELING tool/method ships with it. Known seams: Player.TryJump
+       LEVELING tool/method ships with it. **Slice 1 DONE 2026-10-11
+       (spec 2026-10-11-vertical-building-foundations-design.md; RED
+       8b53a0c / GREEN 20965a3):** StructureDef gains `is_block` +
+       `stack_height` (parser + data pins — every block def must occupy
+       its tile and carry a positive stack height); first def
+       `mound_block` (Dirt Mound, structure/stone_wall sprite, cheap
+       2 stone + 1 stick). `PlaceStructure` gates block defs on a flat
+       pad — the tile's four corner-stitch elevations must spread ≤
+       `Constants.FlatPadMaxSpread` (0.01) — with the honest refusal
+       "Needs flat ground — level this tile with a shovel", plus a
+       block-only water refusal; non-block defs keep every legacy gate
+       bit-identical on slopes. The remedy ships in the same slice:
+       new `shovel` tool (gear.json, craft_shovel recipe at crafting 1,
+       2 stick + 1 stone) and `ActionType.Flattening` — a V-keyed 3 s
+       timed action on the player's tile that sets its elevation to the
+       MEDIAN of the 4 corner-source tiles (self + 3 forward neighbors —
+       the agreement neighbors already hold, where a mean lands between
+       levels and stays sloped), pays 10 construction XP, refreshes the
+       corner stitch, and refuses — with notification, never a silent
+       loss — on water, structure, resource-node, no-shovel, and any
+       target that would sink to the sea. Edits persist: TileMap records
+       them and SaveData.World.TerrainEdits round-trips through the
+       seeded rebuild (RestoreWorld applies them after regen, same as
+       depleted nodes). Suite 540 → 553 (13 new tests).
+       Known seams: Player.TryJump
        (`Player.cs:206`) and UpdateJump's arc
        (JumpVisualOffset/JumpProgress) are visual-only — landing
        checks are new; Tile.CornerElevations is the
        min-corner-stitch convention (TileStitchingTests pins it);
        Structure placement rides BuildingSystem.PlaceStructure's
-       biome/skill/material gates; structures occupy tiles but have no
-       vertical extent yet. Likely split: (1) block defs + placement +
-       flat-pad gate, (2) jump landing/standing on blocks, (3) stacking
-       + connection, (4) terrain leveling.
+       biome/skill/material gates. Remaining: (2) jump
+       landing/standing on block tops (standing elevation = terrain +
+       stack height — contract #4 in the spec; player first, NPCs
+       later), (3) stacking + connection (occupancy currently refuses a
+       second structure on a block's tile — the stack container),
+       (4) renderer lift of blocks to their top height
      - **Progression accounting (user playtest finding, 2026-10-09).**
        The fishing rod is entry-tier by design but hangs on a deadlock:
        rod → planks → `goblin_diplomacy` (goblin CHIEF's quest, not
