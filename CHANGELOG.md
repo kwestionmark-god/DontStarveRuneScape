@@ -8,6 +8,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Firemaking narrowing — the fire venue** — every fire method now
+  feeds its owning skill, and cooking has its own home. A new fire
+  menu (E near a lit fire, cooking station, furnace or smelter) holds
+  every recipe that needs fire — cooking, burn-to-ash, charcoal,
+  rendering, refining — plus rest-until-dawn; the crafting panel drops
+  those recipes. The partition is single-sourced
+  (`FireMenuPanel.IsFireRecipe`) so menu, panel and tests can't
+  disagree. Hearths now actually burn: placing a campfire or the new
+  firepit auto-lights it (worker-built sites light on completion), and
+  F relights a burned-out hearth from carried fuel, paying firemaking
+  XP. The new firepit structure (construction 3, stone 6 + stick 2)
+  burns 240s vs the campfire's 90s — masonry buys you a longer fire.
+  Fuel identity is real at last: Skills/Firemaking/data/fuel_table.json
+  now drives burn duration (sticks 15s, logs 30s, charcoal 45s per
+  unit, summed; unknown fuels keep the flat legacy rate), with the
+  duration sub-stat stacking on top.
+- **Skill XP root fix** — `SkillManager.AddXp` now recomputes the
+  level and grants stat points, exactly like the notification variant
+  (which is now a thin alias). Raw-XP paths — the F-fire, hearth
+  placement, worker construction and mining — no longer accrue XP
+  into a frozen level; every XP writer levels up. This closes the
+  parked "frozen mid-session levels" bug at the root.
+- **Station gates are proximity-honest** — a built station (furnace,
+  smelter, cooking station) now only enables its crafts while you
+  stand near it; owning one anywhere no longer unlocks its recipes
+  globally. The fire-menu rest row shares the sleep gate, refusing
+  visibly during the day.
 - **NPC-quest breadth — the plains hub and two leader boards** —
   quests.json 18 → 23, npcs.json 17 → 18. A new plains quest giver,
   Hayward the Reaper (forest_villagers — their territory already
@@ -51,6 +78,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Timber Collection, matching its prerequisite chain.
 
 ### Changed
+- **"Build Campfire" craft recipe removed** — it was dominated on every
+  axis: 3 oak_logs + 5 stone (vs the building panel's 2 stick +
+  2 stone), trained crafting instead of firemaking or construction,
+  and produced an item nothing in the game reads (`is_structure:`
+  true has no consumer — placement comes from the building panel).
+  The campfire items.json def stays so old saves keep loading; the
+  recipe's deletion resolves the parked inert-item finding.
 - **Worker gather XP trains the right skill** — `GatherSkillFor` now
   mirrors the player's tool switch exactly: workers chopping the eight
   axe-tree species train woodcutting (they silently trained MINING —

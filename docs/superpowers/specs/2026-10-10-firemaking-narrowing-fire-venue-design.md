@@ -1,7 +1,7 @@
 # Firemaking narrowing — the fire venue — design
 
 Date: 2026-10-10
-Status: drafted (clarify round done 2026-10-10; RED pending)
+Status: implemented (RED `20f0519`; GREEN `7d86810`)
 Slice: skill-separation arc — user: "narrow firemaking's components to
 firemaking… a full, clean separation, for the sake of keeping our skills
 progression feeling necessary… move cooking out of crafting, and to a menu

@@ -464,6 +464,37 @@ law shapes it.
        The display layer needs no fix-up — both Panels2.cs:2417 and
        Craft consult UnlockedRecipes live. Banked for a later slice;
        audit-B's enforced quest_unlock is the gate this reads from.
+     - **Fire venue / firemaking narrowing — done 2026-10-10 (RED
+       `20f0519` / GREEN `7d86810`).** The three incoherent fire
+       methods are now one skill-owned venue. Every path feeds its
+       owning skill: `SkillManager.AddXp` ROOT-FIXED to recompute Level
+       + pay points (the parked frozen-level bug died here —
+       firemaking/construction/mine XP all level up now;
+       AddXpWithNotification is an alias), fuel_table.json WIRED
+       (burn seconds = per-unit × qty summed, unlisted fuel keeps the
+       flat 30s/unit, duration sub-stat stacks on top), placement
+       auto-lights hearths + trains construction 10 (worker site
+       completion lights too), new `firepit` structure (stone 6 +
+       stick 2, construction 3, `light_seconds` 240 vs campfire 90 —
+       the construction firepit the user specced: pay stones once,
+       burn 4× longer), F relights a burned-out hearth from inventory
+       fuel → firemaking XP (hearth def's flat seconds, not the fuel
+       table — the hearth is the multiplier), and E near a lit fire or
+       heat station opens the new `FireMenuPanel` (GameState.FireMenu:
+       every `requires_campfire` + cooking recipe, single-sourced
+       `IsFireRecipe`, plus rest-until-dawn sharing the TrySleep gate;
+       the crafting panel drops those recipes, and
+       `GetAvailableStructureIds` is now PROXIMITY-filtered — a
+       station enables crafts only within 3 tiles, owning one
+       anywhere is not a global unlock). The dominated "Build
+       Campfire" craft recipe (3 oak_logs + 5 stone → inert item,
+       trained crafting) is DELETED — resolving the parked inert-item
+       finding by the "drop the recipe" fix; the items.json campfire
+       def stays for old-save tolerance. Spec:
+       `2026-10-10-firemaking-narrowing-fire-venue-design.md`.
+       Follow-ups left open: `WarmthRadius` still has no consumer,
+       `skill_affects_yield` still dead data (both noted in the
+       spec's non-goals), and heat-station menus of their own.
      - **Crafted campfire item is inert (found 2026-10-10, verified in
        the tree).** `items.json` marks the campfire item
        `is_structure: true` and the crafting recipe
@@ -477,9 +508,10 @@ law shapes it.
        neither be placed nor satisfy `requires_campfire`: the cooking
        gate reads active placed structures plus a virtual "campfire"
        within 3 tiles of a LIT fire (`Game.GetAvailableStructureIds`,
-       Game.cs:1979). Two honest fixes — route an `is_structure` craft
-       output into placement mode on craft, or drop the recipe. Parked
-       for a gameplay call.
+       Game.cs:1979). RESOLVED 2026-10-10 in the fire-venue slice by
+       the "drop the recipe" fix (see item above); the item def stays
+       for old-save tolerance and remains inert by design — placement
+       comes from the building panel.
      - **Skills-arc tails** (still parked): workers reading their own
        sub-stats (RecruitNpc.Skills inherits catalogs; gather/production
        math still level-only) and per-stat tooltips in the panel.
