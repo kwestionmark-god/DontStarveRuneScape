@@ -1948,8 +1948,9 @@ public sealed class Game
                         if (sTile != null)
                             elev = sTile.HasWater ? sTile.GetSurfaceElevation() : sTile.Elevation;
                         // Blocks draw at their TOP (slice 2: a block you
-                        // can't see at its height is unteachable).
-                        elev = BlockStack.RenderTop(elev, structure);
+                        // can't see at its height is unteachable); cumulative
+                        // for stacked columns (slice 3).
+                        elev = BlockStack.RenderTop(World!, BuildingSystem, structure, elev);
                         float sortY = GetDepthSort(structure.WorldX, structure.WorldY, elev);
                         var s = structure;
                         drawables.Add((sortY, seq++, () => SpriteRenderer.RenderStructure(s, batch, Camera, elev)));

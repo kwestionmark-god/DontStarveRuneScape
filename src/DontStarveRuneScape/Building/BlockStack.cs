@@ -75,18 +75,38 @@ public static class BlockStack
             : tileElevation;
 
     /// <summary>Cumulative render top for stacked columns (slice 3): the
-    /// block's draw base sits on the summed tops of the column beneath it.</summary>
+    /// block's draw base sits on the summed tops of the column beneath it.
+    /// Column order = placement order in <see cref="BuildingSystem.Structures"/>.</summary>
     public static float RenderTop(TileMap world, BuildingSystem? buildings, Structure structure, float tileElevation)
     {
-        // RED stub: single-block behavior only (no column offset).
-        return RenderTop(tileElevation, structure);
+        if (structure.StructureDef?.IsBlock != true || structure.IsUnderConstruction)
+            return tileElevation;
+        float below = 0f;
+        if (buildings != null)
+        {
+            foreach (var s in buildings.Structures)
+            {
+                if (ReferenceEquals(s, structure)) break; // column order = list order
+                if (s.IsActive && !s.IsUnderConstruction
+                    && s.StructureDef?.IsBlock == true
+                    && s.TileX == structure.TileX && s.TileY == structure.TileY)
+                    below += s.StructureDef.StackHeight;
+            }
+        }
+        return tileElevation + below + structure.StructureDef.StackHeight;
     }
 
     /// <summary>4-bit fence-connection mask (N=1, E=2, S=4, W=8): a bit is set
-    /// where the edge-neighbor tile holds at least one built, active block.</summary>
+    /// where the edge-neighbor tile holds at least one built, active block.
+    /// Fences connect to any block, Minecraft-fashion; sites set no bit.</summary>
     public static int ConnectionMask(TileMap world, BuildingSystem? buildings, int tx, int ty)
     {
-        // RED stub: never connects.
-        return 0;
+        if (buildings == null) return 0;
+        int mask = 0;
+        if (BlockHeightAt(world, buildings, tx, ty - 1) > 0f) mask |= 1; // N
+        if (BlockHeightAt(world, buildings, tx + 1, ty) > 0f) mask |= 2; // E
+        if (BlockHeightAt(world, buildings, tx, ty + 1) > 0f) mask |= 4; // S
+        if (BlockHeightAt(world, buildings, tx - 1, ty) > 0f) mask |= 8; // W
+        return mask;
     }
 }

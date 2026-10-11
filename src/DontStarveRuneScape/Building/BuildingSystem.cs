@@ -49,7 +49,17 @@ public sealed class BuildingSystem
             return (false, "Can't build there.");
         if (tile.Structure?.OccupiesTile == true || Structures.Any(s => s.IsActive
                 && s.TileX == tileX && s.TileY == tileY))
-            return (false, "That tile already has a structure.");
+        {
+            // Slice-3 stacking partition: a block def may stack onto a tile
+            // whose occupants are ALL blocks, within the column height budget.
+            // Sites count toward the budget (no over-committing a column).
+            var occupants = Structures.Where(s => s.IsActive && s.TileX == tileX && s.TileY == tileY).ToList();
+            if (!def.IsBlock || occupants.Any(s => s.StructureDef?.IsBlock != true))
+                return (false, "That tile already has a structure.");
+            float column = occupants.Sum(s => s.StructureDef!.StackHeight);
+            if (column + def.StackHeight > Constants.BlockColumnMaxHeight)
+                return (false, "This block column is already at full height.");
+        }
 
         // Blocks are ground with vertical extent: they need a flat pad (the
         // corner-stitch quad agrees) and dry land. Non-block defs keep the
