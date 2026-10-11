@@ -8,6 +8,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Vertical building, slice 3 — stacking columns + fence connections** —
+  blocks now STACK: targeting a tile holding only your own block structures
+  piles the next block on top (non-block occupancy refusal is bit-identical),
+  up to the 4-unit column budget (`Constants.BlockColumnMaxHeight`) — two
+  dirt mounds make the game's first true unclimbable wall. New entry-tier
+  `fence_block` (Wooden Fence, 2 sticks, 1 stack unit) is a deliberate
+  half-hop: it walls off walking but a jump clears it. Fences auto-connect
+  to neighboring blocks via the pure `BlockStack.ConnectionMask` N/E/S/W
+  seam (construction sites aren't solid; the renderer consumes the mask in
+  slice 4). Stacked blocks render at their cumulative top — column order is
+  placement order — and columns survive save/load on the existing structure
+  snapshot. Over-budget placement refuses honestly ("This block column is
+  already at full height.") and consumes nothing.
+
+### Added
 - **Vertical building, slice 2 — blocks are walls, jumps land on tops** —
   walking into a block taller than your footing now REFUSES the step
   (axis-slide, no bounce); a jump hop of up to 2.05 elevation levels

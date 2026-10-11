@@ -1,7 +1,7 @@
 # Vertical Building Slice 3 — Stacking Columns + Fence Connections — Design
 
 Date: 2026-10-11
-Status: draft (answers in Open questions — user-answered 2026-10-11)
+Status: implemented 2026-10-11 (RED b4fc9b7 / GREEN 462248b; spec 817b75b)
 Slice: Vertical building slice 3 (follows foundations 8b53a0c/20965a3 and
 jump-landing 9a5e249/83e045f; seam map:
 `references/vertical-building-seams.md` in the dsrs skill)

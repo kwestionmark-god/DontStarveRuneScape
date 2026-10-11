@@ -401,13 +401,21 @@ law shapes it.
        ≈102 px vs the 26 px arc). Suite 553 → 564.
        Known seams: Player.TryJump
        (`Player.cs:206`) and UpdateJump's arc now MEAN something —
-       airborne + cap is the climb. Remaining: (3) stacking +
-       connection (occupancy refuses a second block on a tile; needs
-       the per-tile column container + the user's banked idea:
-       fence-style connecting wall segments, Minecraft-fashion —
-       blocks at partial width that visually link to neighbors),
-       (4) renderer polish (pixel-diff verification of lifted blocks +
-       player standing sprites; camera focus on block tops).
+       airborne + cap is the climb. **Slice 3 DONE 2026-10-11** (spec
+       2026-10-11-vertical-building-stacking-design.md; RED b4fc9b7 /
+       GREEN 462248b): blocks STACK into per-tile columns (PlaceStructure
+       partition: block-onto-block allowed, non-block occupancy refusal
+       bit-identical) with a 4-unit budget (`BlockColumnMaxHeight` — two
+       mounds = the first true unclimbable wall); new `fence_block` def
+       (1 unit, 2 sticks, structure/wooden_gate art) is a half-hop per
+       the standing jump rule; `BlockStack.ConnectionMask` is the pure
+       N/E/S/W fence-link seam (sites aren't solid); `RenderTop` is now
+       cumulative and the Game.cs render site reads it; columns persist
+       via the existing BuildingSnapshot. Suite 564 → 581.
+       Remaining: (4) renderer polish (pixel-diff verification of lifted
+       blocks + player standing sprites; fence sprite variants consuming
+       the connection mask; camera focus on block tops). Slice-2
+       follow-up still parked: NPC standing on block tops.
      - **Progression accounting (user playtest finding, 2026-10-09).**
        The fishing rod is entry-tier by design but hangs on a deadlock:
        rod → planks → `goblin_diplomacy` (goblin CHIEF's quest, not
