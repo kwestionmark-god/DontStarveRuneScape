@@ -2020,7 +2020,7 @@ public sealed class Game
     /// <summary>Structure ids the player can currently craft at: every
     /// active, finished structure plus a virtual campfire while standing
     /// near a lit fire.</summary>
-    private HashSet<string> GetAvailableStructureIds()
+    internal HashSet<string> GetAvailableStructureIds()
     {
         var ids = new HashSet<string>(StringComparer.Ordinal);
         if (BuildingSystem == null) return ids;

@@ -35,6 +35,10 @@ public sealed class StructureDef : DataRecord
     public bool OccupiesTile { get; init; } = true;
     public bool Burnable { get; init; }
 
+    /// <summary>How long a hearth fire lit at this structure burns, in
+    /// seconds (data key: light_seconds); 0 = not a hearth.</summary>
+    public float LightSeconds { get; init; }
+
     public float Hp { get; init; } = 100f;
 
     /// <summary>Offensive structures only (data key: damage).</summary>
@@ -119,6 +123,7 @@ public sealed class StructureDefRegistry
             BiomeCompatibility = ParseStrings(e, "biome_compatible"),
             OccupiesTile = GetBool(e, "occupies_tile"),
             Burnable = GetBool(e, "burnable"),
+            LightSeconds = GetFloat(e, "light_seconds"),
             Hp = hp > 0f ? hp : 100f,
             Damage = GetFloatOrPrefix(e, "damage"),
             SpriteKey = GetStr(e, "sprite_key") ?? id,

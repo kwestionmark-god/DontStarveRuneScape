@@ -819,6 +819,10 @@ public sealed class CraftingPanel
     private bool _statusOk;
     private readonly List<string> _statusExtra = []; // level-up lines
 
+    /// <summary>Recipes currently listed (post-partition); test seam for the
+    /// fire-menu split — fire-menu content must never appear here.</summary>
+    internal IReadOnlyList<Data.CraftRecipe> ListedRecipes => _sorted;
+
     // Selection mode: 0 = recipe list, 1 = CRAFT button
     private int _selectionMode = 0;
 

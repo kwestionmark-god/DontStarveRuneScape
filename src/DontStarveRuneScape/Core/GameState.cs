@@ -57,6 +57,10 @@ public enum GameState
     /// <summary>Multi-role NPC role menu is open (quests / trade / recruit / diplomacy).</summary>
     NpcHub,
 
+    /// <summary>Fire menu is open: cooking/heat recipes at a lit fire or heat
+    /// station, plus rest-until-dawn. The world keeps running.</summary>
+    FireMenu,
+
     /// <summary>Pause menu open. The world is frozen: no system ticks at all.</summary>
     Paused,
 

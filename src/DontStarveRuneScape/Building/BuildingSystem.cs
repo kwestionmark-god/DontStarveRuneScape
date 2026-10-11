@@ -36,7 +36,8 @@ public sealed class BuildingSystem
     /// <summary>Place a structure or found a colony construction site at the given tile: biome gate, skill gate,
     /// material gate (all-or-nothing consume), then add to the world.</summary>
     public (bool Success, string Message) PlaceStructure(string structureId, int tileX, int tileY,
-        TileMap world, Inv inventory, SkillManager skillManager, ColonySystem? colony = null)
+        TileMap world, Inv inventory, SkillManager skillManager, ColonySystem? colony = null,
+        Skills.Firemaking.FiremakingSkill? firemaking = null)
     {
         var def = Registry?.GetStructure(structureId);
         if (def == null)
