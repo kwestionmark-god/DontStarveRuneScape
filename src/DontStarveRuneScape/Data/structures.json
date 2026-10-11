@@ -18,6 +18,21 @@
     "biome_compatible": [],
     "sprite_key": "structure/stone_wall"
    },
+   "fence_block": {
+    "structure_id": "fence_block",
+    "name": "Wooden Fence",
+    "structure_type": "block",
+    "construction_sub_stat": "common",
+    "is_block": true,
+    "stack_height": 1,
+    "hp": 10,
+    "occupies_tile": true,
+    "materials": [["stick", 2]],
+    "requires_structure_level": 1,
+    "requires_skill_level": 1,
+    "biome_compatible": [],
+    "sprite_key": "structure/wooden_gate"
+   },
    "campfire": {
     "structure_id": "campfire",
     "name": "Campfire",

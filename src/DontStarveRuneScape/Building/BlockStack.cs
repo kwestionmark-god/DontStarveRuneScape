@@ -73,4 +73,20 @@ public static class BlockStack
         => structure.StructureDef?.IsBlock == true && !structure.IsUnderConstruction
             ? tileElevation + structure.StructureDef.StackHeight
             : tileElevation;
+
+    /// <summary>Cumulative render top for stacked columns (slice 3): the
+    /// block's draw base sits on the summed tops of the column beneath it.</summary>
+    public static float RenderTop(TileMap world, BuildingSystem? buildings, Structure structure, float tileElevation)
+    {
+        // RED stub: single-block behavior only (no column offset).
+        return RenderTop(tileElevation, structure);
+    }
+
+    /// <summary>4-bit fence-connection mask (N=1, E=2, S=4, W=8): a bit is set
+    /// where the edge-neighbor tile holds at least one built, active block.</summary>
+    public static int ConnectionMask(TileMap world, BuildingSystem? buildings, int tx, int ty)
+    {
+        // RED stub: never connects.
+        return 0;
+    }
 }
