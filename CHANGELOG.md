@@ -8,6 +8,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Hub-tab return** — Esc (or Q) from a role panel the NPC hub
+  launched now returns to that NPC's role menu with the session and
+  active tab restored, instead of dropping the player into the world
+  mid-conversation. Mirrors the dashboard-return idiom: the Game
+  holds the hub npc + tab across the panel handoff, and any world
+  transition (Playing/Paused/Settings) clears it. Panels opened
+  directly keep their close-to-Playing behavior. Suite 513 → 517.
 - **Fire-menu smoketest — the fire-venue debt closed** — FireMenuPanel
   had never been rendered outside unit tests. New
   `DSR_TEST_FIREMENU=1` staging hook (the fifth smoketest env hook):

@@ -1,7 +1,7 @@
 # Hub-tab return — Esc from a role panel returns to the NPC's menu — design
 
 Date: 2026-10-11
-Status: draft
+Status: implemented (RED `ad29921`; GREEN `171c721`)
 Slice: quest-slice follow-up — "NpcHubPanel tab → panel → Esc lands in
 Playing; E again reopens the hub". A leader with quests + diplomacy opens
 the role menu; choosing a tab hands off to that panel; closing the panel

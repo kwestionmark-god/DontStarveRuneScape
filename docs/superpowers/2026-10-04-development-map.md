@@ -518,6 +518,20 @@ law shapes it.
        consume (FishingTests pins both). No data change; the
        dev-map's earlier "parked" mention above is closed by this
        entry.
+     - **Hub-tab return — done 2026-10-11 (RED `ad29921` / GREEN
+       `171c721`).** The quest slice's open follow-up closed: Esc
+       from a role panel the NPC hub launched (OpenNpcHubTab
+       handoff) now returns to the hub menu with the session and
+       the active tab restored, instead of dumping the player into
+       Playing. The Game captures `HubReturnNpc` + `HubReturnTab`
+       before the SetState wipe (the dashboard-return idiom, third
+       use), `TryReturnToNpcHub` restores them (transition first,
+       populate after), and SetState clears both on any world
+       transition (Playing/Paused/Settings — same rule as
+       `DashboardReturnAvailable`). Panels opened directly
+       (single-role E, T/U/K/L hotkeys, dashboard tabs) still
+       close straight to Playing. Spec:
+       `2026-10-11-hub-tab-return-design.md`.
      - **Crafted campfire item is inert (found 2026-10-10, verified in
        the tree).** `items.json` marks the campfire item
        `is_structure: true` and the crafting recipe
