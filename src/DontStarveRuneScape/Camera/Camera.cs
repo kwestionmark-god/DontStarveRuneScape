@@ -99,6 +99,23 @@ public sealed class Camera
         UpdatePosition();
     }
 
+    /// <summary>Force an exact orbit orientation (radians; pitch clamped to
+    /// the same bounds as the tilt keys). Smoketest staging: the orbit input
+    /// keys cannot land on an exact angle, and render contracts need
+    /// deterministic yaw/pitch captures.</summary>
+    public void SetOrbit(float yawRadians, float? pitchRadians = null)
+    {
+        _yaw = yawRadians;
+        if (pitchRadians.HasValue)
+        {
+            float pitchMin = Constants.CameraPitchMin * MathF.PI / 180f;
+            float pitchMax = Constants.CameraPitchMax * MathF.PI / 180f;
+            _pitch = Math.Clamp(pitchRadians.Value, pitchMin, pitchMax);
+        }
+        UpdateTrigCache();
+        UpdatePosition();
+    }
+
     private void UpdatePosition()
     {
         if (_player == null) return;

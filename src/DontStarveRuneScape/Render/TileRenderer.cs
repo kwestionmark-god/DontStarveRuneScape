@@ -59,6 +59,14 @@ public sealed class TileRenderer : IDisposable
             tex, uOff, vOff);
     }
 
+    /// <summary>Painter's-order depth key for one terrain tile quad, in the
+    /// same world-pixel units the sprite pass uses (tile center position +
+    /// the bilinear center elevation). Single-sourced so the render loop
+    /// and the structure-visibility tests read the identical formula.</summary>
+    internal static float TileSortKey(World.Tile tile, int tx, int ty, float cy, float sy)
+        => ((ty + 0.5f) * cy + (tx + 0.5f) * sy) * Constants.TileSize
+            + tile.GetElevationAt(0.5f, 0.5f) * Constants.ZScale * 0.5f;
+
     public void Render(PrimitiveBatch batch, Camera camera, TileMap world,
         List<(float Depth, int Seq, Action Draw)> drawables, ref int seq,
         float time = 0f)
@@ -130,9 +138,10 @@ public sealed class TileRenderer : IDisposable
                 var tr = camera.WorldToScreen((x + 1) * Constants.TileSize, (y + 1) * Constants.TileSize, e11);
                 var tl = camera.WorldToScreen(x * Constants.TileSize, (y + 1) * Constants.TileSize, e01);
 
-                // Depth key in the same world-pixel units the sprite pass uses.
-                float depthPx = ((y + 0.5f) * cy + (x + 0.5f) * sy) * Constants.TileSize
-                                + tile.GetElevationAt(0.5f, 0.5f) * Constants.ZScale * 0.5f;
+                // Depth key in the same world-pixel units the sprite pass
+                // uses — single-sourced in TileSortKey so the visibility
+                // tests read the identical formula.
+                float depthPx = TileSortKey(tile, x, y, cy, sy);
 
                 string? biomeId = tile.Biome?.Id;
                 // Water is a physical layer, not a tile class. Paint classes:

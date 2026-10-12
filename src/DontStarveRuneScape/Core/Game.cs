@@ -1639,6 +1639,17 @@ public sealed class Game
                 out float hourEnv) && DayNight != null)
             DayNight.RestoreSnapshot(new DayNightSnapshot { TimeOfDay = (hourEnv - 6f) / 24f });
 
+        // DSR_TEST_YAW / DSR_TEST_PITCH (degrees): force an exact camera
+        // orientation BEFORE the first rendered frame — render contracts
+        // (structure visibility across the orbit, depth-sort ties) need
+        // deterministic angles the orbit keys cannot hit.
+        if (float.TryParse(Environment.GetEnvironmentVariable("DSR_TEST_YAW"),
+                out float yawDeg) && Camera != null)
+            Camera.SetOrbit(yawDeg * MathF.PI / 180f);
+        if (float.TryParse(Environment.GetEnvironmentVariable("DSR_TEST_PITCH"),
+                out float pitchDeg) && Camera != null)
+            Camera.SetOrbit(Camera.Yaw, pitchDeg * MathF.PI / 180f);
+
         var keysEnv = Environment.GetEnvironmentVariable("DSR_TEST_KEYS");
         if (!string.IsNullOrWhiteSpace(keysEnv) && InputRouter != null)
         {
@@ -2094,7 +2105,10 @@ public sealed class Game
                         // crossed planes grow from the ground, not a center-
                         // anchored floating quad; cumulative for columns.
                         elev = BlockStack.RenderBase(World!, BuildingSystem, structure, elev);
-                        float sortY = GetDepthSort(structure.WorldX, structure.WorldY, elev);
+                        // Slice 10: the sort key is the entity law (never
+                        // lose the tie with the owning tile) — see
+                        // StructureSortKey.
+                        float sortY = StructureSortKey(structure, World, BuildingSystem);
                         var s = structure;
                         drawables.Add((sortY, seq++, () => SpriteRenderer.RenderStructure(s, batch, Camera, elev, World, BuildingSystem)));
                     }
@@ -2108,7 +2122,7 @@ public sealed class Game
             {
                 foreach (var fire in Firemaking.GetActiveFires())
                 {
-                    float sortY = GetDepthSort(fire.WorldX, fire.WorldY, 0);
+                    float sortY = FireSortKey(fire.WorldX, fire.WorldY, World);
                     var f = fire;
                     drawables.Add((sortY, seq++, () => SpriteRenderer.RenderFire(f, batch, Camera)));
                 }
@@ -2204,6 +2218,37 @@ public sealed class Game
         foreach (var c in tile.CornerElevations)
             if (c > max) max = c;
         return max;
+    }
+
+    /// <summary>Sort key for a placed structure (slice 10): the entity
+    /// law — the tile's highest corner composed with RenderBase, plus the
+    /// standing boost — so a structure never loses the painter's-order
+    /// tie with its own terrain tile. A brick keys at its sub-cell center
+    /// (up to ±24 px from the tile center); without the boost the owning
+    /// tile quad keys nearer at the yaws where that offset lands on the
+    /// far side of the view axis and paints over the build — bricks
+    /// "sink into the ground" while orbiting, then come back.</summary>
+    internal float StructureSortKey(Structure structure, TileMap? world,
+        BuildingSystem? buildings)
+    {
+        // RED stub: today's exact key — raw tile elevation + RenderBase,
+        // no SortElevation, no standing boost.
+        float elev = 0f;
+        var tile = world?.GetTile(structure.TileX, structure.TileY);
+        if (tile != null)
+            elev = tile.HasWater ? tile.GetSurfaceElevation() : tile.Elevation;
+        elev = BlockStack.RenderBase(world!, buildings, structure, elev);
+        return GetDepthSort(structure.WorldX, structure.WorldY, elev);
+    }
+
+    /// <summary>Sort key for a ground fire (slice 10): the fire tile's
+    /// highest corner + the standing boost. The old key (elevation 0) sat
+    /// below every land tile's key — fires sorted behind their own
+    /// ground.</summary>
+    internal float FireSortKey(float worldX, float worldY, TileMap? world)
+    {
+        // RED stub: today's exact key — elevation 0.
+        return GetDepthSort(worldX, worldY, 0f);
     }
 
     // ─── Cave entrance compass ────────────────────────────────────────────
