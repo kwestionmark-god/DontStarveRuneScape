@@ -168,6 +168,17 @@ public sealed class FiremakingSkill
         }
     }
 
+    /// <summary>Standing-on-a-lit-fire damage (slice 12): while a live
+    /// fire sits at a footprint structure with ContactDamage > 0 and the
+    /// player stands inside its footprint, bite ContactDamage HP per
+    /// second (whole-HP accumulation, visible notification on the first
+    /// bite — the no-silent-losses rule). Lined variants carry 0 and
+    /// never bite.</summary>
+    public void TickContactDamage(Core.Player? player, Building.BuildingSystem? buildings, float dt)
+    {
+        // RED stub: nothing bites today.
+    }
+
     /// <summary>Get snapshot for saving.</summary>
     public FireSnapshot GetSnapshot()
     {

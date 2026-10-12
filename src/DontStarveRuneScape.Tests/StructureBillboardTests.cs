@@ -122,6 +122,7 @@ public class StructureBillboardTests
             Inventory.AddItem("stone", 30);
             Inventory.AddItem("stick", 30);
             Inventory.AddItem("dirt_brick", 64);
+            Inventory.AddItem("planks", 8);
         }
 
         private static BuildingSystem MakeBuildings()
@@ -191,11 +192,13 @@ public class StructureBillboardTests
     public void RenderBase_NonBlock_IsTile()
     {
         var h = new Harness();
-        var fire = h.Place("campfire", 4, 4);
+        // Slice 12 retruth: the campfire is a footprint BLOCK now — the
+        // non-block fixture is the chest.
+        var prop = h.Place("chest", 4, 4);
         float tile = Constants.SeaLevel + 5f;
-        Assert.Equal(tile, BlockStack.RenderBase(h.World, h.Buildings, fire, tile));
-        // campfire has no stack height: StructureDef non-null, IsBlock false.
-        Assert.True(fire.StructureDef?.IsBlock != true);
+        Assert.Equal(tile, BlockStack.RenderBase(h.World, h.Buildings, prop, tile));
+        // chest has no stack height: StructureDef non-null, IsBlock false.
+        Assert.True(prop.StructureDef?.IsBlock != true);
     }
 
     [Fact]
@@ -275,11 +278,13 @@ public class StructureBillboardTests
     {
         var registry = new StructureDefRegistry();
         registry.LoadAll();
-        var fire = new Structure
+        // Slice 12 retruth: the campfire is a footprint BLOCK now — the
+        // non-block fixture is the chest.
+        var prop = new Structure
         {
-            StructureId = "campfire",
-            StructureDef = registry.GetStructure("campfire"),
+            StructureId = "chest",
+            StructureDef = registry.GetStructure("chest"),
         };
-        Assert.Equal(32f, SpriteRenderer.StructureHeightWorld(fire));
+        Assert.Equal(32f, SpriteRenderer.StructureHeightWorld(prop));
     }
 }

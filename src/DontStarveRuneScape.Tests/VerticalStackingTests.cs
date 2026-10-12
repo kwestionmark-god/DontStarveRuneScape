@@ -46,6 +46,7 @@ public class VerticalStackingTests
             Inventory.AddItem("stone", 30);
             Inventory.AddItem("stick", 30);
             Inventory.AddItem("dirt_brick", 64);
+            Inventory.AddItem("planks", 8);
         }
 
         private static BuildingSystem MakeBuildings()
@@ -217,10 +218,12 @@ public class VerticalStackingTests
     }
 
     [Fact]
-    public void Brick_TileWithCampfire_KeepsLegacyRefusal()
+    public void Brick_TileWithNonBlock_KeepsLegacyRefusal()
     {
         var h = new Harness();
-        Assert.True(h.Place("campfire", 4, 4).Success);
+        // Slice 12 retruth: the campfire is a footprint BLOCK now (bricks
+        // share its tile in free cells) — the non-block fixture is the chest.
+        Assert.True(h.Place("chest", 4, 4).Success);
 
         var brick = h.PlaceBrick(4, 4, 2, 2);
 

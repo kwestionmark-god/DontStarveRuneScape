@@ -43,6 +43,7 @@ public class StructureVisibilityTests
             Inventory.AddItem("dirt_brick", 64);
             Inventory.AddItem("stick", 30);
             Inventory.AddItem("stone", 30);
+            Inventory.AddItem("planks", 8);
             Game.Camera = new GameCamera(1280, 720);
         }
 
@@ -114,10 +115,12 @@ public class StructureVisibilityTests
         // Slope the stitch: raise the forward neighbours so the tile's
         // bilinear-center key sits above its raw elevation — today's
         // raw-elevation key loses that gap at EVERY yaw.
+        // (Slice 12 retruth: the chest is the non-block fixture — the
+        // campfire is a footprint BLOCK now and gates on the flat pad.)
         h.World.SetElevationOverride(5, 4, Constants.SeaLevel + 8.5f);
         h.World.SetElevationOverride(4, 5, Constants.SeaLevel + 8.5f);
-        Assert.True(h.Place("campfire", 4, 4).Success);
-        var camp = h.Buildings.Structures.Single(s => s.StructureId == "campfire");
+        Assert.True(h.Place("chest", 4, 4).Success);
+        var camp = h.Buildings.Structures.Single(s => s.StructureId == "chest");
 
         float worst = h.WorstOwnTileDeficit(
             () => h.Game.StructureSortKey(camp, h.World, h.Buildings), 4, 4);

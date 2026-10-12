@@ -39,6 +39,7 @@ public class VerticalLandingTests
             Inventory.AddItem("stone", 30);
             Inventory.AddItem("stick", 30);
             Inventory.AddItem("dirt_brick", 64);
+            Inventory.AddItem("planks", 8);
         }
 
         private static BuildingSystem MakeBuildings()
@@ -112,7 +113,9 @@ public class VerticalLandingTests
     public void Standing_NonBlockStructure_AddsNothing()
     {
         var h = new Harness();
-        var placed = h.Buildings.PlaceStructure("campfire", 4, 4, h.World, h.Inventory, h.Skills);
+        // Slice 12 retruth: the campfire is a footprint BLOCK now — the
+        // non-block fixture is the chest (a crossed-plane prop).
+        var placed = h.Buildings.PlaceStructure("chest", 4, 4, h.World, h.Inventory, h.Skills);
         Assert.True(placed.Success, placed.Message);
         Assert.Equal(Constants.SeaLevel + 5f,
             BlockStack.StandingElevationAt(h.World, h.Buildings, 4.5f * 64, 4.5f * 64));

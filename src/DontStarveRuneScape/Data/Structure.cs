@@ -47,6 +47,24 @@ public sealed class StructureDef : DataRecord
     /// seconds (data key: light_seconds); 0 = not a hearth.</summary>
     public float LightSeconds { get; init; }
 
+    /// <summary>Footprint on the 4x4 sub-cell grid, in cells per side
+    /// (slice 12; 1 = the default single-cell solid, 2 = a 2x2
+    /// quarter-tile structure). Absent = 1.</summary>
+    public int Footprint { get; init; } = 1;
+
+    /// <summary>Contact damage per second while a fire is LIVE at this
+    /// structure and the player stands inside its footprint (slice 12;
+    /// 0 = safe to touch — the lined variants).</summary>
+    public float ContactDamage { get; init; }
+
+    /// <summary>Burn-rate multiplier on light_seconds — variants tune how
+    /// long the hearth burns without code (1 = baseline).</summary>
+    public float BurnRate { get; init; } = 1f;
+
+    /// <summary>Effective hearth burn: light_seconds x burn_rate — the
+    /// single source every light call site reads.</summary>
+    public float BurnSeconds => LightSeconds * BurnRate;
+
     public float Hp { get; init; } = 100f;
 
     /// <summary>Offensive structures only (data key: damage).</summary>
@@ -134,6 +152,11 @@ public sealed class StructureDefRegistry
             IsBlock = GetBool(e, "is_block"),
             StackHeight = GetFloat(e, "stack_height"),
             LightSeconds = GetFloat(e, "light_seconds"),
+            // Slice 12: footprint/contact_damage/burn_rate — absent keys
+            // keep the defaults (footprint 1, contact 0, burn 1.0).
+            Footprint = Math.Max(1, (int)GetFloat(e, "footprint")),
+            ContactDamage = GetFloat(e, "contact_damage"),
+            BurnRate = GetFloat(e, "burn_rate") > 0f ? GetFloat(e, "burn_rate") : 1f,
             Hp = hp > 0f ? hp : 100f,
             Damage = GetFloatOrPrefix(e, "damage"),
             SpriteKey = GetStr(e, "sprite_key") ?? id,
