@@ -29,6 +29,14 @@ public static class BlockStack
         return height;
     }
 
+    /// <summary>Standing lift of one 16px sub-cell (slice 7a): the brick
+    /// column top at that sub-cell, floored by any tile-level block lift
+    /// (a fence applies tile-wide). RED stub: delegates to the per-tile
+    /// query until the granulation lands.</summary>
+    public static float SubHeightAt(TileMap world, BuildingSystem? buildings,
+        int tx, int ty, int subX, int subY)
+        => BlockHeightAt(world, buildings, tx, ty);
+
     /// <summary>Where an entity at (worldX, worldY) effectively stands:
     /// terrain center elevation + the tile's block lift.</summary>
     public static float StandingElevationAt(TileMap world, BuildingSystem? buildings, float worldX, float worldY)

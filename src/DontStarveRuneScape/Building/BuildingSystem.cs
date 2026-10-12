@@ -33,6 +33,14 @@ public sealed class BuildingSystem
         // Update structure logic (fires, production, etc.)
     }
 
+    /// <summary>Sub-cell placement (slice 7a brick grid): bricks place at a
+    /// 16px sub-cell of the tile; non-block and tile-level defs ignore the
+    /// sub-cell and route to the tile-level placement unchanged.</summary>
+    public (bool Success, string Message) PlaceStructure(string structureId, int tileX, int tileY,
+        int subX, int subY, TileMap world, Inv inventory, SkillManager skillManager,
+        ColonySystem? colony = null, Skills.Firemaking.FiremakingSkill? firemaking = null)
+        => PlaceStructure(structureId, tileX, tileY, world, inventory, skillManager, colony, firemaking);
+
     /// <summary>Place a structure or found a colony construction site at the given tile: biome gate, skill gate,
     /// material gate (all-or-nothing consume), then add to the world. When firemaking is provided and the def
     /// is a hearth (light_seconds > 0), the placed structure lights its fire and the build trains construction.</summary>
@@ -218,6 +226,9 @@ public sealed class BuildingSystem
                 StructureId = s.StructureId,
                 TileX = s.TileX,
                 TileY = s.TileY,
+                SubX = s.SubX,
+                SubY = s.SubY,
+                Layer = s.Layer,
                 Hp = s.Health,
                 AssignedNpcId = s.AssignedNpcId,
                 WorkRecipeId = s.WorkRecipeId,
@@ -254,6 +265,9 @@ public sealed class BuildingSystem
                 StructureDef = structureDef,
                 TileX = s.TileX,
                 TileY = s.TileY,
+                SubX = s.SubX,
+                SubY = s.SubY,
+                Layer = s.Layer,
                 WorldX = s.TileX * Constants.TileSize + Constants.TileSize / 2f,
                 WorldY = s.TileY * Constants.TileSize + Constants.TileSize / 2f,
                 Health = s.Hp > 0 ? (int)s.Hp : (int)structureDef.Hp,

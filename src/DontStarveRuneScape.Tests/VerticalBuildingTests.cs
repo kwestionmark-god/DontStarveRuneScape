@@ -36,8 +36,10 @@ public class VerticalBuildingTests
                     World.Tiles[x, y].Elevation = Constants.SeaLevel + 5f;
             World.BuildCornerElevations();
             Actions.SetTileMap(World);
+            // RED carries both wallets until GREEN flips the def to dirt_brick.
             Inventory.AddItem("stone", 20);
             Inventory.AddItem("stick", 20);
+            Inventory.AddItem("dirt_brick", 20);
         }
 
         private static BuildingSystem MakeBuildings()
@@ -46,6 +48,9 @@ public class VerticalBuildingTests
             registry.LoadAll();
             return new BuildingSystem { Registry = registry };
         }
+
+        public (bool Success, string Message) PlaceBrick(int tx, int ty, int subX, int subY)
+            => Buildings.PlaceStructure("mound_block", tx, ty, subX, subY, World, Inventory, Skills);
 
         /// <summary>Turn (4,4) into a slope: three neighbors one level up,
         /// giving (4,4) a corner spread of 1.0 and a 17.25-mean target of 17.</summary>
@@ -72,7 +77,7 @@ public class VerticalBuildingTests
     // ── 1. Data laws ────────────────────────────────────────────────────────
 
     [Fact]
-    public void BlockDef_ParsesWithIsBlockAndStackHeight()
+    public void BlockDef_ParsesAsBrickWithFixedUnitHeight()
     {
         var registry = new StructureDefRegistry();
         registry.LoadAll();
@@ -80,7 +85,9 @@ public class VerticalBuildingTests
         var block = registry.GetStructure("mound_block");
         Assert.NotNull(block);
         Assert.True(block!.IsBlock);
-        Assert.True(block.StackHeight > 0f, $"stack_height must be > 0, got {block.StackHeight}");
+        // The texel-exact brick: 16 px at 12.8 px/unit = 1.25 units.
+        Assert.Equal(1.25f, block.StackHeight);
+        Assert.Equal("Dirt Brick", block.Name);
         Assert.True(block.OccupiesTile);
         Assert.Equal(1, block.RequiresSkillLevel);
     }
@@ -106,11 +113,14 @@ public class VerticalBuildingTests
     {
         var h = new Harness();
 
-        var result = h.Buildings.PlaceStructure("mound_block", 4, 4, h.World, h.Inventory, h.Skills);
+        var result = h.PlaceBrick(4, 4, 2, 2);
 
         Assert.True(result.Success, result.Message);
-        Assert.Equal(18, h.Inventory.GetItemQuantity("stone"));
-        Assert.Equal(19, h.Inventory.GetItemQuantity("stick"));
+        // Placement consumes one crafted brick; stone/stick are untouched
+        // (they were spent at the crafting bench, not here).
+        Assert.Equal(19, h.Inventory.GetItemQuantity("dirt_brick"));
+        Assert.Equal(20, h.Inventory.GetItemQuantity("stone"));
+        Assert.Equal(20, h.Inventory.GetItemQuantity("stick"));
         Assert.NotNull(h.World.GetTile(4, 4)!.Structure);
     }
 
@@ -120,12 +130,12 @@ public class VerticalBuildingTests
         var h = new Harness();
         h.MakeSlopeAt44();
 
-        var result = h.Buildings.PlaceStructure("mound_block", 4, 4, h.World, h.Inventory, h.Skills);
+        var result = h.PlaceBrick(4, 4, 2, 2);
 
         Assert.False(result.Success);
         Assert.Contains("level", result.Message);
         // Refusal consumed nothing, occupied nothing.
-        Assert.Equal(20, h.Inventory.GetItemQuantity("stone"));
+        Assert.Equal(20, h.Inventory.GetItemQuantity("dirt_brick"));
         Assert.Empty(h.Buildings.Structures);
     }
 
@@ -165,8 +175,8 @@ public class VerticalBuildingTests
         // with the neighbors — the pad reads flat to the placement gate.
         Assert.All(h.World.GetTile(4, 4)!.CornerElevations!, c => Assert.Equal(17.5f, c));
 
-        // The now-levelled pad accepts the block.
-        var place = h.Buildings.PlaceStructure("mound_block", 4, 4, h.World, h.Inventory, h.Skills);
+        // The now-levelled pad accepts the brick.
+        var place = h.PlaceBrick(4, 4, 2, 2);
         Assert.True(place.Success, place.Message);
 
         // Construction XP landed in construction, not a gather skill.
@@ -206,8 +216,8 @@ public class VerticalBuildingTests
     public void Flatten_Refuses_OccupiedTile()
     {
         var h = new Harness();
-        var place = h.Buildings.PlaceStructure("mound_block", 4, 4, h.World, h.Inventory, h.Skills);
-        // RED note: once the block exists the tile is occupied; flatten must refuse.
+        var place = h.PlaceBrick(4, 4, 2, 2);
+        // RED note: once the brick exists the tile is occupied; flatten must refuse.
         Assert.True(place.Success, place.Message);
         var err = TryFlatten(h, 4, 4);
         Assert.Equal("Clear the structure first.", err);
@@ -299,11 +309,11 @@ public class VerticalBuildingTests
         var h = new GameHarness();
         h.SetupGame();
 
-        // A flattened tile (edit recorded) with a block on it.
+        // A flattened tile (edit recorded) with a brick on it.
         h.Surface.SetElevationOverride(1, 1, Constants.SeaLevel + 6f);
-        h.Player.Inventory!.AddItem("stone", 10);
-        h.Player.Inventory.AddItem("stick", 10);
-        var place = h.Buildings.PlaceStructure("mound_block", 2, 2, h.Surface, h.Player.Inventory, h.Skills);
+        h.Player.Inventory!.AddItem("dirt_brick", 10);
+        var place = h.Buildings.PlaceStructure("mound_block", 2, 2, 1, 1,
+            h.Surface, h.Player.Inventory, h.Skills);
         Assert.True(place.Success, place.Message);
         var edits = h.Surface.GetTerrainEdits();
         Assert.Single(edits);
@@ -325,8 +335,12 @@ public class VerticalBuildingTests
         Assert.Equal(Constants.SeaLevel + 6f, h2.Surface.GetTile(1, 1)!.Elevation);
         Assert.Contains(Constants.SeaLevel + 6f, h2.Surface.GetTile(1, 1)!.CornerElevations!);
 
-        // The block rides the existing structure snapshot.
-        Assert.Contains(h2.Buildings.Structures, s => s.StructureId == "mound_block" && s.TileX == 2 && s.TileY == 2);
+        // The brick rides the structure snapshot — sub-cell and all.
+        var restored = h2.Buildings.Structures
+            .Single(s => s.StructureId == "mound_block" && s.TileX == 2 && s.TileY == 2);
+        Assert.Equal(1, restored.SubX);
+        Assert.Equal(1, restored.SubY);
+        Assert.Equal(0, restored.Layer);
     }
 }
 

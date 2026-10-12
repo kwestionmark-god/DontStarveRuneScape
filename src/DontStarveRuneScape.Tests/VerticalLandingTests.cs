@@ -34,8 +34,11 @@ public class VerticalLandingTests
                 for (int y = 0; y < 8; y++)
                     World.Tiles[x, y].Elevation = Constants.SeaLevel + 5f; // 16.5
             World.BuildCornerElevations();
+            // RED carries both wallets: the stub still charges the legacy
+            // stone/stick materials until GREEN flips the def to dirt_brick.
             Inventory.AddItem("stone", 30);
             Inventory.AddItem("stick", 30);
+            Inventory.AddItem("dirt_brick", 64);
         }
 
         private static BuildingSystem MakeBuildings()
@@ -45,13 +48,21 @@ public class VerticalLandingTests
             return new BuildingSystem { Registry = registry };
         }
 
-        /// <summary>Build a mound at (tx,ty) on the flat pad; must succeed.
-        /// (Struct-occupied tiles refuse a second build, slice 1.)</summary>
-        public void BuildMoundAt(int tx, int ty)
+        /// <summary>Build a brick column at a sub-cell of (tx,ty); must succeed.
+        /// (Campfire tiles refuse bricks — the slice-1 occupancy gate.)</summary>
+        public void BuildBrickColumnAt(int tx, int ty, int subX, int subY, int bricks = 1)
         {
-            var placed = Buildings.PlaceStructure("mound_block", tx, ty, World, Inventory, Skills);
-            Assert.True(placed.Success, placed.Message);
+            for (int i = 0; i < bricks; i++)
+            {
+                var placed = Buildings.PlaceStructure("mound_block", tx, ty, subX, subY,
+                    World, Inventory, Skills);
+                Assert.True(placed.Success, placed.Message);
+            }
         }
+
+        /// <summary>Center world px of a tile's sub-cell (tile 4 sub 2 spans
+        /// [288, 304) — the old 4.5*64 sample sits on its left edge).</summary>
+        public static float SubCenter(int tile, int sub) => tile * 64 + sub * 16 + 8f;
     }
 
     // ── 1. Standing query ───────────────────────────────────────────────────
@@ -66,16 +77,18 @@ public class VerticalLandingTests
     }
 
     [Fact]
-    public void Standing_OnBuiltMound_IsTerrainPlusStackHeight()
+    public void Standing_OnBrickColumn_IsTerrainPlusCourses_PerSubCell()
     {
         var h = new Harness();
-        h.BuildMoundAt(4, 4);
-        // mound stack_height = 2 levels (slice 2 data change): 16.5 + 2 = 18.5.
-        float standing = BlockStack.StandingElevationAt(h.World, h.Buildings, 4.5f * 64, 4.5f * 64);
-        Assert.Equal(Constants.SeaLevel + 5f + 2f, standing);
-        // The neighbor tile is untouched.
+        h.BuildBrickColumnAt(4, 4, 2, 2, bricks: 2);
+        // Two courses of 1.25: 16.5 + 2.5 — ON the column's sub-cell only.
+        float onColumn = BlockStack.StandingElevationAt(h.World, h.Buildings,
+            Harness.SubCenter(4, 2), Harness.SubCenter(4, 2));
+        Assert.Equal(Constants.SeaLevel + 5f + 2.5f, onColumn);
+        // The same tile's open sub-cell is untouched ground.
         Assert.Equal(Constants.SeaLevel + 5f,
-            BlockStack.StandingElevationAt(h.World, h.Buildings, 3.5f * 64, 4.5f * 64));
+            BlockStack.StandingElevationAt(h.World, h.Buildings,
+                Harness.SubCenter(4, 0), Harness.SubCenter(4, 0)));
     }
 
     [Fact]
@@ -120,62 +133,72 @@ public class VerticalLandingTests
     private static readonly InputState WalkRight = new() { MoveRight = true };
 
     [Fact]
-    public void Walk_IntoMound_IsBlocked()
+    public void Walk_IntoBrickColumn_IsBlocked()
     {
         var h = new Harness();
-        h.BuildMoundAt(4, 4);
-        var p = PlayerAt(3.9f * 64, 4.5f * 64); // 249.6px — one tick crosses 256
+        h.BuildBrickColumnAt(4, 4, 2, 2, bricks: 2);
+        // Walking east along the sub 2 row: the column blocks at its edge
+        // (288 = sub-cell (2,2)'s left boundary), not at the tile boundary.
+        var p = PlayerAt(3.9f * 64, Harness.SubCenter(4, 2));
 
         p.ApplyKeyInput(WalkRight, 0.25f, 0f, h.World, h.Buildings);
         p.ApplyKeyInput(WalkRight, 0.25f, 0f, h.World, h.Buildings);
 
-        Assert.True(p.WorldX < 4f * 64,
-            $"walked onto the mound tile (WorldX {p.WorldX}): wall rule failed");
+        Assert.True(p.WorldX < 4f * 64 + 2 * 16,
+            $"walked into the brick column (WorldX {p.WorldX}): wall rule failed");
     }
 
     [Fact]
-    public void Jump_Hop_OntoMound_IsAllowedWhenWithinCap()
+    public void Walk_IntoSingleBrick_IsStillAWallOnFoot()
     {
         var h = new Harness();
-        h.BuildMoundAt(4, 4);
-        var p = PlayerAt(3.9f * 64, 4.5f * 64);
+        h.BuildBrickColumnAt(4, 4, 2, 2, bricks: 1);
+        var p = PlayerAt(3.9f * 64, Harness.SubCenter(4, 2));
+
+        p.ApplyKeyInput(WalkRight, 0.25f, 0f, h.World, h.Buildings);
+        p.ApplyKeyInput(WalkRight, 0.25f, 0f, h.World, h.Buildings);
+
+        Assert.True(p.WorldX < 4f * 64 + 2 * 16,
+            $"walked onto a single brick (WorldX {p.WorldX}): grounded wall rule failed");
+    }
+
+    [Fact]
+    public void Jump_Hop_OntoSingleBrick_IsAllowedWhenWithinCap()
+    {
+        var h = new Harness();
+        h.BuildBrickColumnAt(4, 4, 2, 2, bricks: 1); // 1.25 <= 2.05: a hop
+        var p = PlayerAt(3.9f * 64, Harness.SubCenter(4, 2));
 
         Assert.True(p.TryJump()); // stamina full; starts the hop
         p.ApplyKeyInput(WalkRight, 0.25f, 0f, h.World, h.Buildings);
 
-        Assert.True(p.WorldX >= 4f * 64,
-            $"jump-climb onto the mound should advance (WorldX {p.WorldX})");
-        // The standing query now puts the player on the mound top.
-        Assert.Equal(Constants.SeaLevel + 5f + 2f,
-            BlockStack.StandingElevationAt(h.World, h.Buildings, p.WorldX, p.WorldY));
+        Assert.True(p.WorldX >= 4f * 64 + 2 * 16,
+            $"jump over/onto the single brick should advance (WorldX {p.WorldX})");
     }
 
     [Fact]
     public void Jump_TooTall_IsRefused()
     {
         var h = new Harness();
-        h.BuildMoundAt(4, 4);
-        // Raise the mound's terrain by 3 levels after building: top becomes
-        // 21.5 vs. standing 16.5 — a 5-level delta, beyond the climb cap.
-        h.World.SetElevationOverride(4, 4, Constants.SeaLevel + 8f);
-        var p = PlayerAt(3.9f * 64, 4.5f * 64);
+        h.BuildBrickColumnAt(4, 4, 2, 2, bricks: 4); // 5.0 > BlockClimbCap
+        var p = PlayerAt(3.9f * 64, Harness.SubCenter(4, 2));
 
         Assert.True(p.TryJump());
         p.ApplyKeyInput(WalkRight, 0.25f, 0f, h.World, h.Buildings);
 
-        Assert.True(p.WorldX < 4f * 64,
+        Assert.True(p.WorldX < 4f * 64 + 2 * 16,
             $"hop climbed past the cap (WorldX {p.WorldX}): the wall is too tall");
     }
 
     [Fact]
-    public void StepDown_FromMound_IsAlwaysAllowed()
+    public void StepDown_FromBrickTop_IsAlwaysAllowed()
     {
         var h = new Harness();
-        h.BuildMoundAt(4, 4);
-        // Start on top of the mound; walking DOWN to lower ground must pass.
-        var p = PlayerAt(4.5f * 64, 4.5f * 64);
+        h.BuildBrickColumnAt(4, 4, 2, 2, bricks: 1);
+        // Start on top of the brick; walking DOWN to lower ground must pass.
+        var p = PlayerAt(Harness.SubCenter(4, 2), Harness.SubCenter(4, 2));
         p.ApplyKeyInput(WalkRight, 0.25f, 0f, h.World, h.Buildings);
-        Assert.True(p.WorldX != 4.5f * 64, "descent is always free — no gate on the way down");
+        Assert.True(p.WorldX != Harness.SubCenter(4, 2), "descent is always free — no gate on the way down");
     }
 
     [Fact]
@@ -195,13 +218,13 @@ public class VerticalLandingTests
     // ── 3. Render lift math (pixel diff is slice-4 debt, declared) ──────────
 
     [Fact]
-    public void RenderTop_Block_LiftsByStackHeight()
+    public void RenderTop_Brick_LiftsByBrickHeight()
     {
         var h = new Harness();
         var def = h.Buildings.Registry!.GetStructure("mound_block")!;
         var s = new Structure { StructureId = def.Id, StructureDef = def, TileX = 4, TileY = 4 };
         float tileElev = Constants.SeaLevel + 5f;
-        Assert.Equal(tileElev + 2f, BlockStack.RenderTop(tileElev, s));
+        Assert.Equal(tileElev + 1.25f, BlockStack.RenderTop(tileElev, s));
     }
 
     [Fact]

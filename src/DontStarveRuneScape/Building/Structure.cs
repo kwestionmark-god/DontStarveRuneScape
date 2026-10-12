@@ -13,6 +13,12 @@ public sealed class Structure
     public float WorldY { get; set; }
     public int TileX { get; set; }
     public int TileY { get; set; }
+    // Slice 7a brick grid: position within the tile on the 4x4 16px sub-grid
+    // (0-3), and the vertical course (0-based). SubX/SubY -1 = tile-level
+    // structure (fences, non-blocks, legacy pre-brick saves).
+    public int SubX { get; set; } = -1;
+    public int SubY { get; set; } = -1;
+    public int Layer { get; set; }
     public bool IsActive { get; set; } = true;
     public int Health { get; set; } = 100;
     public int MaxHealth { get; set; } = 100;

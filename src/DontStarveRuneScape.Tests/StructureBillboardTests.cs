@@ -118,8 +118,10 @@ public class StructureBillboardTests
                 for (int y = 0; y < 8; y++)
                     World.Tiles[x, y].Elevation = Constants.SeaLevel + 5f;
             World.BuildCornerElevations();
+            // RED carries both wallets until GREEN flips the def to dirt_brick.
             Inventory.AddItem("stone", 30);
             Inventory.AddItem("stick", 30);
+            Inventory.AddItem("dirt_brick", 64);
         }
 
         private static BuildingSystem MakeBuildings()
@@ -135,29 +137,45 @@ public class StructureBillboardTests
             Assert.True(placed.Success, placed.Message);
             return Buildings.Structures[^1];
         }
+
+        /// <summary>Place a brick at a sub-cell of (tx,ty); must succeed.</summary>
+        public Structure PlaceBrick(int tx, int ty, int subX, int subY)
+        {
+            var placed = Buildings.PlaceStructure("mound_block", tx, ty, subX, subY,
+                World, Inventory, Skills);
+            Assert.True(placed.Success, placed.Message);
+            return Buildings.Structures[^1];
+        }
     }
 
     [Fact]
-    public void RenderBase_StackedMound_SecondSitsOnFirstTop()
+    public void RenderBase_StackedBricks_LayerSitsOnBrickTop_OrderIndependent()
     {
         var h = new Harness();
-        var first = h.Place("mound_block", 4, 4);
-        var second = h.Place("mound_block", 4, 4);
+        var first = h.PlaceBrick(4, 4, 2, 2);    // layer 0
+        var second = h.PlaceBrick(4, 4, 2, 2);   // layer 1
         float tile = Constants.SeaLevel + 5f;
 
         Assert.Equal(tile, BlockStack.RenderBase(h.World, h.Buildings, first, tile));
-        Assert.Equal(tile + 2f, BlockStack.RenderBase(h.World, h.Buildings, second, tile));
+        Assert.Equal(tile + 1.25f, BlockStack.RenderBase(h.World, h.Buildings, second, tile));
+
+        // The stored Layer makes the base list-order-independent.
+        h.Buildings.Structures.Reverse();
+        Assert.Equal(tile, BlockStack.RenderBase(h.World, h.Buildings, first, tile));
+        Assert.Equal(tile + 1.25f, BlockStack.RenderBase(h.World, h.Buildings, second, tile));
     }
 
     [Fact]
-    public void RenderBase_FenceAtopMound_SitsOnMoundTop()
+    public void RenderBase_FenceOnBrickTile_PlantsAtGround()
     {
         var h = new Harness();
-        h.Place("mound_block", 4, 4);
+        h.PlaceBrick(4, 4, 2, 2);
+        // All-blocks partition lets a fence share the tile; the fence is
+        // tile-level and plants on the ground, never on brick tops.
         var fence = h.Place("fence_block", 4, 4);
         float tile = Constants.SeaLevel + 5f;
 
-        Assert.Equal(tile + 2f, BlockStack.RenderBase(h.World, h.Buildings, fence, tile));
+        Assert.Equal(tile, BlockStack.RenderBase(h.World, h.Buildings, fence, tile));
     }
 
     [Fact]
@@ -184,7 +202,7 @@ public class StructureBillboardTests
     public void RenderTop_Delegates_IE_BasePlusOwnStack()
     {
         var h = new Harness();
-        h.Place("mound_block", 4, 4);
+        h.PlaceBrick(4, 4, 2, 2);
         var fence = h.Place("fence_block", 4, 4);
         float tile = Constants.SeaLevel + 5f;
 
@@ -237,18 +255,19 @@ public class StructureBillboardTests
     // ── 4. Height contract ──────────────────────────────────────────────────
 
     [Fact]
-    public void StructureHeight_Mound_IsStackUnitsInWorldPx()
+    public void StructureHeight_Brick_IsSixteenWorldPx_TexelExact()
     {
         var registry = new StructureDefRegistry();
         registry.LoadAll();
-        var mound = new Structure
+        var brick = new Structure
         {
             StructureId = "mound_block",
             StructureDef = registry.GetStructure("mound_block"),
         };
-        // 2 units × 12.8 px/unit (ZScale 8 × TerrainHeightScale 1.6).
-        Assert.Equal(2f * Constants.ZScale * Constants.TerrainHeightScale,
-            SpriteRenderer.StructureHeightWorld(mound));
+        // 1.25 units × 12.8 px/unit (ZScale 8 × TerrainHeightScale 1.6) = the
+        // 16px sprite 1:1 — the fixed-size brick law.
+        Assert.Equal(1.25f * Constants.ZScale * Constants.TerrainHeightScale,
+            SpriteRenderer.StructureHeightWorld(brick));
     }
 
     [Fact]

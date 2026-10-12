@@ -431,6 +431,11 @@ public sealed class StructureSnapshot
     public string StructureId { get; set; } = string.Empty;
     public int TileX { get; set; }
     public int TileY { get; set; }
+    // Slice 7a brick grid: sub-cell (0-3) and course. SubX/SubY -1 (the
+    // default) = tile-level structure or a legacy pre-brick save row.
+    public int SubX { get; set; } = -1;
+    public int SubY { get; set; } = -1;
+    public int Layer { get; set; }
     public float Hp { get; set; }
     public string? AssignedNpcId { get; set; }
     public string? WorkRecipeId { get; set; }
