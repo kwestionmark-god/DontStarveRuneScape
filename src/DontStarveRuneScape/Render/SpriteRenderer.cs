@@ -295,9 +295,16 @@ public sealed class SpriteRenderer : IDisposable
         float northTop, float eastTop, float southTop, float westTop,
         BillQuad[] faces)
     {
-        // RED stub — mask/thickness ignored, full-tile footprint (slice 5).
+        // Slice 6: the footprint is a sprite-thick slab — center ±
+        // halfThickness on every side, EXTENDED to the tile edge where the
+        // connection mask has a neighbour (joined blocks butt at the
+        // boundary instead of overlapping as fat 64-px chunks).
         float ts = Constants.TileSize;
-        float x0 = tx * ts, x1 = x0 + ts, y0 = ty * ts, y1 = y0 + ts;
+        float cx = (tx + 0.5f) * ts, cy = (ty + 0.5f) * ts;
+        float x0 = (connectionMask & 8) != 0 ? tx * ts : cx - halfThickness;   // W
+        float x1 = (connectionMask & 2) != 0 ? (tx + 1) * ts : cx + halfThickness; // E
+        float y0 = (connectionMask & 1) != 0 ? ty * ts : cy - halfThickness;   // N
+        float y1 = (connectionMask & 4) != 0 ? (ty + 1) * ts : cy + halfThickness; // S
         float top = baseElev + stackHeight;
         float sin = MathF.Sin(camera.Yaw), cos = MathF.Cos(camera.Yaw);
         int n = 0;
