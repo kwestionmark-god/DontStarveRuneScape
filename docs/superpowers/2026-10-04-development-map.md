@@ -463,6 +463,39 @@ law shapes it.
        Gameplay untouched — blocks still OWN the full tile for
        stacking/movement; only the drawn footprint slimmed. Pixel-
        VERIFIED: 3-block row = one seamless wall. Suite 601 → 602.
+     - **Vertical building, slice 7 — brick-by-brick building grid (user
+       pivot: "instead of stretchy joining, really go brick by brick —
+       granulate the building grid, each tile holds maybe 9 bricks, they
+       can all just have their fixed sizes") **DONE 2026-10-11** (spec
+       2026-10-11-block-voxel-bricks-design.md; 7a RED 69132fd / GREEN
+       28e2a97; 7b RED e20dacb / GREEN 89d220a): the building grid
+       granulates to 4x4 sub-cells of 16 px per tile (texel-exact 1:1
+       with the 16x16 sprite — Terraria's cell size; user pick over
+       3x3). `mound_block` rebrands to "Dirt Brick" (stack_height 1.25 =
+       16 px at 12.8 px/unit; id kept), placed per sub-cell via the new
+       `PlaceStructure(id, tx, ty, subX, subY, …)`; repeated placement
+       at one sub-cell stacks courses within the new 5.0-unit column
+       budget (4 bricks = a 64 px wall; user pick). Placement consumes
+       the craftable `dirt_brick` item (craft_dirt_brick: 2 stone + 1
+       stick → 1, crafting 1 — net economy unchanged; user: "keep it as
+       it is"); bricks bypass the colony-site flow (player-built).
+       Standing/stepping/jump-landing resolve per sub-cell
+       (`BlockStack.SubHeightAt`, swept `CanStep` — a 37.5 px tick
+       sweeps 8 px steps so a 16 px column can't be stepped over
+       between ticks); 1 brick (1.25) is a hop, 2 (2.5) a wall.
+       `BlockHeightAt` is now MAX over sub-cell columns, never a sum.
+       Render: `BuildBrickVoxel` draws each brick as a fixed 16 px box
+       over its sub-cell (shared `BuildBoxVoxel` core with the slice-6
+       slabs; neighbour tops wrap across tile edges) — the slice-6
+       mask/halfThickness stretch games are dead for bricks; fences
+       stay tile-level crossed planes + rails. Build mode goes
+       open-ended for bricks (place many, Esc/Q closes) and shows the
+       hovered tile's 4x4 ghost grid with the hovered sub-cell solidly
+       highlighted (`BuildGhostSubCells`). Legacy tile-level mound
+       saves migrate to full 4x4x2 brick blocks. Pixel-VERIFIED:
+       3-brick same-camera delta = 3502 px in-region, 0 noise in
+       controls, flat pixel-art palette (1:1, no stretch). Suite
+       602 → 616.
      - **Progression accounting (user playtest finding, 2026-10-09).**
        The fishing rod is entry-tier by design but hangs on a deadlock:
        rod → planks → `goblin_diplomacy` (goblin CHIEF's quest, not

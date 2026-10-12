@@ -8,6 +8,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Changed
+- **Vertical building, slice 7 — brick-by-brick building grid** — the
+  building grid granulates to 4x4 sub-cells of 16 px per tile. The
+  Dirt Brick (formerly Dirt Mound, id `mound_block` kept) is a fixed
+  16 px unit placed at a hovered sub-cell: the sprite maps 1:1 onto
+  every face (no stretching ever), joined bricks butt and cull their
+  shared faces, and build mode presents the hovered tile's 4x4 grid
+  with the hovered cell solidly highlighted. Bricks stack into
+  per-sub-cell columns up to 4 high (a 64 px wall); standing, stepping
+  and jump-landing resolve at the 16 px sub-cell (one brick is a hop,
+  two are a wall); placement consumes a crafted dirt_brick item
+  (2 stone + 1 stick at the bench — net cost unchanged) and build mode
+  stays open for brick-laying. Legacy mound saves migrate to full
+  brick blocks. Fences stay tile-level.
 - **Vertical building, slice 6 — sprite-proportioned block walls** — a
   block's drawn footprint is now a slender slab (32 px thick, sprite
   scale) centered in its tile instead of a full 64×64 chunk, extending

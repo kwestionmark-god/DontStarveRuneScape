@@ -1,7 +1,7 @@
 # Brick-by-brick building grid (slice 7)
 
 - **Date:** 2026-10-11
-- **Status:** draft → RED this session
+- **Status:** implemented — 7a RED 69132fd / GREEN 28e2a97; 7b RED e20dacb / GREEN 89d220a; suite 616 total / 615 green / 1 pre-existing skip; brick render pixel-verified (same-camera delta)
 
 ## Slice
 
