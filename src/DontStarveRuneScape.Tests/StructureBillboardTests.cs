@@ -43,10 +43,13 @@ public class StructureBillboardTests
         SpriteRenderer.BuildStructureHalves(cam0, 0f, 0f, 0f, 24f, 96f, 0.6f, 0.8f, halves0, out _);
         SpriteRenderer.BuildStructureHalves(cam90, 0f, 0f, 0f, 24f, 96f, 0.6f, 0.8f, halves90, out _);
 
-        float spanDir0 = MathF.Max(halves0[0].HalfW, halves0[1].HalfW) * 2f;
-        float spanCross0 = MathF.Max(halves0[2].HalfW, halves0[3].HalfW) * 2f;
-        float spanDir90 = MathF.Max(halves90[0].HalfW, halves90[1].HalfW) * 2f;
-        float spanCross90 = MathF.Max(halves90[2].HalfW, halves90[3].HalfW) * 2f;
+        // BuildCrossBillboard sorts halves by depth — group by .Plane
+        // (0 = dir plane, 1 = cross plane), never by index order.
+        static float Span(BillQuad[] halves, int plane)
+            => halves.Where(h => h.Plane == plane).Max(h => h.HalfW) * 2f;
+
+        float spanDir0 = Span(halves0, 0), spanCross0 = Span(halves0, 1);
+        float spanDir90 = Span(halves90, 0), spanCross90 = Span(halves90, 1);
 
         Assert.True(spanCross0 > spanDir0,
             $"yaw 0: cross plane should dominate (got cross {spanCross0} vs dir {spanDir0})");
@@ -66,23 +69,36 @@ public class StructureBillboardTests
             var halves = new BillQuad[4];
             SpriteRenderer.BuildStructureHalves(cam, wx, wy, elev, halfW, height, dirX, dirY, halves, out _);
 
-            // halves 0,1 = dir plane spans (-1,0),(0,1); 2,3 = cross plane.
-            (float ax, float ay, float s0, float s1)[] spans =
-            [
-                (dirX, dirY, -1f, 0f), (dirX, dirY, 0f, 1f),
-                (-dirY, dirX, -1f, 0f), (-dirY, dirX, 0f, 1f),
-            ];
+            // Halves are depth-sorted (index order is NOT span order), so
+            // match by candidate corner sets: each half of a plane wraps one
+            // of (E-, E-mid) / (E-mid, E+) along that plane's axis, corners
+            // possibly assigned to BL/BR either way around.
+            (float ax, float ay)[] axes = [(dirX, dirY), (-dirY, dirX)];
             for (int i = 0; i < 4; i++)
             {
-                var (ax, ay, s0, s1) = spans[i];
-                var bl = cam.WorldToScreen(wx + ax * halfW * s0, wy + ay * halfW * s0, elev);
-                var br = cam.WorldToScreen(wx + ax * halfW * s1, wy + ay * halfW * s1, elev);
-                Assert.True(MathF.Abs(halves[i].BLx - bl.X) < 0.6f &&
-                            MathF.Abs(halves[i].BLy - bl.Y) < 0.6f,
+                var (ax, ay) = axes[halves[i].Plane];
+                var eMinus = cam.WorldToScreen(wx - ax * halfW, wy - ay * halfW, elev);
+                var eMid = cam.WorldToScreen(wx, wy, elev);
+                var ePlus = cam.WorldToScreen(wx + ax * halfW, wy + ay * halfW, elev);
+                // Vector2D<float> points — compare fields, not tuples.
+                bool CornerOnLine(float cx, float cy)
+                {
+                    foreach (var e in new[] { eMinus, eMid, ePlus })
+                        if (MathF.Abs(cx - e.X) < 0.6f && MathF.Abs(cy - e.Y) < 0.6f)
+                            return true;
+                    return false;
+                }
+                Assert.True(CornerOnLine(halves[i].BLx, halves[i].BLy),
                     $"yaw {yaw} half {i}: base-left corner off the ground line");
-                Assert.True(MathF.Abs(halves[i].BRx - br.X) < 0.6f &&
-                            MathF.Abs(halves[i].BRy - br.Y) < 0.6f,
+                Assert.True(CornerOnLine(halves[i].BRx, halves[i].BRy),
                     $"yaw {yaw} half {i}: base-right corner off the ground line");
+                // And the two corners must be DISTINCT span points (a planted
+                // plane segment, not a degenerate stub).
+                float cornerDist = MathF.Sqrt(
+                    MathF.Pow(halves[i].BRx - halves[i].BLx, 2) +
+                    MathF.Pow(halves[i].BRy - halves[i].BLy, 2));
+                Assert.True(cornerDist > 1f,
+                    $"yaw {yaw} half {i}: base edge collapsed ({cornerDist}px)");
             }
         }
     }

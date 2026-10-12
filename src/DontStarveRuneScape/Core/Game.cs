@@ -1517,6 +1517,44 @@ public sealed class Game
             }
         }
 
+        // DSR_TEST_STRUCTURE="id:tx:ty[,id:tx:ty...]": place structures at
+        // authored tiles with materials granted (id + quantity from the def),
+        // for the slice-4 render smoketests. Runs BEFORE the DSR_TEST_KEYS
+        // block so scripted keys see the staged world (fire-menu pitfall).
+        if (Environment.GetEnvironmentVariable("DSR_TEST_STRUCTURE") is { } structHook
+            && !string.IsNullOrWhiteSpace(structHook) && World != null && Player != null
+            && BuildingSystem != null && Inventory != null && SkillManager != null)
+        {
+            foreach (var entry in structHook.Split(',', StringSplitOptions.TrimEntries))
+            {
+                var parts = entry.Split(':', StringSplitOptions.TrimEntries);
+                if (parts.Length != 3) continue;
+                if (!int.TryParse(parts[1], out int stx) || !int.TryParse(parts[2], out int sty)) continue;
+                var def = BuildingSystem.Registry?.GetStructure(parts[0]);
+                if (def == null) continue;
+                // Flatten the pad worldgen-style (blocks gate on the corner
+                // stitch) and grant the def's materials, then place for real.
+                World.SetElevationOverride(stx, sty, Constants.SeaLevel + 5f);
+                World.SetElevationOverride(stx + 1, sty, Constants.SeaLevel + 5f);
+                World.SetElevationOverride(stx, sty + 1, Constants.SeaLevel + 5f);
+                World.SetElevationOverride(stx + 1, sty + 1, Constants.SeaLevel + 5f);
+                foreach (var material in def.Materials)
+                    Inventory.AddItem(material.ItemId, material.Quantity);
+                var placed = BuildingSystem.PlaceStructure(parts[0], stx, sty, World, Inventory, SkillManager);
+                if (!placed.Success)
+                    Console.WriteLine($"DSR_TEST_STRUCTURE: {parts[0]} at ({stx},{sty}) refused: {placed.Message}");
+            }
+            // Anchor the camera near the LAST staged tile so probes see it.
+            var last = structHook.Split(',', StringSplitOptions.TrimEntries)[^1].Split(':');
+            if (last.Length == 3 && int.TryParse(last[1], out int ltx) && int.TryParse(last[2], out int lty))
+            {
+                Player.WorldX = (ltx + 0.5f) * Constants.TileSize - 2f * Constants.TileSize;
+                Player.WorldY = (lty + 0.5f) * Constants.TileSize;
+                Player.TargetX = Player.WorldX;
+                Player.TargetY = Player.WorldY;
+            }
+        }
+
         var keysEnv = Environment.GetEnvironmentVariable("DSR_TEST_KEYS");
         if (!string.IsNullOrWhiteSpace(keysEnv) && InputRouter != null)
         {
@@ -1947,13 +1985,13 @@ public sealed class Game
                         var sTile = World?.GetTile(structure.TileX, structure.TileY);
                         if (sTile != null)
                             elev = sTile.HasWater ? sTile.GetSurfaceElevation() : sTile.Elevation;
-                        // Blocks draw at their TOP (slice 2: a block you
-                        // can't see at its height is unteachable); cumulative
-                        // for stacked columns (slice 3).
-                        elev = BlockStack.RenderTop(World!, BuildingSystem, structure, elev);
+                        // Blocks plant at their column BASE (slice 4): the
+                        // crossed planes grow from the ground, not a center-
+                        // anchored floating quad; cumulative for columns.
+                        elev = BlockStack.RenderBase(World!, BuildingSystem, structure, elev);
                         float sortY = GetDepthSort(structure.WorldX, structure.WorldY, elev);
                         var s = structure;
-                        drawables.Add((sortY, seq++, () => SpriteRenderer.RenderStructure(s, batch, Camera, elev)));
+                        drawables.Add((sortY, seq++, () => SpriteRenderer.RenderStructure(s, batch, Camera, elev, World, BuildingSystem)));
                     }
                 }
             }

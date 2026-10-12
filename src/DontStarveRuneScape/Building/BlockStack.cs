@@ -78,23 +78,9 @@ public static class BlockStack
     /// block's draw base sits on the summed tops of the column beneath it.
     /// Column order = placement order in <see cref="BuildingSystem.Structures"/>.</summary>
     public static float RenderTop(TileMap world, BuildingSystem? buildings, Structure structure, float tileElevation)
-    {
-        if (structure.StructureDef?.IsBlock != true || structure.IsUnderConstruction)
-            return tileElevation;
-        float below = 0f;
-        if (buildings != null)
-        {
-            foreach (var s in buildings.Structures)
-            {
-                if (ReferenceEquals(s, structure)) break; // column order = list order
-                if (s.IsActive && !s.IsUnderConstruction
-                    && s.StructureDef?.IsBlock == true
-                    && s.TileX == structure.TileX && s.TileY == structure.TileY)
-                    below += s.StructureDef.StackHeight;
-            }
-        }
-        return tileElevation + below + structure.StructureDef.StackHeight;
-    }
+        => structure.StructureDef?.IsBlock == true && !structure.IsUnderConstruction
+            ? RenderBase(world, buildings, structure, tileElevation) + structure.StructureDef.StackHeight
+            : tileElevation;
 
     /// <summary>4-bit fence-connection mask (N=1, E=2, S=4, W=8): a bit is set
     /// where the edge-neighbor tile holds at least one built, active block.
@@ -113,18 +99,31 @@ public static class BlockStack
     /// <summary>Cumulative column BASE for a stacked block (slice 4): tile
     /// elevation + summed stack heights of the built, active blocks placed
     /// BEFORE this one on the tile (column order = placement order).
-    /// Non-blocks and sites sit at tile elevation.</summary>
+    /// Non-blocks and sites sit at ground height.</summary>
     public static float RenderBase(TileMap world, BuildingSystem? buildings, Structure structure, float tileElevation)
     {
-        // RED stub: everything at tile elevation (no cumulative base).
-        return tileElevation;
+        if (structure.StructureDef?.IsBlock != true || structure.IsUnderConstruction || buildings == null)
+            return tileElevation;
+        float below = 0f;
+        foreach (var s in buildings.Structures)
+        {
+            if (ReferenceEquals(s, structure)) break; // column order = list order
+            if (s.IsActive && !s.IsUnderConstruction
+                && s.StructureDef?.IsBlock == true
+                && s.TileX == structure.TileX && s.TileY == structure.TileY)
+                below += s.StructureDef.StackHeight;
+        }
+        return tileElevation + below;
     }
 
     /// <summary>Axis facing for a block from its connection mask: E|W → the
     /// X axis (1,0); N|S → (0,1); both-or-neither → null (symmetric cross).</summary>
     public static (float X, float Y)? FenceFacingDir(int connectionMask)
     {
-        // RED stub: no axis preference.
+        bool ew = (connectionMask & (2 | 8)) != 0;
+        bool ns = (connectionMask & (1 | 4)) != 0;
+        if (ew && !ns) return (1f, 0f);
+        if (ns && !ew) return (0f, 1f);
         return null;
     }
 
@@ -133,7 +132,14 @@ public static class BlockStack
     /// them at rail height). N=1/E=2/S=4/W=8.</summary>
     public static IReadOnlyList<(float X0, float Y0, float X1, float Y1)> FenceRails(int connectionMask, int tx, int ty)
     {
-        // RED stub: no rails.
-        return Array.Empty<(float, float, float, float)>();
+        if (connectionMask == 0) return Array.Empty<(float, float, float, float)>();
+        float ts = Config.Constants.TileSize;
+        float cx = (tx + 0.5f) * ts, cy = (ty + 0.5f) * ts;
+        var rails = new List<(float, float, float, float)>(4);
+        if ((connectionMask & 1) != 0) rails.Add((cx, cy, cx, ty * ts));        // N
+        if ((connectionMask & 2) != 0) rails.Add((cx, cy, (tx + 1) * ts, cy));  // E
+        if ((connectionMask & 4) != 0) rails.Add((cx, cy, cx, (ty + 1) * ts));  // S
+        if ((connectionMask & 8) != 0) rails.Add((cx, cy, tx * ts, cy));        // W
+        return rails;
     }
 }

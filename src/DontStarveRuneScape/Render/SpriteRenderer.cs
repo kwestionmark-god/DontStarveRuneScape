@@ -230,6 +230,8 @@ public sealed class SpriteRenderer : IDisposable
     // Resource crossed-billboard halves (one shared rig: RenderResource
     // completes before the next drawable runs, same as the entity path).
     private readonly BillQuad[] _resourceHalves = new BillQuad[4];
+    // Structure crossed-billboard halves (slice 4: same shared-rig idiom).
+    private readonly BillQuad[] _structureHalves = new BillQuad[4];
     private readonly TurnLean _playerLean = new();
 
     /// <summary>The gait rig attached to an entity (player, monster, NPC):
@@ -271,10 +273,9 @@ public sealed class SpriteRenderer : IDisposable
     /// their stack_height in elevation units (≈12.8 px per level); every
     /// other structure keeps the legacy 32 px silhouette.</summary>
     internal static float StructureHeightWorld(Structure structure)
-    {
-        // RED stub: legacy flat-quad height for everything.
-        return 32f;
-    }
+        => structure.StructureDef?.IsBlock == true
+            ? structure.StructureDef.StackHeight / ElevPerWorldPx
+            : 32f;
 
     /// <summary>Structure crossed-billboard geometry (slice 4): the same
     /// world-anchored paper-doll resources use — base edge planted at
@@ -283,11 +284,8 @@ public sealed class SpriteRenderer : IDisposable
     internal static void BuildStructureHalves(Camera camera, float wx, float wy,
         float baseElev, float halfWidthWorld, float heightWorld,
         float dirX, float dirY, BillQuad[] halves, out BillQuad anchorQuad)
-    {
-        // RED stub: zero geometry (tests fail on anchors/extents).
-        halves[0] = halves[1] = halves[2] = halves[3] = new BillQuad();
-        anchorQuad = new BillQuad();
-    }
+        => BuildCrossBillboard(camera, wx, wy, baseElev, halfWidthWorld,
+            heightWorld, 0f, dirX, dirY, halves, out anchorQuad);
 
     // Body billboard height in world px: 88 reads as the legacy 44·zoom
     // screen px at the default ~30° pitch (the projection foreshortens
@@ -1331,36 +1329,84 @@ public sealed class SpriteRenderer : IDisposable
         if (structure.StructureId == "woven_shelter")
         {
             // Procedural woven hut: stacked browns, doorway shadow, roof pole.
+            // Slice 4: PLANTED — the stack rises from the ground point instead
+            // of straddling it (the old center anchor put the doorway base
+            // 0.74·half BELOW ground level and the hut floated).
+            float plant = 0.74f * half;
             byte shelterAlpha = structure.IsUnderConstruction ? (byte)150 : (byte)255;
-            batch.DrawScreenQuad(screen.X, screen.Y + half * 0.35f, half * 0.95f, half * 0.38f,
+            batch.DrawScreenQuad(screen.X, screen.Y + half * 0.35f - plant, half * 0.95f, half * 0.38f,
                 51, 37, 25, shelterAlpha);
-            batch.DrawScreenQuad(screen.X, screen.Y + half * 0.12f, half * 0.8f, half * 0.28f,
+            batch.DrawScreenQuad(screen.X, screen.Y + half * 0.12f - plant, half * 0.8f, half * 0.28f,
                 113, 72, 38, shelterAlpha);
-            batch.DrawScreenQuad(screen.X, screen.Y - half * 0.12f, half * 0.62f, half * 0.25f,
+            batch.DrawScreenQuad(screen.X, screen.Y - half * 0.12f - plant, half * 0.62f, half * 0.25f,
                 139, 92, 48, shelterAlpha);
-            batch.DrawScreenQuad(screen.X, screen.Y - half * 0.34f, half * 0.4f, half * 0.22f,
+            batch.DrawScreenQuad(screen.X, screen.Y - half * 0.34f - plant, half * 0.4f, half * 0.22f,
                 164, 118, 66, shelterAlpha);
-            batch.DrawScreenQuad(screen.X, screen.Y - half * 0.52f, half * 0.18f, half * 0.18f,
+            batch.DrawScreenQuad(screen.X, screen.Y - half * 0.52f - plant, half * 0.18f, half * 0.18f,
                 126, 82, 45, shelterAlpha);
-            batch.DrawScreenQuad(screen.X, screen.Y + half * 0.44f, half * 0.09f, half * 0.3f,
+            batch.DrawScreenQuad(screen.X, screen.Y + half * 0.44f - plant, half * 0.09f, half * 0.3f,
                 82, 54, 31, shelterAlpha);
             return;
         }
-        // Real structure sprite (structure/*.png), gray quad fallback.
+        // Slice 4: structures stand on world-anchored crossed planes — the
+        // same paper-doll the resources and entities use. `elevation` is the
+        // BASE (Game passes BlockStack.RenderBase for blocks): the base edge
+        // plants on the ground line, the facing is world-fixed (never
+        // camera-tracking). Blocks face along their connection axis.
         uint tex = GetSpriteTexture(structure.StructureDef.SpriteKey);
-        // Blueprint look while under construction: washed-out tint + alpha
-        // and a progress bar under the site (WorkProgress fills 20s).
         byte alpha = structure.IsUnderConstruction ? (byte)145 : (byte)255;
+        int mask = world != null
+            ? BlockStack.ConnectionMask(world, buildings, structure.TileX, structure.TileY)
+            : 0;
+        var axis = structure.StructureDef?.IsBlock == true
+            ? BlockStack.FenceFacingDir(mask)
+            : null;
+        var (dirX, dirY) = axis ?? GetDeterministicDir(structure.TileX, structure.TileY);
+        BuildStructureHalves(camera, structure.WorldX, structure.WorldY, elevation,
+            16f, StructureHeightWorld(structure), dirX, dirY, _structureHalves, out _);
         if (tex != 0)
-            batch.DrawTexturedScreenQuad(screen.X, screen.Y, half * 0.95f, half * 0.95f, tex,
-                structure.IsUnderConstruction ? (byte)190 : (byte)255,
-                structure.IsUnderConstruction ? (byte)175 : (byte)255,
-                structure.IsUnderConstruction ? (byte)125 : (byte)255, alpha);
+        {
+            byte tr = structure.IsUnderConstruction ? (byte)190 : (byte)255;
+            byte tg = structure.IsUnderConstruction ? (byte)175 : (byte)255;
+            byte tb = structure.IsUnderConstruction ? (byte)125 : (byte)255;
+            foreach (var hq in _structureHalves)
+                batch.DrawScreenQuadCornersTexturedUSpan(
+                    hq.BLx, hq.BLy, hq.BRx, hq.BRy,
+                    hq.TRx, hq.TRy, hq.TLx, hq.TLy,
+                    tex, tr, tg, tb, alpha, hq.U0, hq.U1);
+        }
         else
-            batch.DrawScreenQuad(screen.X, screen.Y, half, half,
-                structure.IsUnderConstruction ? (byte)185 : (byte)150,
-                structure.IsUnderConstruction ? (byte)140 : (byte)150,
-                structure.IsUnderConstruction ? (byte)80 : (byte)160, alpha);
+        {
+            byte fr = structure.IsUnderConstruction ? (byte)185 : (byte)150;
+            byte fg = structure.IsUnderConstruction ? (byte)140 : (byte)150;
+            byte fb = structure.IsUnderConstruction ? (byte)80 : (byte)160;
+            foreach (var hq in _structureHalves)
+                batch.DrawScreenQuadCorners(hq.BLx, hq.BLy, hq.BRx, hq.BRy,
+                    hq.TRx, hq.TRy, hq.TLx, hq.TLy, fr, fg, fb, alpha);
+        }
+        // Fence rails toward connected neighbors (slice 4): a plank-brown
+        // segment per masked side, ~2 world px below the fence top. The brown
+        // (122,86,50) matches no terrain colour — pixel probes read extent.
+        if (structure.StructureId == "fence_block" && !structure.IsUnderConstruction && mask != 0)
+        {
+            float railElev = elevation + structure.StructureDef!.StackHeight - 2f * ElevPerWorldPx;
+            foreach (var (x0, y0, x1, y1) in BlockStack.FenceRails(mask, structure.TileX, structure.TileY))
+            {
+                var p0 = camera.WorldToScreen(x0, y0, railElev);
+                var p1 = camera.WorldToScreen(x1, y1, railElev);
+                float dx = p1.X - p0.X, dy = p1.Y - p0.Y;
+                float len = MathF.Sqrt(dx * dx + dy * dy);
+                if (len < 0.01f) continue;
+                float nx = -dy / len, ny = dx / len;
+                float t = 1.4f * camera.Zoom;
+                batch.DrawScreenQuadCorners(
+                    p0.X + nx * t, p0.Y + ny * t,
+                    p1.X + nx * t, p1.Y + ny * t,
+                    p1.X - nx * t, p1.Y - ny * t,
+                    p0.X - nx * t, p0.Y - ny * t,
+                    122, 86, 50, 255);
+            }
+        }
         if (structure.IsUnderConstruction)
         {
             float progress = Math.Clamp(structure.WorkProgress / 20f, 0f, 1f);
