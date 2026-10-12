@@ -47,6 +47,21 @@ public static class BlockStack
         return height;
     }
 
+    /// <summary>Slice-8 occluder query: the brick column top at a sub-cell —
+    /// the tile's elevation plus its sub-cell brick height — or null when
+    /// the sub-cell holds neither bricks nor a tile-level block. Bare
+    /// terrain elevation NEVER counts as an occluder (user decision
+    /// 2026-10-11: bricks keep their faces beside slopes).
+    /// RED NOTE: stub still bakes raw elevation in (the slice-8 bug) so
+    /// the new contracts fail RED; GREEN replaces the body.</summary>
+    internal static float? BrickColumnTopAt(TileMap world, BuildingSystem? buildings,
+        int tx, int ty, int subX, int subY)
+    {
+        var tile = world.GetTile(tx, ty);
+        if (tile == null) return null;
+        return tile.Elevation; // RED stub: ignores bricks, hides faces on slopes
+    }
+
     /// <summary>Total block lift on a tile: the MAX over its sub-cell columns
     /// and tile-level blocks — never a sum (side-by-side bricks do not stack
     /// lift). Fence connections and tile-level readers use this.</summary>

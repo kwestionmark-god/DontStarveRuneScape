@@ -536,4 +536,81 @@ public class VerticalStackingTests
                     BlockStack.SubHeightAt(world, buildings, 4, 4, sx, sy));
             }
     }
+
+    // ── Slice 8: brick face cover (spec:
+    // docs/superpowers/specs/2026-10-11-brick-face-cover-design.md) ────
+    // User critique: "the textures still dont fill the surface area of a
+    // single brick.. bricks are also iffy about visibility when adjacent
+    // to varying elevations." The texture must be full-bleed, and only a
+    // neighbouring BRICK (or tile-level block) column may occlude a face —
+    // never raw terrain elevation.
+
+    [Fact]
+    public void BrickAsset_SpriteKeyPointsAtFullBleedDirtBrick()
+    {
+        var registry = new StructureDefRegistry();
+        registry.LoadAll();
+
+        var brick = registry.GetStructure("mound_block");
+        Assert.NotNull(brick);
+        Assert.Equal("structure/dirt_brick", brick!.SpriteKey);
+
+        // The texture ships with the build (csproj copies Assets/**) and is
+        // one 16x16 cell — texel-exact with the brick face. Width/height are
+        // the big-endian uint32s at bytes 16-23 of the PNG IHDR.
+        const string path = "Assets/sprites/structure/dirt_brick.png";
+        Assert.True(File.Exists(path), $"expected brick texture at {path}");
+        var bytes = File.ReadAllBytes(path);
+        int w = (bytes[16] << 24) | (bytes[17] << 16) | (bytes[18] << 8) | bytes[19];
+        int hgt = (bytes[20] << 24) | (bytes[21] << 16) | (bytes[22] << 8) | bytes[23];
+        Assert.Equal(16, w);
+        Assert.Equal(16, hgt);
+    }
+
+    [Fact]
+    public void BrickOccluder_ElevatedBareNeighbour_DoesNotOcclude()
+    {
+        var h = new Harness();
+        // A +12 uphill neighbour: the face against it used to be culled by
+        // the raw elevation — the "iffy visibility" bug.
+        h.World.Tiles[5, 4].Elevation = Constants.SeaLevel + 17f;
+        h.World.BuildCornerElevations();
+
+        Assert.Null(BlockStack.BrickColumnTopAt(h.World, h.Buildings, 5, 4, 2, 2));
+    }
+
+    [Fact]
+    public void BrickOccluder_NeighbourBrickColumn_TopsAtElevPlusHeight()
+    {
+        var h = new Harness();
+        Assert.True(h.PlaceBrick(5, 4, 2, 2).Success);
+
+        float? top = BlockStack.BrickColumnTopAt(h.World, h.Buildings, 5, 4, 2, 2);
+        Assert.NotNull(top);
+        Assert.Equal(Constants.SeaLevel + 5f + 1.25f, top!.Value);
+    }
+
+    [Fact]
+    public void BrickOccluder_BareSubCell_InsideBrickTile_StillNull()
+    {
+        var h = new Harness();
+        Assert.True(h.PlaceBrick(5, 4, 2, 2).Success);
+
+        // The same neighbour tile's OTHER sub-cell holds nothing: a face
+        // that direction is fully exposed even beside a brick column.
+        Assert.Null(BlockStack.BrickColumnTopAt(h.World, h.Buildings, 5, 4, 3, 2));
+    }
+
+    [Fact]
+    public void BrickOccluder_NeighbourFence_CountsAsColumn()
+    {
+        var h = new Harness();
+        Assert.True(h.Place("fence_block", 5, 4).Success);
+
+        // A tile-level block lifts every sub-cell (the SubHeightAt floor),
+        // so a fence neighbour tops at its own stack height.
+        float? top = BlockStack.BrickColumnTopAt(h.World, h.Buildings, 5, 4, 0, 0);
+        Assert.NotNull(top);
+        Assert.Equal(Constants.SeaLevel + 5f + 1f, top!.Value);
+    }
 }
