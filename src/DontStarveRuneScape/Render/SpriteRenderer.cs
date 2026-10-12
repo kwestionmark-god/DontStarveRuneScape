@@ -1521,9 +1521,11 @@ public sealed class SpriteRenderer : IDisposable
                 float by0 = structure.TileY * Constants.TileSize + structure.SubY * cs;
                 float SubNeighbourTop(int ntx, int nty, int nsx, int nsy)
                 {
-                    var nt = world.GetTile(ntx, nty);
-                    float ne = nt?.Elevation ?? elevation;
-                    return ne + BlockStack.SubHeightAt(world, buildings, ntx, nty, nsx, nsy);
+                    // Slice 8: only a neighbouring brick/block column
+                    // occludes a face — bare terrain elevation never
+                    // hides bricks beside slopes. No column = fully exposed.
+                    return BlockStack.BrickColumnTopAt(world, buildings,
+                        ntx, nty, nsx, nsy) ?? float.NegativeInfinity;
                 }
                 int etx = structure.SubX < 3 ? structure.TileX : structure.TileX + 1;
                 int ex = structure.SubX < 3 ? structure.SubX + 1 : 0;

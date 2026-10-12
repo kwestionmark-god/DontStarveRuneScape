@@ -16,7 +16,7 @@
     "requires_structure_level": 1,
     "requires_skill_level": 1,
     "biome_compatible": [],
-    "sprite_key": "structure/stone_wall"
+    "sprite_key": "structure/dirt_brick"
    },
    "fence_block": {
     "structure_id": "fence_block",

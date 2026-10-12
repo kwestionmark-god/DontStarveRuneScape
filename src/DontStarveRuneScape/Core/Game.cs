@@ -1581,6 +1581,35 @@ public sealed class Game
             }
         }
 
+        // DSR_TEST_TERRAIN="raise:tx:ty:dh[,...]" bumps a tile's elevation
+        // by dh; "set:tx:ty:h" sets it absolutely — both via the same
+        // SetElevationOverride seam the shovel uses (slice 8 smoketest:
+        // brick faces beside raised bare terrain; "set" enables exact
+        // same-terrain A/B staging without the brick grant).
+        // Runs BEFORE the DSR_TEST_KEYS block.
+        if (Environment.GetEnvironmentVariable("DSR_TEST_TERRAIN") is { } terrainHook
+            && !string.IsNullOrWhiteSpace(terrainHook) && World != null)
+        {
+            foreach (var entry in terrainHook.Split(',', StringSplitOptions.TrimEntries))
+            {
+                var parts = entry.Split(':', StringSplitOptions.TrimEntries);
+                if (parts.Length != 4) continue;
+                if (!int.TryParse(parts[1], out int rtx) || !int.TryParse(parts[2], out int rty)
+                    || !float.TryParse(parts[3], out float rv)) continue;
+                var rt = World.GetTile(rtx, rty);
+                if (rt == null) continue;
+                World.SetElevationOverride(rtx, rty,
+                    parts[0] == "set" ? rv : rt.Elevation + (parts[0] == "raise" ? rv : 0f));
+            }
+        }
+
+        // DSR_TEST_HOUR=<h>: set the clock (smoketest scenes needing
+        // daylight — the torch flame otherwise dominates near-player
+        // pixels in the 07:12 default).
+        if (float.TryParse(Environment.GetEnvironmentVariable("DSR_TEST_HOUR"),
+                out float hourEnv) && DayNight != null)
+            DayNight.RestoreSnapshot(new DayNightSnapshot { TimeOfDay = (hourEnv - 6f) / 24f });
+
         var keysEnv = Environment.GetEnvironmentVariable("DSR_TEST_KEYS");
         if (!string.IsNullOrWhiteSpace(keysEnv) && InputRouter != null)
         {
