@@ -824,7 +824,46 @@ law shapes it.
        the "drop the recipe" fix (see item above); the item def stays
        for old-save tolerance and remains inert by design — placement
        comes from the building panel.
-     - **Skills-arc tails** (still parked): workers reading their own
+     - **Structure footprint reform — every structure on the 4x4 grid
+      (user ideation, 2026-10-12, to design when picked up).** User's
+      words: "for many other structures, the per tile grid logic
+      doesnt exist yet.. this leaves tons of very exciting
+      implications though, such as redesigning machines, etc.. since
+      our tiles each consist of 4x4 grids, id like to reform
+      structures to have variable designs based within the 4x4
+      possibility space.. for example, for a campfire, lets explore a
+      2x2 structure with fire animations? add collision.. perhaps
+      even damage upon collision or while standing on... this gives us
+      opportunities to have variants of campfires, like lined pits
+      that could cost more, but also not cause damage upon collision,
+      etc... another feature id like to add to campfires is a burn
+      rate, etc.. which can play meaningfully into the variants
+      framework." Grounded seams (verified in the tree 2026-10-12):
+      the sub-cell machinery exists but is BLOCK-DEF-ONLY —
+      `Structure.SubX/SubY/Layer` (slice 7) with
+      `PlaceStructure(id, tx, ty, subX, subY, …)` refusing non-brick
+      defs ("Pick a spot on the brick grid."), `SubHeightAt`/swept
+      `CanStep`/`GroundedSlide`/`BuildBoxVoxel(explicit rect)` all
+      ready to serve wider footprints. A 2x2 campfire needs: a
+      def-level footprint (sub-cell w×h), per-sub-cell occupancy truth
+      for `CanStand`/pathing (today tile-level for non-blocks),
+      collision via the existing grounded-mover gates reading the
+      footprint, standing-on damage as a per-tick sub-cell check
+      (player + entities; the `HasHostileNear` radius-check precedent
+      and fire proximity (`GetAvailableStructureIds`, 3-tile reach)
+      are the patterns), fire ANIMATION via the existing
+      `RenderFire`/`FireInstance` machinery, and a per-def burn rate
+      feeding the firemaking fuel economy (light_seconds + fuel_table
+      seams). Variants = sibling defs (campfire vs lined pit) with
+      different materials/footprints/damage — the def registry and
+      materials already vary cost; adding defs shifts the NpcDataTests
+      count pins (the data-count law). Open questions for the spec:
+      footprint field shape, build-mode UI for non-brick grid
+      placement (the 4x4 ghost today is bricks-only), whether the
+      craft-then-place economy carries over, damage cadence while
+      standing on a lit fire, and how variants unlock (construction
+      level gates are the precedent).
+    - **Skills-arc tails** (still parked): workers reading their own
        sub-stats (RecruitNpc.Skills inherits catalogs; gather/production
        math still level-only) and per-stat tooltips in the panel.
      - The fusion is **not bound to the inspiration titles**: entirely
