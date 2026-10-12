@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- **Vertical building, slice 6 — sprite-proportioned block walls** — a
+  block's drawn footprint is now a slender slab (32 px thick, sprite
+  scale) centered in its tile instead of a full 64×64 chunk, extending
+  to the tile edge wherever a connected neighbour exists, so joined
+  blocks butt into one continuous natural-looking wall. Isolated blocks
+  render as compact 32×32 slabs. Movement/stacking rules unchanged —
+  blocks still own their full tile; this is purely visual.
+
 ### Added
 - **Vertical building, slice 5 — true voxel blocks with stitching** — a
   block no longer renders as two crossed billboard planes: it is a

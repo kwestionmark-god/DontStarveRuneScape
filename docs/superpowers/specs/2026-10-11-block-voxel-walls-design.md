@@ -1,7 +1,9 @@
 # Block voxel walls — sprite-proportioned thickness, join-by-extension
 
 - **Date:** 2026-10-11
-- **Status:** RED
+- **Status:** IMPLEMENTED (RED b1d86df / GREEN 90cadc8; suite 602 total /
+  601 green / 1 pre-existing skip; seamless 3-block wall pixel-VERIFIED via
+  DSR_TEST_STRUCTURE smoketest)
 - **Slice line:** vertical-building arc, slice 6 (user critique of slice-5
   render: "the tile size makes for chunky walls — use the normal sprite
   size, but extend them to join naturally")

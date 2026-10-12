@@ -450,6 +450,19 @@ law shapes it.
        Fences keep their crossed planes + rails (user decision).
        Pixel-VERIFIED via DSR_TEST_STRUCTURE: two joined mounds read as
        a single 2×1 box. Suite 601 → 601 (6 new voxel-contract tests).
+     - **Vertical building, slice 6 — sprite-proportioned walls (user
+       critique: "the tile size makes chunky walls — use the normal
+       sprite size, extend them to join naturally") **DONE 2026-10-11**
+       (spec 2026-10-11-block-voxel-walls-design.md; RED b1d86df / GREEN
+       90cadc8): `BuildBlockVoxel` gains `(connectionMask, halfThickness)`
+       — the box footprint is center ±16 px on unconnected sides and
+       EXTENDS to the tile edge on each connected side, so joined blocks
+       BUTT at the shared boundary into one continuous slender wall
+       instead of overlapping fat 64-px chunks; isolated blocks render
+       as compact 32×32 slabs. Slice-5 strips/culling/sort unchanged.
+       Gameplay untouched — blocks still OWN the full tile for
+       stacking/movement; only the drawn footprint slimmed. Pixel-
+       VERIFIED: 3-block row = one seamless wall. Suite 601 → 602.
      - **Progression accounting (user playtest finding, 2026-10-09).**
        The fishing rod is entry-tier by design but hangs on a deadlock:
        rod → planks → `goblin_diplomacy` (goblin CHIEF's quest, not
