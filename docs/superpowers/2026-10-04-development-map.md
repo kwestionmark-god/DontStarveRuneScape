@@ -496,6 +496,38 @@ law shapes it.
        3-brick same-camera delta = 3502 px in-region, 0 noise in
        controls, flat pixel-art palette (1:1, no stretch). Suite
        602 → 616.
+     - **Vertical building, slice 8 — brick face cover + bricks-only
+       occlusion (user critique of the slice-7 render, 2026-10-11: "the
+       textures still dont fill the surface area of a single brick.. i
+       notice that bricks are also iffy about visibility when adjacent to
+       varying elevations..") **DONE 2026-10-11** (spec
+       2026-10-11-brick-face-cover-design.md; RED 5f9abdd / GREEN
+       0108152): `mound_block` points at its own authored 16x16
+       `structure/dirt_brick.png` — all 256 px painted (3 seeded brick
+       courses + 1px dark mortar, 10 colours, zero partial alpha) instead
+       of the old `stone_wall` glyph (16x16 but only 80/256 px opaque =
+       31%, a glyph floating in an underlay field). New pure query
+       `BlockStack.BrickColumnTopAt(world, buildings, tx, ty, subX, subY)`
+       = the sub-cell's brick/block column top, or null beside bare
+       terrain; RenderStructure's brick branch feeds `NegativeInfinity`
+       for null, so a neighbour's raw elevation can no longer cull a
+       brick face — only a neighbouring brick column (or a tile-level
+       block, e.g. a fence) strips it. Accepted consequence (user
+       decision 2026-10-11): a brick against a steep slope keeps its face
+       and may poke through the hillside slightly. Render-only — the
+       slice-5/6 tile-slab voxel branch and every movement/standing query
+       are untouched. Pixel-VERIFIED by a same-camera pre/post A/B (the
+       pre-slice-8 occluder re-landed temporarily, then reverted): flat
+       ground renders BIT-IDENTICAL pre/post (0 changed px, every control
+       box 0 — the fix is a no-op for level neighbours); raising the south
+       neighbour just past the brick top (16.5 → 18.0 vs the brick's
+       17.75) strips the WHOLE south face pre-fix (brick texels 1590 →
+       1000, the face rows 643-655 going to zero) and keeps it post-fix
+       (1336; the lowest ~8 rows are legitimately under the raised
+       ground); a neighbouring BRICK column still strips the shared face
+       (350 px changed inside the brick box at bit-identical terrain), so
+       occlusion was narrowed, not disabled. Suite 616 → 621 (5 new
+       contracts).
      - **Progression accounting (user playtest finding, 2026-10-09).**
        The fishing rod is entry-tier by design but hangs on a deadlock:
        rod → planks → `goblin_diplomacy` (goblin CHIEF's quest, not

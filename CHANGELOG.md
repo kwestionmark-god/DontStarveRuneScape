@@ -8,6 +8,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Changed
+- **Vertical building, slice 8 — brick face cover** — Dirt Bricks carry
+  their own authored 16x16 sprite (seeded brick courses with dark
+  mortar, dirt palette, every pixel painted) instead of a
+  mostly-transparent wall glyph with a wide empty margin, so a brick
+  face reads as masonry at 1:1. Bricks also keep their faces next to
+  sloped ground: only a neighbouring brick column occludes a face,
+  never raw terrain elevation, so a brick beside a rise no longer
+  loses its side to the hill (it may poke through the slope slightly
+  instead).
 - **Vertical building, slice 7 — brick-by-brick building grid** — the
   building grid granulates to 4x4 sub-cells of 16 px per tile. The
   Dirt Brick (formerly Dirt Mound, id `mound_block` kept) is a fixed

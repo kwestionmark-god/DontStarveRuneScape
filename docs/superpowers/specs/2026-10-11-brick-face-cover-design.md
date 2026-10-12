@@ -1,7 +1,10 @@
 # Brick face cover + elevation-adjacent faces (vertical building slice 8)
 
 Date: 2026-10-11
-Status: draft
+Status: implemented — RED 5f9abdd / GREEN 0108152; suite 621 total /
+620 green / 1 pre-existing skip; brick face cover + bricks-only
+occlusion pixel-verified (same-camera pre/post A/B: see the dev-map
+slice-8 entry for the numbers)
 Slice line: vertical-building post-roadmap, slice 8 (brick render polish)
 
 ## Design law
