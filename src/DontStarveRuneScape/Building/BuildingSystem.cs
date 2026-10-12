@@ -261,10 +261,26 @@ public sealed class BuildingSystem
         return (true, $"Built {def.Name}.");
     }
 
-    /// <summary>Remove a structure.</summary>
-    public bool RemoveStructure(Structure structure)
+    /// <summary>Remove a structure. When the world is supplied the tile's
+    /// Structure occupancy slot is recomputed from the remaining occupants
+    /// (a lone brick's removal frees its tile for pathing; a remaining
+    /// sibling keeps it reserved) — without a world the slot is left
+    /// untouched (legacy callers).</summary>
+    public bool RemoveStructure(Structure structure, TileMap? world = null)
     {
-        return Structures.Remove(structure);
+        bool removed = Structures.Remove(structure);
+        if (removed && world != null)
+        {
+            var tile = world.GetTile(structure.TileX, structure.TileY);
+            if (tile != null)
+            {
+                var remaining = Structures.FirstOrDefault(s =>
+                    s.TileX == structure.TileX && s.TileY == structure.TileY
+                    && s.StructureDef?.OccupiesTile == true);
+                tile.Structure = remaining?.StructureDef;
+            }
+        }
+        return removed;
     }
 
     /// <summary>

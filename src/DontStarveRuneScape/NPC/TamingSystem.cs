@@ -146,7 +146,7 @@ public sealed class TamingSystem
     {
         if (pet.IsColonyAssigned) return; // colony pets tick via TickColonyGuard
         float dx = PlayerX - pet.WorldX, dy = PlayerY - pet.WorldY;
-        TickFollow(dt, pet, dx, dy);
+        TickFollow(dt, pet, dx, dy, world, buildings);
     }
 
     /// <summary>Player position for follower steering (set by the game loop
@@ -159,7 +159,8 @@ public sealed class TamingSystem
     private const float FollowStopTiles = 1.5f;
     private readonly Dictionary<string, float> _gapTimers = [];
 
-    private void TickFollow(float dt, RecruitNpc pet, float dx, float dy)
+    private void TickFollow(float dt, RecruitNpc pet, float dx, float dy,
+        World.TileMap? world = null, Building.BuildingSystem? buildings = null)
     {
         float distance = MathF.Sqrt(dx * dx + dy * dy);
         float elapsed = Math.Min(dt, 0.25f);
@@ -187,8 +188,13 @@ public sealed class TamingSystem
         if (distance > FollowStopTiles * 64f && distance > 0.001f)
         {
             float step = WalkSpeed * elapsed;
-            pet.WorldX += dx / distance * step;
-            pet.WorldY += dy / distance * step;
+            float stepX = dx / distance * step;
+            float stepY = dy / distance * step;
+            if (world != null)
+                (stepX, stepY) = Building.BlockStack.GroundedSlide(world, buildings,
+                    pet.WorldX, pet.WorldY, stepX, stepY);
+            pet.WorldX += stepX;
+            pet.WorldY += stepY;
             pet.VelocityX = dx / distance * WalkSpeed;
             pet.VelocityY = dy / distance * WalkSpeed;
             pet.CarryStatus = "Following you";
@@ -234,8 +240,13 @@ public sealed class TamingSystem
         {
             float elapsed = Math.Min(dt, 0.25f);
             float dx = (nearest.WorldX - pet.WorldX) / dist, dy = (nearest.WorldY - pet.WorldY) / dist;
-            pet.WorldX += dx * WalkSpeed * elapsed;
-            pet.WorldY += dy * WalkSpeed * elapsed;
+            float stepX = dx * WalkSpeed * elapsed;
+            float stepY = dy * WalkSpeed * elapsed;
+            if (world != null)
+                (stepX, stepY) = Building.BlockStack.GroundedSlide(world, buildings,
+                    pet.WorldX, pet.WorldY, stepX, stepY);
+            pet.WorldX += stepX;
+            pet.WorldY += stepY;
             pet.VelocityX = dx * WalkSpeed;
             pet.VelocityY = dy * WalkSpeed;
             return;

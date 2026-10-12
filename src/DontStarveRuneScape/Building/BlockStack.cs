@@ -25,7 +25,10 @@ public static class BlockStack
     public static float SubHeightAt(TileMap world, BuildingSystem? buildings,
         int tx, int ty, int subX, int subY)
     {
-        if (buildings == null) return 0f;
+        // One BuildingSystem, surface-only structures: a cave world never
+        // pairs with it — caves would invent phantom walls (and phantom
+        // standing lifts) at overlapping tile coords.
+        if (buildings == null || world.IsCave) return 0f;
         float height = 0f;
         foreach (var s in buildings.Structures)
         {
@@ -66,7 +69,7 @@ public static class BlockStack
     /// lift). Fence connections and tile-level readers use this.</summary>
     public static float BlockHeightAt(TileMap world, BuildingSystem? buildings, int tx, int ty)
     {
-        if (buildings == null) return 0f;
+        if (buildings == null || world.IsCave) return 0f;
         float height = 0f;
         foreach (var s in buildings.Structures)
         {
@@ -148,8 +151,16 @@ public static class BlockStack
     public static (float Dx, float Dy) GroundedSlide(TileMap world,
         BuildingSystem? buildings, float fromX, float fromY, float dx, float dy)
     {
-        // RED stub: today's walk-through behaviour preserved.
-        return (dx, dy);
+        // Per-axis gate from the ORIGINAL position (the player's own
+        // ApplyKeyInput law): a blocked axis zeroes while the free axis
+        // applies, so a grounded mover grinds along the wall face instead
+        // of stopping dead or phasing through.
+        float ax = 0f, ay = 0f;
+        if (dx != 0f && CanStep(world, buildings, fromX, fromY, fromX + dx, fromY, airborne: false))
+            ax = dx;
+        if (dy != 0f && CanStep(world, buildings, fromX, fromY, fromX, fromY + dy, airborne: false))
+            ay = dy;
+        return (ax, ay);
     }
 
     /// <summary>Elevation a structure sprite draws at: blocks float at their

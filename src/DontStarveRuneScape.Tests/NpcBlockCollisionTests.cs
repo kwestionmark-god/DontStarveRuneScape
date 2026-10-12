@@ -201,7 +201,7 @@ public class NpcBlockCollisionTests
         Assert.True(h.PlaceBrick(4, 4, 0, 0).Success);
         var brick = h.BrickAt(4, 4, 0, 0);
         Assert.NotNull(brick);
-        Assert.True(h.Buildings.RemoveStructure(brick!));
+        Assert.True(h.Buildings.RemoveStructure(brick!, h.World));
 
         Assert.True(WorkerPathfinder.CanStand(h.World, 4, 4),
             "a removed brick must free its tile for pathing — the def slot goes stale today");
@@ -214,7 +214,7 @@ public class NpcBlockCollisionTests
         Assert.True(h.PlaceBrick(4, 4, 0, 0).Success);
         Assert.True(h.PlaceBrick(4, 4, 3, 3).Success);
         var brick = h.BrickAt(4, 4, 0, 0);
-        Assert.True(h.Buildings.RemoveStructure(brick!));
+        Assert.True(h.Buildings.RemoveStructure(brick!, h.World));
 
         Assert.False(WorkerPathfinder.CanStand(h.World, 4, 4),
             "a remaining brick on the tile keeps it occupied");
@@ -235,7 +235,7 @@ public class NpcBlockCollisionTests
         // Freed: removing the bricks must free the corridor tiles — the
         // stale def slot keeps them pathing-blocked today.
         foreach (var s in h.Buildings.Structures.Where(s => s.TileY == 4).ToList())
-            Assert.True(h.Buildings.RemoveStructure(s));
+            Assert.True(h.Buildings.RemoveStructure(s, h.World));
 
         var straight = WorkerPathfinder.FindPath(h.World, 4, 2, 4, 6);
         Assert.NotNull(straight);

@@ -35,7 +35,7 @@ public sealed class CombatSystem
         {
             monster.UpdateTimers(dt);
             float prevX = monster.WorldX, prevY = monster.WorldY;
-            UpdateMonster(monster, player, npcSystem, dt);
+            UpdateMonster(monster, player, npcSystem, dt, world, buildings);
             // Net velocity from the position delta across this tick (patrol,
             // chase, flee — all paths) drives the stepping gait.
             if (dt > 1e-5f)
@@ -317,7 +317,8 @@ public sealed class CombatSystem
 
     // ─── Monster AI ────────────────────────────────────────────────────────
 
-    private void UpdateMonster(Monster m, Player? player, NPC.NPCSystem? npcSystem, float dt)
+    private void UpdateMonster(Monster m, Player? player, NPC.NPCSystem? npcSystem, float dt,
+        World.TileMap? world = null, Building.BuildingSystem? buildings = null)
     {
         var nearestRecruit = npcSystem?.NPCs.Where(n => n.IsActive && n.IsRecruited)
             .Select(n => (Npc: n, Dx: n.WorldX - m.WorldX, Dy: n.WorldY - m.WorldY))
@@ -338,7 +339,7 @@ public sealed class CombatSystem
             || (m.Health <= m.MaxHealth * Constants.MonsterFleeHealthFraction && dist <= m.FleeRange))
         {
             m.State = MonsterState.Flee;
-            MoveAway(m, targetX, targetY, dt);
+            MoveAway(m, targetX, targetY, dt, world, buildings);
             if (dist > m.AggroRange)
             {
                 m.State = MonsterState.Idle;
@@ -369,7 +370,7 @@ public sealed class CombatSystem
             else
             {
                 m.State = MonsterState.Chase;
-                MoveToward(m, targetX, targetY, dt);
+                MoveToward(m, targetX, targetY, dt, world, buildings);
             }
             return;
         }
@@ -380,10 +381,11 @@ public sealed class CombatSystem
             m.State = MonsterState.Idle;
             m.StateTimer = 0f;
         }
-        UpdateWander(m, dt);
+        UpdateWander(m, dt, world, buildings);
     }
 
-    private void UpdateWander(Monster m, float dt)
+    private void UpdateWander(Monster m, float dt,
+        World.TileMap? world = null, Building.BuildingSystem? buildings = null)
     {
         if (m.State == MonsterState.Idle)
         {
@@ -408,7 +410,7 @@ public sealed class CombatSystem
             }
             else
             {
-                MoveToward(m, m.PatrolTargetX, m.PatrolTargetY, dt);
+                MoveToward(m, m.PatrolTargetX, m.PatrolTargetY, dt, world, buildings);
             }
         }
     }
@@ -452,8 +454,13 @@ public sealed class CombatSystem
         float dy = targetY - m.WorldY;
         float length = MathF.Sqrt(dx * dx + dy * dy);
         if (length < 0.001f) return;
-        m.WorldX += dx / length * m.Speed * dt;
-        m.WorldY += dy / length * m.Speed * dt;
+        float stepX = dx / length * m.Speed * dt;
+        float stepY = dy / length * m.Speed * dt;
+        if (world != null)
+            (stepX, stepY) = Building.BlockStack.GroundedSlide(world, buildings,
+                m.WorldX, m.WorldY, stepX, stepY);
+        m.WorldX += stepX;
+        m.WorldY += stepY;
     }
 
     private static void MoveAway(Monster m, float fromX, float fromY, float dt,
@@ -463,8 +470,13 @@ public sealed class CombatSystem
         float dy = m.WorldY - fromY;
         float length = MathF.Sqrt(dx * dx + dy * dy);
         if (length < 0.001f) return;
-        m.WorldX += dx / length * m.Speed * dt;
-        m.WorldY += dy / length * m.Speed * dt;
+        float stepX = dx / length * m.Speed * dt;
+        float stepY = dy / length * m.Speed * dt;
+        if (world != null)
+            (stepX, stepY) = Building.BlockStack.GroundedSlide(world, buildings,
+                m.WorldX, m.WorldY, stepX, stepY);
+        m.WorldX += stepX;
+        m.WorldY += stepY;
     }
 }
 

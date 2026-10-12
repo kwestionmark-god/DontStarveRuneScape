@@ -27,6 +27,11 @@ public sealed class RecruitmentSystem
     private readonly Dictionary<string, (Structure Structure, (int X, int Y)? Tile)> _approaches = [];
     private readonly HashSet<(int X, int Y)> _unreachableResourceTiles = [];
     private TileMap? _pathCacheWorld;
+    // Slice 9 (grounded movers): tick-scoped buildings pairing for the
+    // step gate — set at every Tick entry from the buildings param, read
+    // only inside the Tick call tree (MoveAlongPath / MoveGuard). Null
+    // (Tick without buildings) keeps the legacy ungated walk.
+    private BuildingSystem? _groundedBuildings;
     private float _unreachableRetryTimer;
     private readonly Dictionary<string, int> _patrolPoints = [];
     private readonly Dictionary<string, float> _patrolTimers = [];
@@ -64,6 +69,10 @@ public sealed class RecruitmentSystem
     {
         if (dt <= 0f || npcSystem == null || player?.Inventory == null || world == null)
             return;
+
+        // Grounded-mover gate pairing for this tick (see the field note):
+        // block walls now stop worker walk steps, axis-slide fashion.
+        _groundedBuildings = buildings;
 
         // Companion engine binds to this player; a fresh player instance
         // (new game) starts a fresh bond.
@@ -1106,10 +1115,17 @@ public sealed class RecruitmentSystem
             }
 
             float step = Math.Min(distance, speed * Math.Min(dt, 0.25f));
+            float stepX = dx / distance * step;
+            float stepY = dy / distance * step;
+            // Grounded-mover gate: a block wall stops the step, free axis
+            // slides (invariant — pathfinding already routes around block
+            // tiles; this covers mid-tick placement races and drift).
+            (stepX, stepY) = BlockStack.GroundedSlide(world, _groundedBuildings,
+                npc.WorldX, npc.WorldY, stepX, stepY);
             npc.VelocityX = dx / distance * speed;
             npc.VelocityY = dy / distance * speed;
-            npc.WorldX += dx / distance * step;
-            npc.WorldY += dy / distance * step;
+            npc.WorldX += stepX;
+            npc.WorldY += stepY;
             return false;
         }
 
@@ -1121,10 +1137,14 @@ public sealed class RecruitmentSystem
         if (goalDistance > 4f)
         {
             float step = Math.Min(goalDistance, speed * Math.Min(dt, 0.25f));
+            float stepX = goalDx / goalDistance * step;
+            float stepY = goalDy / goalDistance * step;
+            (stepX, stepY) = BlockStack.GroundedSlide(world, _groundedBuildings,
+                npc.WorldX, npc.WorldY, stepX, stepY);
             npc.VelocityX = goalDx / goalDistance * speed;
             npc.VelocityY = goalDy / goalDistance * speed;
-            npc.WorldX += goalDx / goalDistance * step;
-            npc.WorldY += goalDy / goalDistance * step;
+            npc.WorldX += stepX;
+            npc.WorldY += stepY;
             return false;
         }
 
@@ -1275,10 +1295,14 @@ public sealed class RecruitmentSystem
         float distance = MathF.Sqrt(dx * dx + dy * dy);
         if (distance <= 0.001f) return;
         float step = Math.Min(distance, 55f * Math.Min(dt, 0.25f));
+        float stepX = dx / distance * step;
+        float stepY = dy / distance * step;
+        (stepX, stepY) = BlockStack.GroundedSlide(world, _groundedBuildings,
+            guard.WorldX, guard.WorldY, stepX, stepY);
         guard.VelocityX = dx / distance * 55f;
         guard.VelocityY = dy / distance * 55f;
-        guard.WorldX += dx / distance * step;
-        guard.WorldY += dy / distance * step;
+        guard.WorldX += stepX;
+        guard.WorldY += stepY;
     }
 
     private static Structure? FindWorkplace(Npc worker, (int X, int Y) home, int workRadiusSq,

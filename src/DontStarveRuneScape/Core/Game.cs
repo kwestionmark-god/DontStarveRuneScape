@@ -1004,7 +1004,7 @@ public sealed class Game
         }
 
         // Combat
-        CombatSystem?.Tick(dt, Player, NPCSystem);
+        CombatSystem?.Tick(dt, Player, NPCSystem, World, BuildingSystem);
 
         // Firemaking
         Firemaking?.Tick(dt);
@@ -1028,8 +1028,8 @@ public sealed class Game
             foreach (var pet in Taming.TamedAnimals)
             {
                 if (!pet.IsActive || pet.Health <= 0) continue;
-                if (pet.IsColonyAssigned) Taming.TickColonyGuard(dt, pet, CombatSystem);
-                else Taming.Tick(dt, pet);
+                if (pet.IsColonyAssigned) Taming.TickColonyGuard(dt, pet, CombatSystem, World, BuildingSystem);
+                else Taming.Tick(dt, pet, World, BuildingSystem);
             }
         }
 
@@ -1581,6 +1581,35 @@ public sealed class Game
             }
         }
 
+        // DSR_TEST_MONSTER="id:tx:ty": stage a live monster at the tile's
+        // CENTER (sub-cell (2,2)) for render verification — paired with a
+        // DSR_TEST_STRUCTURE brick at the same sub-cell it pins the
+        // standing/render lift (the sprite sits ON the column, not buried).
+        // Aggro is frozen for the capture window so the staged monster
+        // stands deterministically still instead of chasing the anchored
+        // player (Idle 1.5s > capture frames anyway — belt and braces).
+        var monsterEnv = Environment.GetEnvironmentVariable("DSR_TEST_MONSTER");
+        if (!string.IsNullOrWhiteSpace(monsterEnv) && CombatSystem != null && MonsterRegistry != null)
+        {
+            var mparts = monsterEnv.Split(':');
+            if (mparts.Length == 3
+                && int.TryParse(mparts[1], out int mtx) && int.TryParse(mparts[2], out int mty))
+            {
+                var mdef = MonsterRegistry.MonstersByBiome.Values
+                    .SelectMany(biome => biome.Values)
+                    .FirstOrDefault(m => m.MonsterId == mparts[0]);
+                if (mdef != null)
+                {
+                    float mx = mtx * Constants.TileSize + 2 * Constants.BrickCellSize + Constants.BrickCellSize / 2f;
+                    float my = mty * Constants.TileSize + 2 * Constants.BrickCellSize + Constants.BrickCellSize / 2f;
+                    var staged = CombatSystem.SpawnMonster(mdef, mx, my);
+                    staged.AggroCooldown = 60f;
+                }
+                else
+                    Console.WriteLine($"DSR_TEST_MONSTER: no def '{mparts[0]}' in the registry");
+            }
+        }
+
         // DSR_TEST_TERRAIN="raise:tx:ty:dh[,...]" bumps a tile's elevation
         // by dh; "set:tx:ty:h" sets it absolutely — both via the same
         // SetElevationOverride seam the shovel uses (slice 8 smoketest:
@@ -1982,6 +2011,12 @@ public sealed class Game
                         float elev = mTile != null
                             ? (mTile.HasWater ? mTile.GetSurfaceElevation() : mTile.GetElevationAt(0.5f, 0.5f))
                             : 0f;
+                        // Vertical building: an entity overlapping a block column
+                        // renders ON it, not buried inside (the player's lift
+                        // idiom). Caves never pair with the surface buildings.
+                        elev += BlockStack.SubHeightAt(World, BuildingSystem,
+                            (int)(monster.WorldX / Constants.TileSize), (int)(monster.WorldY / Constants.TileSize),
+                            BlockStack.SubCellOf(monster.WorldX), BlockStack.SubCellOf(monster.WorldY));
                         // Moving sprite: same standing boost as the player so
                         // its own tile never paints over it.
                         float sortY = GetDepthSort(monster.WorldX, monster.WorldY,
@@ -2006,6 +2041,12 @@ public sealed class Game
                     float elev = nTile != null
                         ? (nTile.HasWater ? nTile.GetSurfaceElevation() : nTile.GetElevationAt(0.5f, 0.5f))
                         : 0f;
+                    // Vertical building: an entity overlapping a block column
+                    // renders ON it, not buried inside (the player's lift
+                    // idiom). Caves never pair with the surface buildings.
+                    elev += BlockStack.SubHeightAt(World, BuildingSystem,
+                        (int)(npc.WorldX / Constants.TileSize), (int)(npc.WorldY / Constants.TileSize),
+                        BlockStack.SubCellOf(npc.WorldX), BlockStack.SubCellOf(npc.WorldY));
                     float sortY = GetDepthSort(npc.WorldX, npc.WorldY, elev);
                     var n = npc;
                     drawables.Add((sortY, seq++, () => SpriteRenderer.RenderNPC(n, batch, Camera, elev, Dt)));
@@ -2027,6 +2068,12 @@ public sealed class Game
                     float elev = pTile != null
                         ? (pTile.HasWater ? pTile.GetSurfaceElevation() : pTile.GetElevationAt(0.5f, 0.5f))
                         : 0f;
+                    // Vertical building: an entity overlapping a block column
+                    // renders ON it, not buried inside (the player's lift
+                    // idiom). Caves never pair with the surface buildings.
+                    elev += BlockStack.SubHeightAt(World, BuildingSystem,
+                        (int)(pet.WorldX / Constants.TileSize), (int)(pet.WorldY / Constants.TileSize),
+                        BlockStack.SubCellOf(pet.WorldX), BlockStack.SubCellOf(pet.WorldY));
                     float sortY = GetDepthSort(pet.WorldX, pet.WorldY, elev);
                     var p = pet;
                     drawables.Add((sortY, seq++, () => SpriteRenderer.RenderNPC(p, batch, Camera, elev, Dt)));
