@@ -267,6 +267,28 @@ public sealed class SpriteRenderer : IDisposable
     // Convert before adding height, or the boots render as stilts (×12.8).
     private const float ElevPerWorldPx = 1f / (Constants.ZScale * Constants.TerrainHeightScale);
 
+    /// <summary>World-px draw height for a structure (slice 4): blocks span
+    /// their stack_height in elevation units (≈12.8 px per level); every
+    /// other structure keeps the legacy 32 px silhouette.</summary>
+    internal static float StructureHeightWorld(Structure structure)
+    {
+        // RED stub: legacy flat-quad height for everything.
+        return 32f;
+    }
+
+    /// <summary>Structure crossed-billboard geometry (slice 4): the same
+    /// world-anchored paper-doll resources use — base edge planted at
+    /// groundElev, both half-planes of a fixed world facing — so structures
+    /// stand in the world instead of billboard-tracking the camera.</summary>
+    internal static void BuildStructureHalves(Camera camera, float wx, float wy,
+        float baseElev, float halfWidthWorld, float heightWorld,
+        float dirX, float dirY, BillQuad[] halves, out BillQuad anchorQuad)
+    {
+        // RED stub: zero geometry (tests fail on anchors/extents).
+        halves[0] = halves[1] = halves[2] = halves[3] = new BillQuad();
+        anchorQuad = new BillQuad();
+    }
+
     // Body billboard height in world px: 88 reads as the legacy 44·zoom
     // screen px at the default ~30° pitch (the projection foreshortens
     // verticals by sinPitch). The foreshortening is tempered by
@@ -1301,7 +1323,8 @@ public sealed class SpriteRenderer : IDisposable
         }
     }
 
-    public void RenderStructure(Structure structure, PrimitiveBatch batch, Camera camera, float elevation)
+    public void RenderStructure(Structure structure, PrimitiveBatch batch, Camera camera, float elevation,
+        TileMap? world = null, BuildingSystem? buildings = null)
     {
         var screen = camera.WorldToScreen(structure.WorldX, structure.WorldY, elevation);
         float half = 16f * camera.Zoom;

@@ -109,4 +109,31 @@ public static class BlockStack
         if (BlockHeightAt(world, buildings, tx - 1, ty) > 0f) mask |= 8; // W
         return mask;
     }
+
+    /// <summary>Cumulative column BASE for a stacked block (slice 4): tile
+    /// elevation + summed stack heights of the built, active blocks placed
+    /// BEFORE this one on the tile (column order = placement order).
+    /// Non-blocks and sites sit at tile elevation.</summary>
+    public static float RenderBase(TileMap world, BuildingSystem? buildings, Structure structure, float tileElevation)
+    {
+        // RED stub: everything at tile elevation (no cumulative base).
+        return tileElevation;
+    }
+
+    /// <summary>Axis facing for a block from its connection mask: E|W → the
+    /// X axis (1,0); N|S → (0,1); both-or-neither → null (symmetric cross).</summary>
+    public static (float X, float Y)? FenceFacingDir(int connectionMask)
+    {
+        // RED stub: no axis preference.
+        return null;
+    }
+
+    /// <summary>Rail segments for a fence: one center→edge-midpoint segment
+    /// per connected side (world ground coordinates; the renderer projects
+    /// them at rail height). N=1/E=2/S=4/W=8.</summary>
+    public static IReadOnlyList<(float X0, float Y0, float X1, float Y1)> FenceRails(int connectionMask, int tx, int ty)
+    {
+        // RED stub: no rails.
+        return Array.Empty<(float, float, float, float)>();
+    }
 }
