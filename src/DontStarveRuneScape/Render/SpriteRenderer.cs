@@ -278,21 +278,24 @@ public sealed class SpriteRenderer : IDisposable
             ? structure.StructureDef.StackHeight / ElevPerWorldPx
             : 32f;
 
-    /// <summary>Block voxel faces (slice 5, spec
-    /// docs/superpowers/specs/2026-10-11-block-voxel-render-design.md): a
-    /// block is a world-space box — tile footprint × [base, base+stack]
-    /// elevations — drawn as a top face plus the camera-facing side faces,
-    /// each textured with the sprite as surface area. A side face is culled
-    /// where a neighbour column reaches it (stitching: joined blocks share
-    /// top edges, interiors vanish); each surviving face is the exposed
-    /// strip from max(base, neighbourTop) to the top. Faces are tagged
-    /// Plane: 0=E(+X), 1=S(+Y), 2=W(−X), 3=N(−Y), 4=Top, depth-sorted
-    /// back-to-front. Returns the face count written.</summary>
+    /// <summary>Block voxel faces (slice 5/6, spec
+    /// docs/superpowers/specs/2026-10-11-block-voxel-walls-design.md): a
+    /// block is a world-space box — slab footprint (sprite half-thickness,
+    /// extended to tile edges along connected-mask sides where blocks join)
+    /// × [base, base+stack] elevations — drawn as a top face plus the
+    /// camera-facing side faces, each textured with the sprite as surface
+    /// area. A side face is culled where a neighbour column reaches it
+    /// (stitching: joined blocks share top edges, interiors vanish); each
+    /// surviving face is the exposed strip from max(base, neighbourTop) to
+    /// the top. Faces are tagged Plane: 0=E(+X), 1=S(+Y), 2=W(−X), 3=N(−Y),
+    /// 4=Top, depth-sorted back-to-front. Returns the face count</summary>
     internal static int BuildBlockVoxel(Camera camera, int tx, int ty,
         float baseElev, float stackHeight,
+        int connectionMask, float halfThickness,
         float northTop, float eastTop, float southTop, float westTop,
         BillQuad[] faces)
     {
+        // RED stub — mask/thickness ignored, full-tile footprint (slice 5).
         float ts = Constants.TileSize;
         float x0 = tx * ts, x1 = x0 + ts, y0 = ty * ts, y1 = y0 + ts;
         float top = baseElev + stackHeight;
@@ -1454,6 +1457,7 @@ public sealed class SpriteRenderer : IDisposable
             }
             int fc = BuildBlockVoxel(camera, structure.TileX, structure.TileY,
                 elevation, structure.StructureDef.StackHeight,
+                mask, 16f,
                 NeighbourTop(structure.TileX, structure.TileY - 1),
                 NeighbourTop(structure.TileX + 1, structure.TileY),
                 NeighbourTop(structure.TileX, structure.TileY + 1),
