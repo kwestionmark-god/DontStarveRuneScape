@@ -339,7 +339,8 @@ public sealed class CombatSystem
             || (m.Health <= m.MaxHealth * Constants.MonsterFleeHealthFraction && dist <= m.FleeRange))
         {
             m.State = MonsterState.Flee;
-            MoveAway(m, targetX, targetY, dt, world, buildings);
+            bool blockedFlee = MoveAway(m, targetX, targetY, dt, world, buildings);
+            AccumulateWallFrustration(m, blockedFlee, dt, buildings, world, player);
             if (dist > m.AggroRange)
             {
                 m.State = MonsterState.Idle;
@@ -370,7 +371,8 @@ public sealed class CombatSystem
             else
             {
                 m.State = MonsterState.Chase;
-                MoveToward(m, targetX, targetY, dt, world, buildings);
+                bool blocked = MoveToward(m, targetX, targetY, dt, world, buildings);
+                AccumulateWallFrustration(m, blocked, dt, buildings, world, player);
             }
             return;
         }
@@ -415,6 +417,54 @@ public sealed class CombatSystem
         }
     }
 
+    /// <summary>Sustained blocking turns to violence (slice 11): after
+    /// MonsterWallFrustrationSeconds of grinding at player-built walls, chip
+    /// the nearest BUILT block structure in melee reach at the monster's own
+    /// attack cadence (the shared melee cooldown — wall hits and target hits
+    /// alternate honestly). A broken wall resets frustration — the chase
+    /// resumes through the gap, and the freed tile is immediately pathable
+    /// (the live occupancy recompute). Wandering never calls this — only
+    /// target-driven movement does.</summary>
+    private void AccumulateWallFrustration(Monster m, bool blocked, float dt,
+        Building.BuildingSystem? buildings, World.TileMap? world, Player? player)
+    {
+        if (!blocked)
+        {
+            m.WallFrustration = 0f;
+            return;
+        }
+        m.WallFrustration += dt;
+        if (m.WallFrustration < Constants.MonsterWallFrustrationSeconds) return;
+        if (buildings == null || world == null) return;
+
+        Building.Structure? best = null;
+        float bestSq = m.AttackRange * m.AttackRange;
+        foreach (var s in buildings.Structures)
+        {
+            if (!s.IsActive || s.IsUnderConstruction || s.StructureDef?.IsBlock != true)
+                continue;
+            float dx = s.WorldX - m.WorldX, dy = s.WorldY - m.WorldY;
+            float sq = dx * dx + dy * dy;
+            if (sq < bestSq)
+            {
+                bestSq = sq;
+                best = s;
+            }
+        }
+        if (best == null) return;
+        if (m.AttackCooldown > 0f) return;
+
+        int damage = Math.Max(1, (int)MathF.Round(m.Attack));
+        bool destroyed = buildings.DamageStructure(best, damage, world);
+        m.AttackCooldown = m.AttackCooldownMax;
+        if (destroyed)
+        {
+            m.WallFrustration = 0f;
+            player?.ActionSystem?.AddNotification(
+                $"Your {best.StructureDef?.Name ?? best.StructureId} was destroyed!", (255, 90, 90));
+        }
+    }
+
     private void HitPlayer(Monster m, Player player)
     {
         float defence = player.Gear?.GetTotalDefenceBonus() ?? 0f;
@@ -447,36 +497,48 @@ public sealed class CombatSystem
         }
     }
 
-    private static void MoveToward(Monster m, float targetX, float targetY, float dt,
+    private static bool MoveToward(Monster m, float targetX, float targetY, float dt,
         World.TileMap? world = null, Building.BuildingSystem? buildings = null)
     {
         float dx = targetX - m.WorldX;
         float dy = targetY - m.WorldY;
         float length = MathF.Sqrt(dx * dx + dy * dy);
-        if (length < 0.001f) return;
+        if (length < 0.001f) return false;
         float stepX = dx / length * m.Speed * dt;
         float stepY = dy / length * m.Speed * dt;
+        bool blocked = false;
         if (world != null)
+        {
+            float desiredX = stepX, desiredY = stepY;
             (stepX, stepY) = Building.BlockStack.GroundedSlide(world, buildings,
                 m.WorldX, m.WorldY, stepX, stepY);
+            blocked = stepX != desiredX || stepY != desiredY;
+        }
         m.WorldX += stepX;
         m.WorldY += stepY;
+        return blocked;
     }
 
-    private static void MoveAway(Monster m, float fromX, float fromY, float dt,
+    private static bool MoveAway(Monster m, float fromX, float fromY, float dt,
         World.TileMap? world = null, Building.BuildingSystem? buildings = null)
     {
         float dx = m.WorldX - fromX;
         float dy = m.WorldY - fromY;
         float length = MathF.Sqrt(dx * dx + dy * dy);
-        if (length < 0.001f) return;
+        if (length < 0.001f) return false;
         float stepX = dx / length * m.Speed * dt;
         float stepY = dy / length * m.Speed * dt;
+        bool blocked = false;
         if (world != null)
+        {
+            float desiredX = stepX, desiredY = stepY;
             (stepX, stepY) = Building.BlockStack.GroundedSlide(world, buildings,
                 m.WorldX, m.WorldY, stepX, stepY);
+            blocked = stepX != desiredX || stepY != desiredY;
+        }
         m.WorldX += stepX;
         m.WorldY += stepY;
+        return blocked;
     }
 }
 
@@ -527,6 +589,12 @@ public sealed class Monster
     public float VelocityY { get; set; }
 
     public bool IsAlive() => Health > 0;
+
+    /// <summary>Sustained wall-blocking seconds (slice 11) — accumulates
+    /// while a chase/flee step is blocked by player-built blocks; at
+    /// MonsterWallFrustrationSeconds the monster starts attacking the
+    /// nearest wall piece in reach. Transient: resets on load.</summary>
+    public float WallFrustration;
 
     public void UpdateTimers(float dt)
     {

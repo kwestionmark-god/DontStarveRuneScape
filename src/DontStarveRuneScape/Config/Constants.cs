@@ -335,6 +335,7 @@ public static class Constants
     public const float MonsterAttackRange = 64f;        // Melee reach in px (monsters.json has no attack_range)
     public const float MonsterLeashMultiplier = 1.5f;   // Chase drop-out distance = AggroRange * this
     public const float MonsterIdleSeconds = 1.5f;       // Idle pause before picking a patrol point
+    public const float MonsterWallFrustrationSeconds = 4f; // Sustained wall-blocking before a monster attacks the wall (slice 11)
     public const float MonsterPatrolRadius = 128f;      // Patrol wander distance from home (px)
     public const float MonsterFleeHealthFraction = 0.3f; // Flee while HP fraction is below this
     public const float MonsterAggroCooldownAfterFlee = 5f; // Calm-down seconds after fleeing out of range

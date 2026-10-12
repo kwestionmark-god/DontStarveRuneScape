@@ -288,8 +288,10 @@ public sealed class BuildingSystem
     /// occupancy recompute. Returns true when destroyed.</summary>
     public bool DamageStructure(Structure structure, int amount, TileMap? world = null)
     {
-        // RED stub: nothing damages structures today.
-        return false;
+        if (amount <= 0) return false;
+        structure.Health = Math.Max(0, structure.Health - amount);
+        if (structure.Health > 0) return false;
+        return RemoveStructure(structure, world);
     }
 
     /// <summary>
