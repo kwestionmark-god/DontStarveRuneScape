@@ -1,7 +1,9 @@
 # Structure sort honesty — statically visible player builds (vertical building slice 10)
 
 Date: 2026-10-12
-Status: drafted — awaiting RED
+Status: implemented — RED e3705b0 / GREEN 79cb827; suite 643 total /
+642 green / 1 pre-existing skip; bury/no-op pixel A/B verified (numbers
+in the dev-map slice-10 entry)
 Slice line: vertical-building post-roadmap, slice 10 (user critique of the
 slice 7-9 brick world, 2026-10-12)
 

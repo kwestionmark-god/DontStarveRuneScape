@@ -8,6 +8,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Changed
+- **Vertical building, slice 10 — structure sort honesty** — player
+  builds no longer sink into the ground while orbiting the camera.
+  Structures (and ground fires) now follow the same painter's-order
+  law the player and monsters always had: they key at their tile's
+  highest corner plus the standing boost, so the owning terrain quad
+  can never paint over a build that stands on it. Before, a brick on
+  the far side of its tile keyed below its own tile at the yaws where
+  the sub-cell offset lands against the view axis — it buried
+  completely and came back as the orbit continued (fires keyed at
+  elevation 0, below every land tile). Genuine occlusion is untouched:
+  a raised tile genuinely between the camera and a build still hides
+  it.
 - **Vertical building, slice 9 — NPC/monster block collision +
   standing truth** — blocks are walls for every grounded mover now:
   monsters (chase, patrol, flee, raids), worker walk steps and pets

@@ -576,6 +576,47 @@ law shapes it.
        patrol rng, both localized away from the verified region.
        Suite 621 → 638 (17 new contracts; 8 RED as assertion failures
        with verified reasons).
+     - **Vertical building, slice 10 — structure sort honesty (user
+       critique, 2026-10-12: "the structures are very sensitive to
+       yaw/pitch panning.. id like any player built structures to be
+       statically visible, the only time they should have reduced
+       visibility, is when something is actually in the way"). DONE
+       2026-10-12** (spec
+       2026-10-12-structure-sort-honesty-design.md; RED e3705b0 /
+       GREEN 79cb827): dirt bricks were sinking/burying into the ground
+       at some orbit angles and coming back — the painter's-order tie
+       with their own tile, not a geometry bug. The structure loop keyed
+       the RAW tile elevation with no standing boost while terrain quads
+       key the bilinear tile center (TileRenderer.cs:134): a brick's
+       sub-cell center sits up to ±24 px from the tile center, and at
+       the yaws where that offset lands on the far side of the view axis
+       the owning tile quad keys nearer and paints over the build.
+       Confirmed empirically before speccing (new
+       `Camera.SetOrbit(yaw, pitch?)` + `DSR_TEST_YAW`/`DSR_TEST_PITCH`
+       exact-angle staging hooks — the orbit keys can't land an exact
+       angle): brick sub(1,1) on a flat pad, yaw 45° = fully buried
+       (0 palette px at its predicted screen box), yaw 225° = fully
+       visible (1877 px); corner sub-cells bury half-way (the box pokes
+       above the tile's screen top edge). Prop-style structures buried
+       on SLOPED tiles at every yaw (raw elevation vs the stitched
+       bilinear center gap, measured −7 px), and ground fires keyed at
+       elevation 0 — below every land tile (−66 px). FIX: the entity law
+       the player/monsters already follow, extended to builds —
+       `Game.StructureSortKey` / `Game.FireSortKey` key at
+       `SortElevation` (the tile's highest corner) composed with
+       RenderBase, plus `StandingBoost()` (≥ any in-tile positional
+       deficit); `TileRenderer.TileSortKey` extracted so the tests read
+       the identical terrain formula. Genuine occlusion survives: a
+       raised tile genuinely in front wins on its elevation term
+       (pinned by test across the sin ≥ 0.5 half-sweep; the lateral
+       sliver outside that is the entity precedent's own trade — the
+       player keys with the same boost today). Pixel-verified pre/post:
+       bury yaw 45° — PRE 0 px (absent), POST 1865 px at the predicted
+       position; mirror yaw 225° — identical pre/post (1877 px, same
+       bbox), a clean no-op where the order already favored the brick.
+       Suite 638 → 643 (5 contracts: 3 RED with exact predicted
+       magnitudes — −11.31 px = 8·√2 offset, −7 stitch gap, −66
+       elevation-0 gap — plus 2 both-states pins).
      - **Progression accounting (user playtest finding, 2026-10-09).** The
       fishing rod is entry-tier by design but hangs on a deadlock:
        rod → planks → `goblin_diplomacy` (goblin CHIEF's quest, not
