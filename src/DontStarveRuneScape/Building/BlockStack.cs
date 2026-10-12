@@ -140,6 +140,18 @@ public static class BlockStack
         return true;
     }
 
+    /// <summary>Grounded-mover step gate (slice 9): applies whichever axis
+    /// components of the desired step clear CanStep(airborne: false) — a
+    /// blocked axis slides along the wall (the player's per-axis law),
+    /// descents stay free, pure-terrain ascents stay legacy-free. Returns
+    /// the applied (dx, dy).</summary>
+    public static (float Dx, float Dy) GroundedSlide(TileMap world,
+        BuildingSystem? buildings, float fromX, float fromY, float dx, float dy)
+    {
+        // RED stub: today's walk-through behaviour preserved.
+        return (dx, dy);
+    }
+
     /// <summary>Elevation a structure sprite draws at: blocks float at their
     /// top height; everything else draws at tile elevation as before.
     /// Construction sites sit on the ground until built.</summary>

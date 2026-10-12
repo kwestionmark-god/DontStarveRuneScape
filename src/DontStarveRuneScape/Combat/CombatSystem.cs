@@ -25,7 +25,8 @@ public sealed class CombatSystem
     private float _playerAttackCooldown;
     private bool _pendingPlayerDeath;
 
-    public void Tick(float dt, Player? player = null, NPC.NPCSystem? npcSystem = null)
+    public void Tick(float dt, Player? player = null, NPC.NPCSystem? npcSystem = null,
+        World.TileMap? world = null, Building.BuildingSystem? buildings = null)
     {
         if (_playerAttackCooldown > 0) _playerAttackCooldown = MathF.Max(0f, _playerAttackCooldown - dt);
         UpdateRespawns(dt, player);
@@ -444,7 +445,8 @@ public sealed class CombatSystem
         }
     }
 
-    private static void MoveToward(Monster m, float targetX, float targetY, float dt)
+    private static void MoveToward(Monster m, float targetX, float targetY, float dt,
+        World.TileMap? world = null, Building.BuildingSystem? buildings = null)
     {
         float dx = targetX - m.WorldX;
         float dy = targetY - m.WorldY;
@@ -454,7 +456,8 @@ public sealed class CombatSystem
         m.WorldY += dy / length * m.Speed * dt;
     }
 
-    private static void MoveAway(Monster m, float fromX, float fromY, float dt)
+    private static void MoveAway(Monster m, float fromX, float fromY, float dt,
+        World.TileMap? world = null, Building.BuildingSystem? buildings = null)
     {
         float dx = m.WorldX - fromX;
         float dy = m.WorldY - fromY;

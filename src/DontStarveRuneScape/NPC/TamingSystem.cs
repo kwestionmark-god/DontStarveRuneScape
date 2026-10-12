@@ -141,7 +141,8 @@ public sealed class TamingSystem
 
     /// <summary>Follower tick: close on the player at walk speed with the
     /// same 14-tile drop-off / 7-tile resume contract as CompanionBehavior.</summary>
-    public void Tick(float dt, RecruitNpc pet)
+    public void Tick(float dt, RecruitNpc pet,
+        World.TileMap? world = null, Building.BuildingSystem? buildings = null)
     {
         if (pet.IsColonyAssigned) return; // colony pets tick via TickColonyGuard
         float dx = PlayerX - pet.WorldX, dy = PlayerY - pet.WorldY;
@@ -202,7 +203,8 @@ public sealed class TamingSystem
     /// <summary>Colony-assigned pet tick: engage the nearest live hostile
     /// inside GuardRadius of the pet's post; otherwise hold position
     /// (wander is cosmetic and deferred).</summary>
-    public void TickColonyGuard(float dt, RecruitNpc pet, CombatSystem combat)
+    public void TickColonyGuard(float dt, RecruitNpc pet, CombatSystem combat,
+        World.TileMap? world = null, Building.BuildingSystem? buildings = null)
     {
         Monster? nearest = null;
         float bestSq = float.MaxValue;
