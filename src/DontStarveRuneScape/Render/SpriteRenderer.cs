@@ -277,6 +277,25 @@ public sealed class SpriteRenderer : IDisposable
             ? structure.StructureDef.StackHeight / ElevPerWorldPx
             : 32f;
 
+    /// <summary>Block voxel faces (slice 5, spec
+    /// docs/superpowers/specs/2026-10-11-block-voxel-render-design.md): a
+    /// block is a world-space box — tile footprint × [base, base+stack]
+    /// elevations — drawn as a top face plus the camera-facing side faces,
+    /// each textured with the sprite as surface area. A side face is culled
+    /// where a neighbour column reaches it (stitching: joined blocks share
+    /// top edges, interiors vanish); each surviving face is the exposed
+    /// strip from max(base, neighbourTop) to the top. Faces are tagged
+    /// Plane: 0=E(+X), 1=S(+Y), 2=W(−X), 3=N(−Y), 4=Top, depth-sorted
+    /// back-to-front. Returns the face count written.</summary>
+    internal static int BuildBlockVoxel(Camera camera, int tx, int ty,
+        float baseElev, float stackHeight,
+        float northTop, float eastTop, float southTop, float westTop,
+        BillQuad[] faces)
+    {
+        // RED stub — the real construction lands GREEN.
+        return 0;
+    }
+
     /// <summary>Structure crossed-billboard geometry (slice 4): the same
     /// world-anchored paper-doll resources use — base edge planted at
     /// groundElev, both half-planes of a fixed world facing — so structures
