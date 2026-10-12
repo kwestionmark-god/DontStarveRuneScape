@@ -283,6 +283,15 @@ public sealed class BuildingSystem
         return removed;
     }
 
+    /// <summary>Chip a built structure (slice 11: wall-attacking monsters).
+    /// Health -= amount; at zero the structure is removed with the live
+    /// occupancy recompute. Returns true when destroyed.</summary>
+    public bool DamageStructure(Structure structure, int amount, TileMap? world = null)
+    {
+        // RED stub: nothing damages structures today.
+        return false;
+    }
+
     /// <summary>
     /// Enqueue an in-place upgrade of a built structure to its declared
     /// successor tier. Validates the successor against the def's upgrades_to
