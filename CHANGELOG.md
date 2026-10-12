@@ -8,6 +8,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Vertical building, slice 4 — grounded world-plane structures** —
+  structures no longer draw as flat quads center-anchored to the camera's
+  yaw (which made them float and billboard): every sprite structure now
+  renders on the same world-anchored crossed planes as resources and
+  characters — base edge planted on the ground line, fixed world facing,
+  planes' extents visibly flipping as the camera orbits. Blocks stand at
+  their cumulative column base (new `BlockStack.RenderBase` seam; a
+  stacked column reads as one contiguous stack, `stack_height` × 12.8
+  world px tall) and fences face along their connection axis, drawing
+  plank-brown rails toward each connected neighbor (Minecraft-fashion,
+  from the slice-3 `ConnectionMask`). woven_shelter keeps its hand-tuned
+  procedural look but plants on the ground; construction sites keep the
+  blueprint tint and the screen-space progress bar. New smoketest hook
+  `DSR_TEST_STRUCTURE=id:tx:ty` for staged render captures.
+
+### Added
 - **Vertical building, slice 3 — stacking columns + fence connections** —
   blocks now STACK: targeting a tile holding only your own block structures
   piles the next block on top (non-block occupancy refusal is bit-identical),

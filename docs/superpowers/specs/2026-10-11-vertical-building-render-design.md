@@ -1,8 +1,10 @@
 # Vertical Building Slice 4 — Grounded World-Plane Structures — Design
 
 Date: 2026-10-11
-Status: draft (defaults chosen from clarify-round recommendations — round
-timed out with the user away; defaults are flagged in Design and are vetoable)
+Status: implemented 2026-10-11 (spec 560f44f / RED c6794eb / GREEN a67d2f4)
+(defaults from the timed-out clarify round shipped: all sprite structures,
+full column bases, procedural fence rails this slice — user flagged the
+floating/yaw-fixed render before the round; the fix targets exactly that)
 Slice: Vertical building slice 4 (closes the arc; follows stacking-slice
 b4fc9b7/462248b; seam map: references/vertical-building-seams.md)
 Design law: a structure stands IN the world — its base edge plants on the

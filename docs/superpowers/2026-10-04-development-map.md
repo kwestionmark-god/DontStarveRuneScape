@@ -412,10 +412,27 @@ law shapes it.
        N/E/S/W fence-link seam (sites aren't solid); `RenderTop` is now
        cumulative and the Game.cs render site reads it; columns persist
        via the existing BuildingSnapshot. Suite 564 → 581.
-       Remaining: (4) renderer polish (pixel-diff verification of lifted
-       blocks + player standing sprites; fence sprite variants consuming
-       the connection mask; camera focus on block tops). Slice-2
-       follow-up still parked: NPC standing on block tops.
+       **Slice 4 DONE 2026-10-11** (spec
+       2026-10-11-vertical-building-render-design.md; RED c6794eb /
+       GREEN a67d2f4; user pivot: structures were 2D, yaw-fixed,
+       floating): `RenderStructure` now draws world-anchored CROSSED
+       PLANES (same paper-doll as resources: base planted on the ground
+       line, deterministic world facing — blocks instead face their
+       `FenceFacingDir` connection axis from `ConnectionMask`).
+       `BlockStack.RenderBase` is the cumulative column-base seam
+       (RenderTop delegates: base + own stack); the Game call site
+       passes the BASE, not the top — no more float. Blocks draw
+       `StructureHeightWorld` = stack_height × 12.8 world px, so a
+       column reads as one contiguous stack. Fences draw plank-brown
+       rails (`FenceRails` center→edge-midpoint per masked bit) toward
+       neighbors. Pixel pass: rails VERIFIED connected-vs-not
+       (1128 vs 132 brown px in the same-camera strip; extent covers
+       the neighbor edge), grounding/height pinned by projection-exact
+       unit tests (base corners ≤0.6 px off the ground line at 5 yaws,
+       extents flip with yaw). New hook `DSR_TEST_STRUCTURE=id:tx:ty`.
+       Suite 581 → 595.
+       **Vertical-building arc CLOSED — slices 1-4 done.** Parked
+       follow-up: NPC standing on block tops.
      - **Progression accounting (user playtest finding, 2026-10-09).**
        The fishing rod is entry-tier by design but hangs on a deadlock:
        rod → planks → `goblin_diplomacy` (goblin CHIEF's quest, not
