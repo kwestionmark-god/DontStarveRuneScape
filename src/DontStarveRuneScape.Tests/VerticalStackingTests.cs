@@ -298,10 +298,14 @@ public class VerticalStackingTests
 
         // Direct seam: grounded into the column sub-cell is a wall.
         Assert.False(BlockStack.CanStep(h.World, h.Buildings,
-            SubCenter(4, 1), SubCenter(4, 2), SubCenter(4, 1), SubCenter(4, 2), false));
+            SubCenter(4, 1), SubCenter(4, 2),  // from: the open sub-cell (1,2)
+            SubCenter(4, 2), SubCenter(4, 2),  // to: the column sub-cell (2,2)
+            false));
         // Airborne: 1.25 <= BlockClimbCap — the hop lands.
         Assert.True(BlockStack.CanStep(h.World, h.Buildings,
-            SubCenter(4, 1), SubCenter(4, 2), SubCenter(4, 1), SubCenter(4, 2), true));
+            SubCenter(4, 1), SubCenter(4, 2),
+            SubCenter(4, 2), SubCenter(4, 2),
+            true));
 
         // Player-level: walking into the column's left edge stops there.
         var p = PlayerAt(SubCenter(4, 0), SubCenter(4, 2));
@@ -319,7 +323,9 @@ public class VerticalStackingTests
         Assert.True(h.PlaceBrick(4, 4, 2, 2).Success); // 2.5 > BlockClimbCap
 
         Assert.False(BlockStack.CanStep(h.World, h.Buildings,
-            SubCenter(4, 1), SubCenter(4, 2), SubCenter(4, 1), SubCenter(4, 2), true));
+            SubCenter(4, 1), SubCenter(4, 2),
+            SubCenter(4, 2), SubCenter(4, 2),
+            true));
     }
 
     [Fact]
@@ -440,12 +446,13 @@ public class VerticalStackingTests
         Assert.Equal(tileElev + 2.5f,
             BlockStack.RenderTop(h.World, h.Buildings, column[1], tileElev));
 
-        // The stored Layer makes the draw base list-order-independent.
+        // The stored Layer makes the draw base list-order-independent:
+        // shuffling Structures changes nothing for the same structure.
         h.Buildings.Structures.Reverse();
         Assert.Equal(tileElev,
-            BlockStack.RenderBase(h.World, h.Buildings, column[1], tileElev));
-        Assert.Equal(tileElev + 1.25f,
             BlockStack.RenderBase(h.World, h.Buildings, column[0], tileElev));
+        Assert.Equal(tileElev + 1.25f,
+            BlockStack.RenderBase(h.World, h.Buildings, column[1], tileElev));
     }
 
     [Fact]

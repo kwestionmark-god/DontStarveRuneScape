@@ -167,7 +167,9 @@ public class VerticalLandingTests
     {
         var h = new Harness();
         h.BuildBrickColumnAt(4, 4, 2, 2, bricks: 1); // 1.25 <= 2.05: a hop
-        var p = PlayerAt(3.9f * 64, Harness.SubCenter(4, 2));
+        // Start inside the tile's open sub-cells (276 + 37.5 = 313.5 — one
+        // tick clears the column's 288-304 span).
+        var p = PlayerAt(4f * 64 + 20f, Harness.SubCenter(4, 2));
 
         Assert.True(p.TryJump()); // stamina full; starts the hop
         p.ApplyKeyInput(WalkRight, 0.25f, 0f, h.World, h.Buildings);
@@ -181,7 +183,7 @@ public class VerticalLandingTests
     {
         var h = new Harness();
         h.BuildBrickColumnAt(4, 4, 2, 2, bricks: 4); // 5.0 > BlockClimbCap
-        var p = PlayerAt(3.9f * 64, Harness.SubCenter(4, 2));
+        var p = PlayerAt(4f * 64 + 20f, Harness.SubCenter(4, 2));
 
         Assert.True(p.TryJump());
         p.ApplyKeyInput(WalkRight, 0.25f, 0f, h.World, h.Buildings);

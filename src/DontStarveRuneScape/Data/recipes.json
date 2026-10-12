@@ -25,6 +25,32 @@
       "required_level": 1
     },
     {
+      "recipe_id": "craft_dirt_brick",
+      "name": "Make Dirt Brick",
+      "input_items": [
+        [
+          "stone",
+          2
+        ],
+        [
+          "stick",
+          1
+        ]
+      ],
+      "output_item": "dirt_brick",
+      "output_quantity": 1,
+      "xp_reward": 3.0,
+      "processing_chain": "building_chain",
+      "tier": 1,
+      "requires_campfire": false,
+      "requires_structure": "",
+      "skill": null,
+      "season": "all",
+      "skill_affects_yield": null,
+      "required_skill": "crafting",
+      "required_level": 1
+    },
+    {
       "recipe_id": "whittle_sap",
       "name": "Tap Sap",
       "input_items": [

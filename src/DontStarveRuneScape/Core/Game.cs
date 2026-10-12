@@ -154,6 +154,8 @@ public sealed class Game
     public bool BuildMode { get; set; }
     public string? BuildingPendingId { get; set; }
     public (int X, int Y)? BuildCursor { get; set; }
+    /// <summary>Hovered 16px brick sub-cell within the cursor tile (slice 7a).</summary>
+    public (int X, int Y)? BuildSubCursor { get; set; }
 
     // Character selection
     public SurvCharDef? PendingCharacterDef { get; set; }
@@ -594,19 +596,32 @@ public sealed class Game
 
         var input = InputManager.InputState;
 
-        // Hovered tile from the mouse position (approximate, ignoring elevation).
+        // Hovered tile + brick sub-cell from the mouse position (approximate,
+        // ignoring elevation).
         var (wx, wy) = Camera.ScreenToWorld(input.MouseX, input.MouseY);
         int tx = (int)(wx / Constants.TileSize);
         int ty = (int)(wy / Constants.TileSize);
+        int subX = (int)(wx / Constants.BrickCellSize) % Constants.BrickSubCells;
+        int subY = (int)(wy / Constants.BrickCellSize) % Constants.BrickSubCells;
         BuildCursor = (tx, ty);
+        BuildSubCursor = (subX, subY);
 
         if (!input.MouseLeftClick) return;
 
-        var (success, message) = BuildingSystem.PlaceStructure(
-            BuildingPendingId, tx, ty, World, Inventory, SkillManager, ColonySystem, Firemaking);
+        // Bricks place at the hovered sub-cell; fences and everything else
+        // keep the tile-level call.
+        var pendingDef = BuildingSystem.Registry?.GetStructure(BuildingPendingId);
+        bool brick = pendingDef?.IsBlock == true && BuildingPendingId != "fence_block";
+        var (success, message) = brick
+            ? BuildingSystem.PlaceStructure(BuildingPendingId, tx, ty, subX, subY,
+                World, Inventory, SkillManager, ColonySystem, Firemaking)
+            : BuildingSystem.PlaceStructure(BuildingPendingId, tx, ty,
+                World, Inventory, SkillManager, ColonySystem, Firemaking);
         var tint = success ? ((byte)100, (byte)255, (byte)100) : ((byte)255, (byte)100, (byte)100);
         Player?.ActionSystem?.AddNotification(message, tint);
-        if (success)
+        // Bricks keep build mode open (place many, Esc/Q closes); every
+        // other def keeps the place-once-and-exit contract.
+        if (success && !brick)
             CancelPlacement();
     }
 
@@ -615,6 +630,7 @@ public sealed class Game
         BuildMode = false;
         BuildingPendingId = null;
         BuildCursor = null;
+        BuildSubCursor = null;
     }
 
     /// <summary>
@@ -1878,10 +1894,11 @@ public sealed class Game
                 // the same value the camera focus anchors to.
                 float fx = Player.WorldX / Constants.TileSize - ptx;
                 float fy = Player.WorldY / Constants.TileSize - pty;
-                // Vertical building: standing on a block top lifts the body
-                // (and boots) by the tile's built block height.
+                // Vertical building: standing on a brick column top lifts
+                // the body (and boots) by the sub-cell's built height.
                 float blockLift = ptx >= 0 && pty >= 0
-                    ? BlockStack.BlockHeightAt(World, BuildingSystem, ptx, pty)
+                    ? BlockStack.SubHeightAt(World, BuildingSystem, ptx, pty,
+                        BlockStack.SubCellOf(Player.WorldX), BlockStack.SubCellOf(Player.WorldY))
                     : 0f;
                 float elev = (tile?.GetElevationAt(fx, fy) ?? 0f) + blockLift;
                 // Per-foot elevation sampler so the directional boot sprites
@@ -1894,7 +1911,9 @@ public sealed class Game
                     if (t == null) return 0f;
                     float lfx = Math.Clamp(wx / Constants.TileSize - tx, 0f, 1f);
                     float lfy = Math.Clamp(wy / Constants.TileSize - ty, 0f, 1f);
-                    return t.GetElevationAt(lfx, lfy) + BlockStack.BlockHeightAt(World, BuildingSystem, tx, ty);
+                    return t.GetElevationAt(lfx, lfy) + BlockStack.SubHeightAt(
+                        World, BuildingSystem, tx, ty,
+                        BlockStack.SubCellOf(wx), BlockStack.SubCellOf(wy));
                 };
                 // Submergible: below the sea plane the player sinks with depth
                 // (ankle-deep at the shore, swimming in open water).

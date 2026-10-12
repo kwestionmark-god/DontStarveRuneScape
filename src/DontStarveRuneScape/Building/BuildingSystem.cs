@@ -33,13 +33,110 @@ public sealed class BuildingSystem
         // Update structure logic (fires, production, etc.)
     }
 
-    /// <summary>Sub-cell placement (slice 7a brick grid): bricks place at a
-    /// 16px sub-cell of the tile; non-block and tile-level defs ignore the
-    /// sub-cell and route to the tile-level placement unchanged.</summary>
+    /// <summary>Sub-cell placement (slice 7a brick grid): a brick def places
+    /// at a 16px sub-cell of the tile, stacking courses when the sub-cell
+    /// already holds a column. Fences and non-blocks ignore the sub-cell and
+    /// route to tile-level placement unchanged.</summary>
     public (bool Success, string Message) PlaceStructure(string structureId, int tileX, int tileY,
         int subX, int subY, TileMap world, Inv inventory, SkillManager skillManager,
         ColonySystem? colony = null, Skills.Firemaking.FiremakingSkill? firemaking = null)
-        => PlaceStructure(structureId, tileX, tileY, world, inventory, skillManager, colony, firemaking);
+    {
+        var def = Registry?.GetStructure(structureId);
+        if (def == null)
+            return (false, "Unknown structure.");
+        if (def.IsBlock && structureId != "fence_block")
+            return PlaceBrick(def, tileX, tileY, subX, subY,
+                world, inventory, skillManager, colony, firemaking);
+        return PlaceStructure(structureId, tileX, tileY, world, inventory, skillManager, colony, firemaking);
+    }
+
+    /// <summary>Brick placement: gates in the historical order (occupancy,
+    /// pad, biome, skill), then the sub-cell column, then the material
+    /// charge. Bricks bypass the colony-site flow — a 20s worker site per
+    /// 16px brick would be absurd; the colony store still chips in on
+    /// materials.</summary>
+    private (bool Success, string Message) PlaceBrick(StructureDef def, int tileX, int tileY,
+        int subX, int subY, TileMap world, Inv inventory, SkillManager skillManager,
+        ColonySystem? colony, Skills.Firemaking.FiremakingSkill? firemaking)
+    {
+        if (subX < 0 || subX >= Constants.BrickSubCells
+            || subY < 0 || subY >= Constants.BrickSubCells)
+            return (false, "Pick a spot on the brick grid.");
+
+        var tile = world.GetTile(tileX, tileY);
+        if (tile == null)
+            return (false, "Can't build there.");
+
+        // Occupancy partition: bricks coexist with blocks only.
+        var occupants = Structures.Where(s => s.IsActive && s.TileX == tileX && s.TileY == tileY).ToList();
+        if (occupants.Any(s => s.StructureDef?.IsBlock != true))
+            return (false, "That tile already has a structure.");
+
+        // Blocks are ground with vertical extent: flat pad + dry land (the
+        // same tile-level truth the old mounds gated on).
+        if (tile.HasWater)
+            return (false, "Can't build a block in water.");
+        var corners = tile.CornerElevations;
+        if (corners is { Length: 4 })
+        {
+            float spread = corners.Max() - corners.Min();
+            if (spread > Constants.FlatPadMaxSpread)
+                return (false, "Needs flat ground — level this tile with a shovel.");
+        }
+
+        if (tile.Biome != null && def.BiomeCompatibility.Length > 0 &&
+            !def.BiomeCompatibility.Contains(tile.Biome.Id))
+            return (false, $"A {def.Name} can't be built on {tile.Biome.Id}.");
+
+        if (skillManager.GetSkillLevel("construction") < def.RequiresSkillLevel)
+            return (false, $"Requires construction level {def.RequiresSkillLevel}.");
+
+        // The sub-cell column: repeated placement stacks courses.
+        int layer = occupants.Count(s => s.SubX == subX && s.SubY == subY);
+        if ((layer + 1) * def.StackHeight > Constants.BlockColumnMaxHeight)
+            return (false, "This block column is already at full height.");
+
+        // Materials: all-or-nothing, inventory first then the colony store.
+        foreach (var material in def.Materials)
+        {
+            int available = inventory.GetItemQuantity(material.ItemId)
+                + (colony?.GetItemQuantity(material.ItemId) ?? 0);
+            if (available < material.Quantity)
+                return (false, $"Missing materials: needs {material.Quantity} {material.ItemId}.");
+        }
+        foreach (var material in def.Materials)
+        {
+            int fromInventory = Math.Min(inventory.GetItemQuantity(material.ItemId), material.Quantity);
+            if (fromInventory > 0) inventory.RemoveItem(material.ItemId, fromInventory);
+            int fromColony = material.Quantity - fromInventory;
+            if (fromColony > 0 && colony?.RemoveItem(material.ItemId, fromColony) != true)
+                throw new InvalidOperationException("Construction material storage changed during placement.");
+        }
+
+        var placed = new Structure
+        {
+            StructureId = def.Id,
+            StructureDef = def,
+            TileX = tileX,
+            TileY = tileY,
+            SubX = subX,
+            SubY = subY,
+            Layer = layer,
+            WorldX = tileX * Constants.TileSize + subX * Constants.BrickCellSize + Constants.BrickCellSize / 2f,
+            WorldY = tileY * Constants.TileSize + subY * Constants.BrickCellSize + Constants.BrickCellSize / 2f,
+            Health = (int)def.Hp,
+            MaxHealth = (int)def.Hp,
+        };
+        Structures.Add(placed);
+        if (def.OccupiesTile)
+            tile.Structure = def;
+
+        // The player laid the brick with their own hands: same placement
+        // XP as every other structure build.
+        skillManager.AddXp("construction", 10f);
+
+        return (true, $"Built {def.Name}.");
+    }
 
     /// <summary>Place a structure or found a colony construction site at the given tile: biome gate, skill gate,
     /// material gate (all-or-nothing consume), then add to the world. When firemaking is provided and the def
@@ -51,6 +148,11 @@ public sealed class BuildingSystem
         var def = Registry?.GetStructure(structureId);
         if (def == null)
             return (false, "Unknown structure.");
+        // Bricks place per sub-cell only (slice 7a): a tile-level call has
+        // no idea which of the 16 cells the player means. Fences stay
+        // tile-level.
+        if (def.IsBlock && structureId != "fence_block")
+            return (false, "Pick a spot on the brick grid.");
 
         var tile = world.GetTile(tileX, tileY);
         if (tile == null)
@@ -64,7 +166,9 @@ public sealed class BuildingSystem
             var occupants = Structures.Where(s => s.IsActive && s.TileX == tileX && s.TileY == tileY).ToList();
             if (!def.IsBlock || occupants.Any(s => s.StructureDef?.IsBlock != true))
                 return (false, "That tile already has a structure.");
-            float column = occupants.Sum(s => s.StructureDef!.StackHeight);
+            // Tile-level budget counts only tile-level blocks (fences) —
+            // brick columns budget per sub-cell in PlaceBrick.
+            float column = occupants.Where(s => s.SubX < 0).Sum(s => s.StructureDef!.StackHeight);
             if (column + def.StackHeight > Constants.BlockColumnMaxHeight)
                 return (false, "This block column is already at full height.");
         }
@@ -259,6 +363,40 @@ public sealed class BuildingSystem
             var structureDef = Registry?.GetStructure(s.StructureId);
             if (structureDef == null) continue;
 
+            // Slice 7a migration: a pre-brick tile-level mound materializes
+            // as a full 4x4 x 2-course brick block — same tile footprint,
+            // same wall read (two courses = 2.5 units vs. the old 2.0).
+            // Legacy sites fall through to the plain restore below (they
+            // are not solid, so they never wall anybody in).
+            if (structureDef.IsBlock && s.StructureId != "fence_block"
+                && s.SubX < 0 && !s.IsUnderConstruction)
+            {
+                for (int bx = 0; bx < Constants.BrickSubCells; bx++)
+                    for (int by = 0; by < Constants.BrickSubCells; by++)
+                        for (int layer = 0; layer < 2; layer++)
+                            Structures.Add(new Structure
+                            {
+                                StructureId = s.StructureId,
+                                StructureDef = structureDef,
+                                TileX = s.TileX,
+                                TileY = s.TileY,
+                                SubX = bx,
+                                SubY = by,
+                                Layer = layer,
+                                WorldX = s.TileX * Constants.TileSize + bx * Constants.BrickCellSize + Constants.BrickCellSize / 2f,
+                                WorldY = s.TileY * Constants.TileSize + by * Constants.BrickCellSize + Constants.BrickCellSize / 2f,
+                                Health = s.Hp > 0 ? (int)s.Hp : (int)structureDef.Hp,
+                                MaxHealth = (int)structureDef.Hp,
+                                IsActive = true,
+                            });
+                if (structureDef.OccupiesTile)
+                {
+                    var mtile = world.GetTile(s.TileX, s.TileY);
+                    if (mtile != null) mtile.Structure = structureDef;
+                }
+                continue;
+            }
+
             Structures.Add(new Structure
             {
                 StructureId = s.StructureId,
@@ -268,8 +406,12 @@ public sealed class BuildingSystem
                 SubX = s.SubX,
                 SubY = s.SubY,
                 Layer = s.Layer,
-                WorldX = s.TileX * Constants.TileSize + Constants.TileSize / 2f,
-                WorldY = s.TileY * Constants.TileSize + Constants.TileSize / 2f,
+                WorldX = s.TileX * Constants.TileSize
+                    + (s.SubX < 0 ? Constants.TileSize / 2f
+                                  : s.SubX * Constants.BrickCellSize + Constants.BrickCellSize / 2f),
+                WorldY = s.TileY * Constants.TileSize
+                    + (s.SubY < 0 ? Constants.TileSize / 2f
+                                  : s.SubY * Constants.BrickCellSize + Constants.BrickCellSize / 2f),
                 Health = s.Hp > 0 ? (int)s.Hp : (int)structureDef.Hp,
                 MaxHealth = (int)structureDef.Hp,
                 IsActive = true,

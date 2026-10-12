@@ -153,8 +153,10 @@ public static class Constants
     public const float FishingCastSeconds = 3.0f;
     public const float FlatPadMaxSpread = 0.01f;      // Block-def placement: corner spread must be ≤ this
     public const float FlattenSeconds = 3.0f;         // Shovel timed action duration
-    public const float BlockClimbCap = 2.05f;         // Max block-top levels a jump hop can climb (2 = one mound)
-    public const float BlockColumnMaxHeight = 4f;     // Max summed stack_height per tile (two mounds = first true wall)
+    public const float BlockClimbCap = 2.05f;         // Max block-top levels a jump hop can climb (one brick = 1.25, a hop)
+    public const float BlockColumnMaxHeight = 5f;     // Max column top per sub-cell (4 bricks x 1.25 = a 64px wall)
+    public const int BrickSubCells = 4;                // 4x4 sub-cells per tile
+    public const int BrickCellSize = 16;              // world px per sub-cell — 1:1 with the 16px brick sprite
 
     // Tier-2 rod (bone): a faster cast is the upgrade — same spot, less
     // wait. Tier buys speed, not yield (yield is the bait economy's knob).

@@ -13,8 +13,43 @@ using DontStarveRuneScape.World;
 /// </summary>
 public static class BlockStack
 {
-    /// <summary>Total block lift on a tile (summed stack heights of active,
-    /// completed block structures). Sites under construction are not solid.</summary>
+    /// <summary>Resolve a world-px coordinate to its 16px brick sub-cell
+    /// index (0-3) within the tile.</summary>
+    public static int SubCellOf(float worldPx)
+        => (int)(worldPx / Config.Constants.BrickCellSize) % Config.Constants.BrickSubCells;
+
+    /// <summary>Standing lift of one 16px sub-cell (slice 7a): the brick
+    /// column top at that sub-cell — (Layer+1) courses — floored by any
+    /// tile-level block lift (a fence applies tile-wide). Sites under
+    /// construction are not solid.</summary>
+    public static float SubHeightAt(TileMap world, BuildingSystem? buildings,
+        int tx, int ty, int subX, int subY)
+    {
+        if (buildings == null) return 0f;
+        float height = 0f;
+        foreach (var s in buildings.Structures)
+        {
+            if (!s.IsActive || s.IsUnderConstruction
+                || s.StructureDef?.IsBlock != true
+                || s.TileX != tx || s.TileY != ty)
+                continue;
+            if (s.SubX >= 0)
+            {
+                if (s.SubX == subX && s.SubY == subY)
+                    height = MathF.Max(height, (s.Layer + 1) * s.StructureDef.StackHeight);
+            }
+            else
+            {
+                // Tile-level block (fence): applies to the whole tile.
+                height = MathF.Max(height, s.StructureDef.StackHeight);
+            }
+        }
+        return height;
+    }
+
+    /// <summary>Total block lift on a tile: the MAX over its sub-cell columns
+    /// and tile-level blocks — never a sum (side-by-side bricks do not stack
+    /// lift). Fence connections and tile-level readers use this.</summary>
     public static float BlockHeightAt(TileMap world, BuildingSystem? buildings, int tx, int ty)
     {
         if (buildings == null) return 0f;
@@ -24,54 +59,71 @@ public static class BlockStack
             if (s.IsActive && !s.IsUnderConstruction
                 && s.StructureDef?.IsBlock == true
                 && s.TileX == tx && s.TileY == ty)
-                height += s.StructureDef.StackHeight;
+            {
+                float lift = s.SubX >= 0
+                    ? (s.Layer + 1) * s.StructureDef.StackHeight
+                    : s.StructureDef.StackHeight;
+                height = MathF.Max(height, lift);
+            }
         }
         return height;
     }
 
-    /// <summary>Standing lift of one 16px sub-cell (slice 7a): the brick
-    /// column top at that sub-cell, floored by any tile-level block lift
-    /// (a fence applies tile-wide). RED stub: delegates to the per-tile
-    /// query until the granulation lands.</summary>
-    public static float SubHeightAt(TileMap world, BuildingSystem? buildings,
-        int tx, int ty, int subX, int subY)
-        => BlockHeightAt(world, buildings, tx, ty);
-
     /// <summary>Where an entity at (worldX, worldY) effectively stands:
-    /// terrain center elevation + the tile's block lift.</summary>
+    /// terrain center elevation + the lift of the 16px sub-cell under it.</summary>
     public static float StandingElevationAt(TileMap world, BuildingSystem? buildings, float worldX, float worldY)
     {
         var tile = world.GetTileAtWorld(worldX, worldY);
         if (tile == null) return 0f;
-        return tile.Elevation + BlockHeightAt(world, buildings, (int)(worldX / Config.Constants.TileSize), (int)(worldY / Config.Constants.TileSize));
+        return tile.Elevation + SubHeightAt(world, buildings,
+            (int)(worldX / Config.Constants.TileSize), (int)(worldY / Config.Constants.TileSize),
+            SubCellOf(worldX), SubCellOf(worldY));
     }
 
     /// <summary>Movement rule: descents/flats always allowed; a block ascent
-    /// (destination holds more stacked height than the source) is a wall
-    /// unless the mover is airborne and the top delta fits the climb cap.
-    /// Pure-terrain ascents stay legacy-free.</summary>
+    /// (a swept sub-cell holds more lift than the source) is a wall unless
+    /// the mover is airborne and the top delta fits the climb cap.
+    /// Pure-terrain ascents stay legacy-free. The swept span is sampled at
+    /// 8px steps — a 37.5px tick crosses several 16px sub-cells, and a thin
+    /// brick column must not be stepped over between ticks.</summary>
     public static bool CanStep(TileMap world, BuildingSystem? buildings,
         float fromX, float fromY, float toX, float toY, bool airborne)
     {
         float ts = Config.Constants.TileSize;
         int fromTx = (int)(fromX / ts), fromTy = (int)(fromY / ts);
         int toTx = (int)(toX / ts), toTy = (int)(toY / ts);
-        if (fromTx == toTx && fromTy == toTy) return true;
+        if (fromTx == toTx && fromTy == toTy
+            && SubCellOf(fromX) == SubCellOf(toX) && SubCellOf(fromY) == SubCellOf(toY))
+            return true;
 
         var fromTile = world.GetTile(fromTx, fromTy);
-        var toTile = world.GetTile(toTx, toTy);
-        if (fromTile == null || toTile == null) return true; // edge of map: legacy (bounds clamp handles)
+        if (fromTile == null) return true; // edge of map: legacy (bounds clamp handles)
 
-        float fromBlocks = BlockHeightAt(world, buildings, fromTx, fromTy);
-        float toBlocks = BlockHeightAt(world, buildings, toTx, toTy);
-        float fromTop = fromTile.Elevation + fromBlocks;
-        float toTop = toTile.Elevation + toBlocks;
+        float fromLift = SubHeightAt(world, buildings, fromTx, fromTy,
+            SubCellOf(fromX), SubCellOf(fromY));
+        float fromTop = fromTile.Elevation + fromLift;
 
-        if (toTop <= fromTop) return true;   // descents and flats: always free
-        if (toBlocks <= fromBlocks) return true; // pure-terrain ascent: legacy freedom
+        float dx = toX - fromX, dy = toY - fromY;
+        float span = MathF.Max(MathF.Abs(dx), MathF.Abs(dy));
+        int steps = (int)(span / 8f) + 1;
+        for (int i = 1; i <= steps; i++)
+        {
+            float t = i / (float)steps;
+            float sx = fromX + dx * t, sy = fromY + dy * t;
+            int stx = (int)(sx / ts), sty = (int)(sy / ts);
+            var sTile = world.GetTile(stx, sty);
+            if (sTile == null) continue; // edge of map: legacy
 
-        // Block ascent: a wall on foot; a hop within the cap airborne.
-        return airborne && (toTop - fromTop) <= Config.Constants.BlockClimbCap;
+            float sLift = SubHeightAt(world, buildings, stx, sty, SubCellOf(sx), SubCellOf(sy));
+            float sTop = sTile.Elevation + sLift;
+            if (sTop <= fromTop) continue;          // descents and flats: always free
+            if (sLift <= fromLift) continue;        // pure-terrain ascent: legacy freedom
+
+            // Block ascent: a wall on foot; a hop within the cap airborne.
+            if (airborne && sTop - fromTop <= Config.Constants.BlockClimbCap) continue;
+            return false;
+        }
+        return true;
     }
 
     /// <summary>Elevation a structure sprite draws at: blocks float at their
@@ -104,24 +156,17 @@ public static class BlockStack
         return mask;
     }
 
-    /// <summary>Cumulative column BASE for a stacked block (slice 4): tile
-    /// elevation + summed stack heights of the built, active blocks placed
-    /// BEFORE this one on the tile (column order = placement order).
-    /// Non-blocks and sites sit at ground height.</summary>
+    /// <summary>Cumulative render base (slice 7a): a brick draws at its
+    /// stored course — tile elevation + Layer x stack_height — which makes
+    /// the draw order-independent. Tile-level blocks (fences) and
+    /// everything else plant on the ground.</summary>
     public static float RenderBase(TileMap world, BuildingSystem? buildings, Structure structure, float tileElevation)
     {
-        if (structure.StructureDef?.IsBlock != true || structure.IsUnderConstruction || buildings == null)
+        if (structure.StructureDef?.IsBlock != true || structure.IsUnderConstruction)
             return tileElevation;
-        float below = 0f;
-        foreach (var s in buildings.Structures)
-        {
-            if (ReferenceEquals(s, structure)) break; // column order = list order
-            if (s.IsActive && !s.IsUnderConstruction
-                && s.StructureDef?.IsBlock == true
-                && s.TileX == structure.TileX && s.TileY == structure.TileY)
-                below += s.StructureDef.StackHeight;
-        }
-        return tileElevation + below;
+        return structure.SubX >= 0
+            ? tileElevation + structure.Layer * structure.StructureDef.StackHeight
+            : tileElevation;
     }
 
     /// <summary>Axis facing for a block from its connection mask: E|W → the

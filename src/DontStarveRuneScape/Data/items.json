@@ -239,6 +239,15 @@
       "sprite_key": "items/stone"
     },
     {
+      "id": "dirt_brick",
+      "name": "Dirt Brick",
+      "stack_size": 64,
+      "is_equippable": false,
+      "is_essential_tool": false,
+      "is_food": false,
+      "sprite_key": "structure/stone_wall"
+    },
+    {
       "id": "gemstone",
       "name": "Gemstone",
       "stack_size": 5,
