@@ -1,7 +1,9 @@
 # Block voxel rendering (texture-as-surface + neighbour stitching)
 
 - **Date:** 2026-10-11
-- **Status:** RED
+- **Status:** IMPLEMENTED (RED 1ecd53b / GREEN 17cf450; suite 601 total /
+  600 green / 1 pre-existing skip; stitching pixel-VERIFIED via
+  DSR_TEST_STRUCTURE smoketest)
 - **Slice line:** vertical-building arc, slice 5 (follow-up after the arc's
   close — user critique of the slice-4 output: "two dirt mounds side by
   side don't JOIN; go true voxel rather than projecting a static image in

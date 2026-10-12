@@ -431,8 +431,25 @@ law shapes it.
        unit tests (base corners ≤0.6 px off the ground line at 5 yaws,
        extents flip with yaw). New hook `DSR_TEST_STRUCTURE=id:tx:ty`.
        Suite 581 → 595.
-       **Vertical-building arc CLOSED — slices 1-4 done.** Parked
-       follow-up: NPC standing on block tops.
+     - **Vertical building, slice 5 — true voxel blocks (user critique of
+       the slice-4 render, 2026-10-11: "two mounds side by side don't
+       JOIN — go true voxel, same image projected as surface area, and
+       stitch joined blocks") **DONE 2026-10-11** (spec
+       2026-10-11-block-voxel-render-design.md; RED 1ecd53b / GREEN
+       17cf450): a block now renders as a world-space BOX —
+       `SpriteRenderer.BuildBlockVoxel` builds a top face + the
+       camera-facing side faces from the tile's real world corners × its
+       column base/top elevations, all through `WorldToScreen`; the
+       sprite maps as surface area (full-UV per face) over a solid fill
+       tinted with the sprite's average opaque colour (billboard glyphs
+       carry wide transparent margins — the underlay kills the gaps).
+       STITCHING: a side face culls the span its neighbour column
+       already fills, so adjacent equal-height blocks share their top
+       edge pixel-for-pixel and render as one continuous volume;
+       shorter neighbours expose exactly the height-step strip.
+       Fences keep their crossed planes + rails (user decision).
+       Pixel-VERIFIED via DSR_TEST_STRUCTURE: two joined mounds read as
+       a single 2×1 box. Suite 601 → 601 (6 new voxel-contract tests).
      - **Progression accounting (user playtest finding, 2026-10-09).**
        The fishing rod is entry-tier by design but hangs on a deadlock:
        rod → planks → `goblin_diplomacy` (goblin CHIEF's quest, not

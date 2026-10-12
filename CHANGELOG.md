@@ -8,6 +8,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Vertical building, slice 5 — true voxel blocks with stitching** — a
+  block no longer renders as two crossed billboard planes: it is a
+  world-space box (top + camera-facing side faces projected through
+  `WorldToScreen` from the tile's real corners and column base/top
+  elevations) with the sprite mapped as surface area over a solid fill
+  tinted the sprite's average opaque colour. Neighbour-shared faces
+  cull the covered span, so joined blocks stitch into one continuous
+  volume (two mounds = a seamless 2×1 box) and height steps expose
+  exactly the uncovered strip. Fences keep crossed planes + rails.
+
+### Added
 - **Vertical building, slice 4 — grounded world-plane structures** —
   structures no longer draw as flat quads center-anchored to the camera's
   yaw (which made them float and billboard): every sprite structure now
