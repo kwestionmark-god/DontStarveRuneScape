@@ -8,6 +8,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Changed
+- **Vertical building, slice 9 — NPC/monster block collision +
+  standing truth** — blocks are walls for every grounded mover now:
+  monsters (chase, patrol, flee, raids), worker walk steps and pets
+  (follower, colony guard) refuse block ascents and slide along the
+  wall axis-wise instead of phasing through (the player's own
+  per-axis law; no NPC climbing — mounting is a jump, and grounded
+  movers can't jump). A brick column a raider can't pass is actual
+  defense now. Occupancy goes live: removing a structure recomputes
+  its tile's occupancy slot, so a removed brick frees the tile for
+  pathing instead of blocking it forever. Cave worlds no longer pair
+  with the surface building list — that pairing invented phantom
+  walls at overlapping tile coords (the player carried this latent
+  bug into caves; fixed with the same guard). Monsters, NPCs and
+  pets overlapping a brick column render standing ON it (the
+  player's lift idiom) instead of buried inside it.
 - **Vertical building, slice 8 — brick face cover** — Dirt Bricks carry
   their own authored 16x16 sprite (seeded brick courses with dark
   mortar, dirt palette, every pixel painted) instead of a

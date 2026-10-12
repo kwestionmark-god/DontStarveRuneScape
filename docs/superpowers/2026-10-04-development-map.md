@@ -528,8 +528,56 @@ law shapes it.
        (350 px changed inside the brick box at bit-identical terrain), so
        occlusion was narrowed, not disabled. Suite 616 → 621 (5 new
        contracts).
-     - **Progression accounting (user playtest finding, 2026-10-09).**
-       The fishing rod is entry-tier by design but hangs on a deadlock:
+     - **Vertical building, slice 9 — NPC/monster block collision +
+       standing truth (the parked "NPC standing on block tops" item,
+       widened to the honest scope: every grounded mover respects the
+       brick world). DONE 2026-10-12** (spec
+       2026-10-12-npc-block-collision-standing-design.md; RED f191e24 /
+       GREEN f21e294): blocks are walls for every grounded mover. New
+       pure `BlockStack.GroundedSlide` gates each axis of a step
+       (blocked axis zeroes, free axis applies — the player's own
+       per-axis law; grounded rule: any block ascent is a wall,
+       descents stay free, so nothing is ever trapped inside a column).
+       Wired at all 7 movement sites: monster chase/patrol/flee
+       (CombatSystem.Tick + UpdateMonster + UpdateWander thread
+       world/buildings — legacy callers keep today's walk-through),
+       worker path-walk + goal + guard steps (RecruitmentSystem reads a
+       tick-scoped `_groundedBuildings` set from the Tick buildings
+       param; MoveAlongPath covers wander too), pet follower +
+       colony-guard approach (TamingSystem). Occupancy truth goes LIVE:
+       `RemoveStructure(structure, world)` recomputes the tile's
+       Structure slot from remaining occupants — before, a removed
+       brick left its tile pathing-blocked forever while BlockStack
+       said empty (two truths diverged). IsCave guard at the
+       SubHeightAt/BlockHeightAt roots: the ONE surface BuildingSystem
+       never pairs with a cave map (that pairing invented phantom walls
+       at overlapping tile coords — a latent bug the player already
+       carried into caves; fixed with the same guard). Render truth:
+       the monster/NPC/pet render sites add the sub-cell lift (the
+       player's Game.cs idiom) — an entity overlapping a column
+       renders ON it and depth-sorts there; cave passes stay raw.
+       User decisions 2026-10-12 (all recommended defaults accepted):
+       any block = a wall for all grounded movers (no NPC climbing —
+       the player must JUMP to mount, grounded movers can't), blocked
+       movers axis-slide (Minecraft-zombie grind, never a dead stop),
+       monster-vs-wall damage PARKED (walls are safe until its own
+       slice; cheesing a raider behind 2 bricks works for now),
+       monsters stay beeline (no pathfinding — they pile and grind).
+       CompanionBehavior needed NO change: it already slides per-axis
+       on the CanStand tile truth, which the live-slot fix heals.
+       Pixel-verified same-camera pre/post (new
+       `DSR_TEST_MONSTER=id:tx:ty` hook, aggro-frozen for deterministic
+       captures): off-column control BIT-IDENTICAL (2415-px wolf mask,
+       centroid equal), in-column wolf sprite top edge y501 → 483 =
+       18 px up (predicted 1.25 units × 12.8 world px × sin(pitch) ×
+       1.25 zoom), brick reveal 74 → 132 px (rows y542-560 uncovered by
+       the lifted sprite), brick-only baseline identical pre/post;
+       known run-to-run noise: animated-water phase + one unseeded
+       patrol rng, both localized away from the verified region.
+       Suite 621 → 638 (17 new contracts; 8 RED as assertion failures
+       with verified reasons).
+     - **Progression accounting (user playtest finding, 2026-10-09).** The
+      fishing rod is entry-tier by design but hangs on a deadlock:
        rod → planks → `goblin_diplomacy` (goblin CHIEF's quest, not
        Shaman Kree's) → intelligence level 5 (388 XP) + commerce 3 +
        persuasion 5. Intelligence XP exists ONLY as quest rewards

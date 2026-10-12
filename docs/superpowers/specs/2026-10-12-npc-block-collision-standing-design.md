@@ -1,7 +1,9 @@
 # NPC/monster block collision + standing truth (vertical building slice 9)
 
 Date: 2026-10-12
-Status: drafted — awaiting RED
+Status: implemented — RED f191e24 / GREEN f21e294; suite 638 total /
+637 green / 1 pre-existing skip; render lift pixel-verified by a
+same-camera pre/post A/B (numbers in the dev-map slice-9 entry)
 Slice line: vertical-building post-roadmap, slice 9 (the parked
 "NPC standing on block tops" follow-up, widened to the honest scope:
 every grounded mover respects the brick world)
