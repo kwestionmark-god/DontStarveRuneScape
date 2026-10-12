@@ -1544,8 +1544,14 @@ public sealed class Game
             foreach (var entry in structHook.Split(',', StringSplitOptions.TrimEntries))
             {
                 var parts = entry.Split(':', StringSplitOptions.TrimEntries);
-                if (parts.Length != 3) continue;
+                if (parts.Length != 3 && parts.Length != 5) continue;
                 if (!int.TryParse(parts[1], out int stx) || !int.TryParse(parts[2], out int sty)) continue;
+                // 5-part entries place bricks at a sub-cell (slice 7b):
+                // id:tx:ty:subx:suby.
+                int ssx = 0, ssy = 0;
+                if (parts.Length == 5 &&
+                    (!int.TryParse(parts[3], out ssx) || !int.TryParse(parts[4], out ssy)))
+                    continue;
                 var def = BuildingSystem.Registry?.GetStructure(parts[0]);
                 if (def == null) continue;
                 // Flatten the pad worldgen-style (blocks gate on the corner
@@ -1556,13 +1562,17 @@ public sealed class Game
                 World.SetElevationOverride(stx + 1, sty + 1, Constants.SeaLevel + 5f);
                 foreach (var material in def.Materials)
                     Inventory.AddItem(material.ItemId, material.Quantity);
-                var placed = BuildingSystem.PlaceStructure(parts[0], stx, sty, World, Inventory, SkillManager);
+                var placed = parts.Length == 5
+                    ? BuildingSystem.PlaceStructure(parts[0], stx, sty, ssx, ssy,
+                        World, Inventory, SkillManager)
+                    : BuildingSystem.PlaceStructure(parts[0], stx, sty,
+                        World, Inventory, SkillManager);
                 if (!placed.Success)
                     Console.WriteLine($"DSR_TEST_STRUCTURE: {parts[0]} at ({stx},{sty}) refused: {placed.Message}");
             }
             // Anchor the camera near the LAST staged tile so probes see it.
             var last = structHook.Split(',', StringSplitOptions.TrimEntries)[^1].Split(':');
-            if (last.Length == 3 && int.TryParse(last[1], out int ltx) && int.TryParse(last[2], out int lty))
+            if (last.Length >= 3 && int.TryParse(last[1], out int ltx) && int.TryParse(last[2], out int lty))
             {
                 Player.WorldX = (ltx + 0.5f) * Constants.TileSize - 2f * Constants.TileSize;
                 Player.WorldY = (lty + 0.5f) * Constants.TileSize;
@@ -2210,6 +2220,29 @@ public sealed class Game
             || def.BiomeCompatibility.Contains(tile.Biome.Id);
         bool valid = biomeOk
             && SkillManager.GetSkillLevel("construction") >= def.RequiresSkillLevel;
+
+        // Bricks (slice 7b): present the hovered tile's 4x4 sub-cell grid —
+        // faint fills for the grid, a SOLID fill on the hovered cell — gold
+        // where a brick can go, red where it can't. No sprite preview: the
+        // sub-cell is the target, not the tile.
+        if (def.IsBlock && BuildingPendingId != "fence_block" && BuildSubCursor is { } sub)
+        {
+            float ghostElev = tile.HasWater ? tile.GetSurfaceElevation() : tile.Elevation;
+            var cells = SpriteRenderer.BuildGhostSubCells(Camera,
+                BuildCursor.Value.X, BuildCursor.Value.Y, ghostElev);
+            byte gr = valid ? (byte)222 : (byte)220;
+            byte gg = valid ? (byte)192 : (byte)80;
+            byte gb = valid ? (byte)132 : (byte)80;
+            int hovered = sub.Y * 4 + sub.X;
+            for (int i = 0; i < cells.Length; i++)
+            {
+                byte a = i == hovered ? (byte)120 : (byte)36;
+                var c = cells[i];
+                batch.DrawScreenQuadCorners(c.BLx, c.BLy, c.BRx, c.BRy,
+                    c.TRx, c.TRy, c.TLx, c.TLy, gr, gg, gb, a);
+            }
+            return;
+        }
 
         float worldX = BuildCursor.Value.X * Constants.TileSize + Constants.TileSize / 2f;
         float worldY = BuildCursor.Value.Y * Constants.TileSize + Constants.TileSize / 2f;

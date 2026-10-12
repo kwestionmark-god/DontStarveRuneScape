@@ -305,6 +305,31 @@ public sealed class SpriteRenderer : IDisposable
         float x1 = (connectionMask & 2) != 0 ? (tx + 1) * ts : cx + halfThickness; // E
         float y0 = (connectionMask & 1) != 0 ? ty * ts : cy - halfThickness;   // N
         float y1 = (connectionMask & 4) != 0 ? (ty + 1) * ts : cy + halfThickness; // S
+        return BuildBoxVoxel(camera, x0, x1, y0, y1, baseElev, stackHeight,
+            northTop, eastTop, southTop, westTop, faces);
+    }
+
+    /// <summary>Brick box (slice 7b): a fixed 16px sub-cell voxel — the same
+    /// box faces, strip culling and depth sort as the tile slabs, over an
+    /// explicit world rect. The sprite maps 1:1 onto every face.</summary>
+    internal static int BuildBrickVoxel(Camera camera, float x0, float y0,
+        float x1, float y1, float baseElev, float stackHeight,
+        float northTop, float eastTop, float southTop, float westTop,
+        BillQuad[] faces)
+        => BuildBoxVoxel(camera, x0, x1, y0, y1, baseElev, stackHeight,
+            northTop, eastTop, southTop, westTop, faces);
+
+    /// <summary>Shared box core (slices 5-7): a world-space box over
+    /// [x0,x1]x[y0,y1] x [baseElev, baseElev+stackHeight], drawn as a top
+    /// face plus camera-facing side faces. A side face is culled where the
+    /// neighbour top reaches this box's top; each survivor is the exposed
+    /// strip from max(base, neighbourTop). Planes: 0=E(+X), 1=S(+Y), 2=W(−X),
+    /// 3=N(−Y), 4=Top, depth-sorted back-to-front.</summary>
+    private static int BuildBoxVoxel(Camera camera, float x0, float x1,
+        float y0, float y1, float baseElev, float stackHeight,
+        float northTop, float eastTop, float southTop, float westTop,
+        BillQuad[] faces)
+    {
         float top = baseElev + stackHeight;
         float sin = MathF.Sin(camera.Yaw), cos = MathF.Cos(camera.Yaw);
         int n = 0;
@@ -362,19 +387,34 @@ public sealed class SpriteRenderer : IDisposable
         return n;
     }
 
-    /// <summary>Brick box (slice 7b): a fixed 16px sub-cell voxel — the same
-    /// box faces, strip culling and depth sort as BuildBlockVoxel, over an
-    /// explicit world rect. RED stub until the render slice lands.</summary>
-    internal static int BuildBrickVoxel(Camera camera, float x0, float y0,
-        float x1, float y1, float baseElev, float stackHeight,
-        float northTop, float eastTop, float southTop, float westTop,
-        BillQuad[] faces) => 0;
-
     /// <summary>Build-mode ghost grid (slice 7b): the hovered tile's 4x4
-    /// sub-cell rects projected at the tile elevation. cells[j*4+i] is
-    /// sub-cell (i,j). RED stub until the render slice lands.</summary>
+    /// sub-cell rects projected at the tile elevation, for the ghost fills
+    /// (hovered cell solid, the rest faint). cells[j*4+i] is sub-cell
+    /// (i,j).</summary>
     internal static BillQuad[] BuildGhostSubCells(Camera camera, int tx, int ty, float elev)
-        => [];
+    {
+        float ts = Constants.TileSize, cs = Constants.BrickCellSize;
+        var cells = new BillQuad[16];
+        for (int j = 0; j < 4; j++)
+            for (int i = 0; i < 4; i++)
+            {
+                float x0 = tx * ts + i * cs, x1 = x0 + cs;
+                float y0 = ty * ts + j * cs, y1 = y0 + cs;
+                var q = new BillQuad();
+                var p = camera.WorldToScreen(x0, y1, elev);
+                (q.BLx, q.BLy) = (p.X, p.Y);
+                p = camera.WorldToScreen(x1, y1, elev);
+                (q.BRx, q.BRy) = (p.X, p.Y);
+                p = camera.WorldToScreen(x1, y0, elev);
+                (q.TRx, q.TRy) = (p.X, p.Y);
+                p = camera.WorldToScreen(x0, y0, elev);
+                (q.TLx, q.TLy) = (p.X, p.Y);
+                q.Cx = (q.BLx + q.BRx + q.TRx + q.TLx) * 0.25f;
+                q.Cy = (q.BLy + q.BRy + q.TRy + q.TLy) * 0.25f;
+                cells[j * 4 + i] = q;
+            }
+        return cells;
+    }
 
     /// <summary>Structure crossed-billboard geometry (slice 4): the same
     /// world-anchored paper-doll resources use — base edge planted at
@@ -1470,20 +1510,54 @@ public sealed class SpriteRenderer : IDisposable
             && world != null;
         if (voxel)
         {
-            float NeighbourTop(int nx, int ny)
+            int fc;
+            if (structure.SubX >= 0)
             {
-                var nt = world.GetTile(nx, ny);
-                float ne = nt?.Elevation ?? elevation;
-                return ne + BlockStack.BlockHeightAt(world, buildings, nx, ny);
+                // Slice 7b: a brick is a fixed 16px box over its sub-cell;
+                // neighbour tops are the adjacent SUB-CELL columns,
+                // wrapping across tile edges at the grid boundary.
+                float cs = Constants.BrickCellSize;
+                float bx0 = structure.TileX * Constants.TileSize + structure.SubX * cs;
+                float by0 = structure.TileY * Constants.TileSize + structure.SubY * cs;
+                float SubNeighbourTop(int ntx, int nty, int nsx, int nsy)
+                {
+                    var nt = world.GetTile(ntx, nty);
+                    float ne = nt?.Elevation ?? elevation;
+                    return ne + BlockStack.SubHeightAt(world, buildings, ntx, nty, nsx, nsy);
+                }
+                int etx = structure.SubX < 3 ? structure.TileX : structure.TileX + 1;
+                int ex = structure.SubX < 3 ? structure.SubX + 1 : 0;
+                int wtx = structure.SubX > 0 ? structure.TileX : structure.TileX - 1;
+                int wx = structure.SubX > 0 ? structure.SubX - 1 : 3;
+                int nty = structure.SubY > 0 ? structure.TileY : structure.TileY - 1;
+                int ny = structure.SubY > 0 ? structure.SubY - 1 : 3;
+                int sty = structure.SubY < 3 ? structure.TileY : structure.TileY + 1;
+                int sy = structure.SubY < 3 ? structure.SubY + 1 : 0;
+                fc = BuildBrickVoxel(camera, bx0, by0, bx0 + cs, by0 + cs,
+                    elevation, structure.StructureDef.StackHeight,
+                    SubNeighbourTop(structure.TileX, nty, structure.SubX, ny),
+                    SubNeighbourTop(etx, structure.TileY, ex, structure.SubY),
+                    SubNeighbourTop(structure.TileX, sty, structure.SubX, sy),
+                    SubNeighbourTop(wtx, structure.TileY, wx, structure.SubY),
+                    _voxelFaces);
             }
-            int fc = BuildBlockVoxel(camera, structure.TileX, structure.TileY,
-                elevation, structure.StructureDef.StackHeight,
-                mask, 16f,
-                NeighbourTop(structure.TileX, structure.TileY - 1),
-                NeighbourTop(structure.TileX + 1, structure.TileY),
-                NeighbourTop(structure.TileX, structure.TileY + 1),
-                NeighbourTop(structure.TileX - 1, structure.TileY),
-                _voxelFaces);
+            else
+            {
+                float NeighbourTop(int nx, int ny)
+                {
+                    var nt = world.GetTile(nx, ny);
+                    float ne = nt?.Elevation ?? elevation;
+                    return ne + BlockStack.BlockHeightAt(world, buildings, nx, ny);
+                }
+                fc = BuildBlockVoxel(camera, structure.TileX, structure.TileY,
+                    elevation, structure.StructureDef.StackHeight,
+                    mask, 16f,
+                    NeighbourTop(structure.TileX, structure.TileY - 1),
+                    NeighbourTop(structure.TileX + 1, structure.TileY),
+                    NeighbourTop(structure.TileX, structure.TileY + 1),
+                    NeighbourTop(structure.TileX - 1, structure.TileY),
+                    _voxelFaces);
+            }
             // Every face gets a tinted solid fill first — billboard glyphs
             // carry wide transparent margins that would otherwise read as
             // gaps between joined blocks. Shading per axis fakes the light:
