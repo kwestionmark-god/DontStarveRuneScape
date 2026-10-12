@@ -362,6 +362,20 @@ public sealed class SpriteRenderer : IDisposable
         return n;
     }
 
+    /// <summary>Brick box (slice 7b): a fixed 16px sub-cell voxel — the same
+    /// box faces, strip culling and depth sort as BuildBlockVoxel, over an
+    /// explicit world rect. RED stub until the render slice lands.</summary>
+    internal static int BuildBrickVoxel(Camera camera, float x0, float y0,
+        float x1, float y1, float baseElev, float stackHeight,
+        float northTop, float eastTop, float southTop, float westTop,
+        BillQuad[] faces) => 0;
+
+    /// <summary>Build-mode ghost grid (slice 7b): the hovered tile's 4x4
+    /// sub-cell rects projected at the tile elevation. cells[j*4+i] is
+    /// sub-cell (i,j). RED stub until the render slice lands.</summary>
+    internal static BillQuad[] BuildGhostSubCells(Camera camera, int tx, int ty, float elev)
+        => [];
+
     /// <summary>Structure crossed-billboard geometry (slice 4): the same
     /// world-anchored paper-doll resources use — base edge planted at
     /// groundElev, both half-planes of a fixed world facing — so structures

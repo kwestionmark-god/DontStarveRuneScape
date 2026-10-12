@@ -198,4 +198,110 @@ public class BlockVoxelTests
                     $"yaw {yaw}: face {i} out of depth order");
         }
     }
+
+    // ── 4. Brick boxes (slice 7b): fixed 16px sub-cell voxels ──────────────
+    // Spec: docs/superpowers/specs/2026-10-11-block-voxel-bricks-design.md.
+    // A brick is a world-space box spanning its 16px sub-cell rect and
+    // [base, base + 1.25] — the sprite maps 1:1 onto every face, neighbours
+    // cull shared faces exactly like the slice-5 tile slabs.
+
+    [Fact]
+    public void BrickVoxel_Footprint_IsTheSubCellRect_TopAtBrickHeight()
+    {
+        var cam = MakeCamera(45f);
+        var faces = new BillQuad[5];
+        int count = SpriteRenderer.BuildBrickVoxel(cam,
+            288f, 288f, 304f, 304f, Base, 1.25f, Base, Base, Base, Base, faces);
+
+        Assert.True(count >= 2, $"top + at least one side (got {count})");
+        var top = faces.Take(count).Single(f => f.Plane == 4);
+        float topElev = Base + 1.25f;
+        foreach (var (wx, wy) in new[] { (288f, 288f), (304f, 288f), (304f, 304f), (288f, 304f) })
+        {
+            var p = cam.WorldToScreen(wx, wy, topElev);
+            Assert.True(CornerMatches(top, p.X, p.Y),
+                $"sub-cell corner ({wx},{wy}) missing from the brick top face");
+        }
+        // And NOT the old fat slab: the tile-centre ±16 corners are absent.
+        var fat = cam.WorldToScreen(272f, 272f, topElev);
+        Assert.False(CornerMatches(top, fat.X, fat.Y, 2f),
+            "brick box bled beyond its 16px sub-cell");
+    }
+
+    [Fact]
+    public void BrickVoxel_JoinedBricks_CullSharedFace_AndButtAtBoundary()
+    {
+        var cam = MakeCamera(45f);
+        float top = Base + 1.25f;
+
+        // A spans x 288..304; its EAST neighbour column (304..320) is the
+        // same height: the shared face is culled on both sides.
+        var a = new BillQuad[5];
+        int na = SpriteRenderer.BuildBrickVoxel(cam, 288f, 288f, 304f, 304f,
+            Base, 1.25f, Base, top, Base, Base, a);
+        Assert.DoesNotContain(a.Take(na), f => f.Plane == 0);
+
+        var b = new BillQuad[5];
+        int nb = SpriteRenderer.BuildBrickVoxel(cam, 304f, 288f, 320f, 304f,
+            Base, 1.25f, Base, Base, Base, top, b);
+        Assert.DoesNotContain(b.Take(nb), f => f.Plane == 2);
+
+        // The two top faces share the x=304 boundary edge, pixel-for-pixel.
+        var topA = a.Take(na).Single(f => f.Plane == 4);
+        var topB = b.Take(nb).Single(f => f.Plane == 4);
+        foreach (var wy in new[] { 288f, 304f })
+        {
+            var bound = cam.WorldToScreen(304f, wy, top);
+            Assert.True(CornerMatches(topA, bound.X, bound.Y),
+                "A's east edge must sit on the shared boundary");
+            Assert.True(CornerMatches(topB, bound.X, bound.Y),
+                "B's west edge must sit on the same boundary (butt join)");
+        }
+    }
+
+    [Fact]
+    public void BrickVoxel_TallerNeighbourColumn_FullyCullsTheSide()
+    {
+        var cam = MakeCamera(45f);
+        var faces = new BillQuad[5];
+        int count = SpriteRenderer.BuildBrickVoxel(cam, 288f, 288f, 304f, 304f,
+            Base, 1.25f, Base, Base + 2.5f, Base, Base, faces); // east towers
+        Assert.Contains(faces.Take(count), f => f.Plane == 4); // the box exists…
+        Assert.DoesNotContain(faces.Take(count), f => f.Plane == 0); // …but no east face
+    }
+
+    // ── 5. Build-mode ghost grid (slice 7b) ────────────────────────────────
+    // The hovered tile presents its 4x4 sub-cell grid; each cell is a
+    // projected quad at the tile elevation for the ghost fill (hovered cell
+    // solid, the rest faint).
+
+    [Fact]
+    public void GhostSubCells_SixteenCells_EachIsItsProjectedSubCellRect()
+    {
+        var cam = MakeCamera(45f);
+        var cells = SpriteRenderer.BuildGhostSubCells(cam, 4, 4, Base);
+
+        Assert.Equal(16, cells.Length);
+        // cells[j * 4 + i] is sub-cell (i, j): every corner of every cell is
+        // the projected sub-cell rect corner at the elevation — the shared
+        // corners ARE the same projected points, so the grid tiles the tile
+        // with no gaps or overlaps.
+        for (int i = 0; i < 4; i++)
+            for (int j = 0; j < 4; j++)
+            {
+                var q = cells[j * 4 + i];
+                foreach (var (wx, wy) in new[]
+                {
+                    (256f + i * 16f, 256f + j * 16f),
+                    (256f + (i + 1) * 16f, 256f + j * 16f),
+                    (256f + (i + 1) * 16f, 256f + (j + 1) * 16f),
+                    (256f + i * 16f, 256f + (j + 1) * 16f),
+                })
+                {
+                    var p = cam.WorldToScreen(wx, wy, Base);
+                    Assert.True(CornerMatches(q, p.X, p.Y),
+                        $"cell ({i},{j}) corner ({wx},{wy}) missing from the ghost grid");
+                }
+            }
+    }
 }
