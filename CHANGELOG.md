@@ -8,6 +8,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Changed
+- **Vertical building, slice 11 — monsters break walls** — walls buy
+  time, not invincibility. A monster blocked by a player-built wall
+  while chasing (or fleeing) grinds at it, and after 4 seconds of
+  sustained blocking it starts attacking the nearest wall piece in
+  melee reach — its own attack stat at its own attack cadence (a wolf
+  needs ~10 s per Dirt Brick; a raid party much less). A destroyed
+  piece frees its tile for pathing immediately, notifies you ("Your
+  Dirt Brick was destroyed!"), and the chase resumes through the gap.
+  Wandering monsters never attack walls — only target-driven ones.
+  Bricks (hp 20) outlast fences (hp 10); thick walls buy more time.
 - **Vertical building, slice 10 — structure sort honesty** — player
   builds no longer sink into the ground while orbiting the camera.
   Structures (and ground fires) now follow the same painter's-order

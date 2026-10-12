@@ -1,7 +1,8 @@
 # Monster-vs-structure wall damage (vertical building slice 11)
 
 Date: 2026-10-12
-Status: drafted — awaiting RED
+Status: implemented — RED 95bb0bb / GREEN 4603bb2; suite 648 total /
+647 green / 1 pre-existing skip (state-asserted, no render changes)
 Slice line: vertical-building post-roadmap, slice 11 (the parked
 "monster-vs-structure damage" follow-up from the slice-9 clarify
 round, now un-parked by the user 2026-10-12)

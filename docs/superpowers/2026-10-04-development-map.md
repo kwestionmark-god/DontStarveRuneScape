@@ -617,7 +617,37 @@ law shapes it.
        Suite 638 → 643 (5 contracts: 3 RED with exact predicted
        magnitudes — −11.31 px = 8·√2 offset, −7 stitch gap, −66
        elevation-0 gap — plus 2 both-states pins).
-     - **Progression accounting (user playtest finding, 2026-10-09).** The
+     - **Vertical building, slice 11 — monster-vs-structure wall damage
+       (the parked "blocked raiders chip walls" follow-up, un-parked by
+       the user 2026-10-12: "yes, we can move to your parked
+       objectives"). DONE 2026-10-12** (spec
+       2026-10-12-monster-wall-damage-design.md; RED 95bb0bb / GREEN
+       4603bb2): walls buy time, not invincibility. MoveToward/MoveAway
+       now report any-axis blocking (the GroundedSlide applied-vs-
+       desired delta); Monster.WallFrustration accumulates on chase/flee
+       blocks ONLY (wander never calls the accumulator — a wandering
+       wolf grinds past); at Constants.MonsterWallFrustrationSeconds
+       (4 s) the monster attacks the nearest BUILT, ACTIVE block
+       structure within its AttackRange — damage = its Attack stat at
+       its own shared melee cadence (wall hits and target hits
+       alternate honestly), so a wolf needs ~10 s per brick (hp 20)
+       and a 4-raider party ~2.5 s. BuildingSystem.DamageStructure
+       chips Health and removes through the slice-9 LIVE occupancy
+       recompute at zero — the tile is pathable the moment the wall
+       dies, the destruction notifies the player per piece
+       ("Your Dirt Brick was destroyed!", the no-silent-losses rule,
+       no refund), and frustration resets so the chase resumes through
+       the gap (the beeline takes over; workers re-path through the
+       freed tile). User decisions 2026-10-12 (all recommended
+       defaults): 4 s frustration timer, monster Attack at own
+       cadence, notify-no-refund, chase/flee-driven only. Verified by
+       state contracts (no render changes): a frustrated raider breaks
+       a fence in ~10 s, frees the tile live, notifies, and resumes the
+       chase (WorldX > 280); below-threshold and wandering pins stay
+       green; the brick band chips at cadence; DamageStructure unit
+       (partial chip stands, lethal chip removes + frees, neighbours
+       untouched). Suite 643 → 648.
+    - **Progression accounting (user playtest finding, 2026-10-09).** The
       fishing rod is entry-tier by design but hangs on a deadlock:
        rod → planks → `goblin_diplomacy` (goblin CHIEF's quest, not
        Shaman Kree's) → intelligence level 5 (388 XP) + commerce 3 +
