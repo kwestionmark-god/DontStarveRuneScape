@@ -171,7 +171,13 @@ public class StructureVisibilityTests
         for (int i = 0; i < 32; i++)
         {
             float yaw = i * MathF.PI / 16f;
-            if (MathF.Sin(yaw) < 0.2f) continue; // occluder must be camera-side
+            // Genuinely in front: the occluder's positional lead along the
+            // view axis must dominate the boost (sin ≥ 0.5 → lead ≥ 64 px
+            // vs boost ≤ 45.25). Below that the raised tile is nearly
+            // LATERAL — its quad only sliver-overlaps the build, and the
+            // boost legitimately wins that sliver, exactly as it does for
+            // the player and monsters (the entity precedent).
+            if (MathF.Sin(yaw) < 0.5f) continue;
             h.Game.Camera!.SetOrbit(yaw);
             float c = MathF.Cos(yaw), s = MathF.Sin(yaw);
             float raised = TileRenderer.TileSortKey(h.World.GetTile(4, 4)!, 4, 4, c, s);

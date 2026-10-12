@@ -2231,14 +2231,19 @@ public sealed class Game
     internal float StructureSortKey(Structure structure, TileMap? world,
         BuildingSystem? buildings)
     {
-        // RED stub: today's exact key — raw tile elevation + RenderBase,
-        // no SortElevation, no standing boost.
+        // The entity law (slice 10): key at the tile's HIGHEST corner —
+        // at or above the tile quad's corner-average key on any slope —
+        // composed with the column base, then the standing boost so the
+        // in-tile sub-cell offset can never flip the own-tile tie.
+        // Genuine occlusion survives: a raised tile between the camera
+        // and the build wins on its elevation term, which dwarfs the
+        // boost.
         float elev = 0f;
         var tile = world?.GetTile(structure.TileX, structure.TileY);
         if (tile != null)
             elev = tile.HasWater ? tile.GetSurfaceElevation() : tile.Elevation;
-        elev = BlockStack.RenderBase(world!, buildings, structure, elev);
-        return GetDepthSort(structure.WorldX, structure.WorldY, elev);
+        elev = BlockStack.RenderBase(world!, buildings, structure, SortElevation(tile, elev));
+        return GetDepthSort(structure.WorldX, structure.WorldY, elev, StandingBoost());
     }
 
     /// <summary>Sort key for a ground fire (slice 10): the fire tile's
@@ -2247,8 +2252,12 @@ public sealed class Game
     /// ground.</summary>
     internal float FireSortKey(float worldX, float worldY, TileMap? world)
     {
-        // RED stub: today's exact key — elevation 0.
-        return GetDepthSort(worldX, worldY, 0f);
+        // The entity law (slice 10): the fire tile's highest corner + the
+        // standing boost — the old elevation-0 key sat below every land
+        // tile's key, sorting fires behind their own ground.
+        var tile = world?.GetTileAtWorld(worldX, worldY);
+        return GetDepthSort(worldX, worldY,
+            SortElevation(tile, tile?.Elevation ?? 0f), StandingBoost());
     }
 
     // ─── Cave entrance compass ────────────────────────────────────────────
