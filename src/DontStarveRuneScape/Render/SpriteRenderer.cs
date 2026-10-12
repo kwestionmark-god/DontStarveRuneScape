@@ -232,6 +232,7 @@ public sealed class SpriteRenderer : IDisposable
     private readonly BillQuad[] _resourceHalves = new BillQuad[4];
     // Structure crossed-billboard halves (slice 4: same shared-rig idiom).
     private readonly BillQuad[] _structureHalves = new BillQuad[4];
+    private readonly BillQuad[] _voxelFaces = new BillQuad[5]; // slice 5: box faces (top + 4 sides)
     private readonly TurnLean _playerLean = new();
 
     /// <summary>The gait rig attached to an entity (player, monster, NPC):
@@ -292,8 +293,63 @@ public sealed class SpriteRenderer : IDisposable
         float northTop, float eastTop, float southTop, float westTop,
         BillQuad[] faces)
     {
-        // RED stub — the real construction lands GREEN.
-        return 0;
+        float ts = Constants.TileSize;
+        float x0 = tx * ts, x1 = x0 + ts, y0 = ty * ts, y1 = y0 + ts;
+        float top = baseElev + stackHeight;
+        float sin = MathF.Sin(camera.Yaw), cos = MathF.Cos(camera.Yaw);
+        int n = 0;
+
+        void Edge(int plane, float nx, float ny,
+                  float ax, float ay, float bx, float by, float neighbourTop)
+        {
+            // Back-face culling: only sides facing the camera can paint
+            // (at most two of an axis-aligned box's four sides, §spec 4).
+            if (nx * sin + ny * cos <= 0f) return;
+            // Stitching: cull the span the neighbour column already fills.
+            float lo = MathF.Max(baseElev, neighbourTop);
+            if (lo >= top - 1e-4f) return;
+            var q = new BillQuad();
+            var p = camera.WorldToScreen(ax, ay, lo);
+            (q.BLx, q.BLy) = (p.X, p.Y);
+            p = camera.WorldToScreen(bx, by, lo);
+            (q.BRx, q.BRy) = (p.X, p.Y);
+            p = camera.WorldToScreen(bx, by, top);
+            (q.TRx, q.TRy) = (p.X, p.Y);
+            p = camera.WorldToScreen(ax, ay, top);
+            (q.TLx, q.TLy) = (p.X, p.Y);
+            q.Cx = (q.BLx + q.BRx + q.TRx + q.TLx) * 0.25f;
+            q.Cy = (q.BLy + q.BRy + q.TRy + q.TLy) * 0.25f;
+            q.HalfW = (MathF.Abs(q.BRx - q.BLx) + MathF.Abs(q.TRx - q.TLx)) * 0.25f;
+            q.Depth = CrossBillboardSorter.ViewDepth(
+                (ax + bx) * 0.5f, (ay + by) * 0.5f, camera.Yaw);
+            q.Plane = plane;
+            faces[n++] = q;
+        }
+
+        Edge(0, 1f, 0f, x1, y0, x1, y1, eastTop);   // E (+X)
+        Edge(1, 0f, 1f, x0, y1, x1, y1, southTop);  // S (+Y)
+        Edge(2, -1f, 0f, x0, y1, x0, y0, westTop);  // W (−X)
+        Edge(3, 0f, -1f, x1, y0, x0, y0, northTop); // N (−Y)
+
+        // Top face: always drawn (the camera pitch never drops to horizon).
+        var tq = new BillQuad();
+        var tp = camera.WorldToScreen(x0, y1, top);
+        (tq.BLx, tq.BLy) = (tp.X, tp.Y);
+        tp = camera.WorldToScreen(x1, y1, top);
+        (tq.BRx, tq.BRy) = (tp.X, tp.Y);
+        tp = camera.WorldToScreen(x1, y0, top);
+        (tq.TRx, tq.TRy) = (tp.X, tp.Y);
+        tp = camera.WorldToScreen(x0, y0, top);
+        (tq.TLx, tq.TLy) = (tp.X, tp.Y);
+        tq.Cx = (tq.BLx + tq.BRx + tq.TRx + tq.TLx) * 0.25f;
+        tq.Cy = (tq.BLy + tq.BRy + tq.TRy + tq.TLy) * 0.25f;
+        tq.Depth = CrossBillboardSorter.ViewDepth((x0 + x1) * 0.5f, (y0 + y1) * 0.5f, camera.Yaw);
+        tq.Plane = 4;
+        faces[n++] = tq;
+
+        Array.Sort(faces, 0, n, Comparer<BillQuad>.Create(
+            static (a, b) => a.Depth.CompareTo(b.Depth)));
+        return n;
     }
 
     /// <summary>Structure crossed-billboard geometry (slice 4): the same
@@ -1381,6 +1437,65 @@ public sealed class SpriteRenderer : IDisposable
             ? BlockStack.FenceFacingDir(mask)
             : null;
         var (dirX, dirY) = axis ?? GetDeterministicDir(structure.TileX, structure.TileY);
+        // Slice 5: block defs (except fences — fence keeps its crossed
+        // planes + rails) draw as world-space boxes: top face + the
+        // camera-facing side faces, the sprite mapped as surface area per
+        // face, neighbour-shared faces culled so joined blocks stitch.
+        bool voxel = structure.StructureDef?.IsBlock == true
+            && structure.StructureId != "fence_block"
+            && world != null;
+        if (voxel)
+        {
+            float NeighbourTop(int nx, int ny)
+            {
+                var nt = world.GetTile(nx, ny);
+                float ne = nt?.Elevation ?? elevation;
+                return ne + BlockStack.BlockHeightAt(world, buildings, nx, ny);
+            }
+            int fc = BuildBlockVoxel(camera, structure.TileX, structure.TileY,
+                elevation, structure.StructureDef.StackHeight,
+                NeighbourTop(structure.TileX, structure.TileY - 1),
+                NeighbourTop(structure.TileX + 1, structure.TileY),
+                NeighbourTop(structure.TileX, structure.TileY + 1),
+                NeighbourTop(structure.TileX - 1, structure.TileY),
+                _voxelFaces);
+            // Every face gets a tinted solid fill first — billboard glyphs
+            // carry wide transparent margins that would otherwise read as
+            // gaps between joined blocks. Shading per axis fakes the light:
+            // top brightest, X-axis sides mid, Y-axis sides darkest.
+            var (br, bg, bb) = GetSpriteBaseColor(structure.StructureDef.SpriteKey);
+            void FillFace(in BillQuad fq)
+            {
+                float shade = fq.Plane == 4 ? 1.10f : fq.Plane is 0 or 2 ? 0.82f : 0.66f;
+                byte fr2 = (byte)Math.Clamp(br * shade, 0, 255);
+                byte fg2 = (byte)Math.Clamp(bg * shade, 0, 255);
+                byte fb2 = (byte)Math.Clamp(bb * shade, 0, 255);
+                batch.DrawScreenQuadCorners(fq.BLx, fq.BLy, fq.BRx, fq.BRy,
+                    fq.TRx, fq.TRy, fq.TLx, fq.TLy, fr2, fg2, fb2, alpha);
+            }
+            if (tex != 0)
+            {
+                byte vr = structure.IsUnderConstruction ? (byte)190 : (byte)255;
+                byte vg = structure.IsUnderConstruction ? (byte)175 : (byte)255;
+                byte vb = structure.IsUnderConstruction ? (byte)125 : (byte)255;
+                for (int i = 0; i < fc; i++)
+                {
+                    ref var fq = ref _voxelFaces[i];
+                    FillFace(in fq);
+                    batch.DrawScreenQuadCornersTextured(
+                        fq.BLx, fq.BLy, fq.BRx, fq.BRy,
+                        fq.TRx, fq.TRy, fq.TLx, fq.TLy,
+                        tex, vr, vg, vb, alpha);
+                }
+            }
+            else
+            {
+                for (int i = 0; i < fc; i++)
+                    FillFace(in _voxelFaces[i]);
+            }
+        }
+        else
+        {
         BuildStructureHalves(camera, structure.WorldX, structure.WorldY, elevation,
             16f, StructureHeightWorld(structure), dirX, dirY, _structureHalves, out _);
         if (tex != 0)
@@ -1402,6 +1517,7 @@ public sealed class SpriteRenderer : IDisposable
             foreach (var hq in _structureHalves)
                 batch.DrawScreenQuadCorners(hq.BLx, hq.BLy, hq.BRx, hq.BRy,
                     hq.TRx, hq.TRy, hq.TLx, hq.TLy, fr, fg, fb, alpha);
+        }
         }
         // Fence rails toward connected neighbors (slice 4): a plank-brown
         // segment per masked side, ~2 world px below the fence top. The brown
@@ -1503,6 +1619,14 @@ public sealed class SpriteRenderer : IDisposable
 
     // ─── Sprite texture loading / caching ─────────────────────────────────
 
+    // Average opaque colour per sprite key (slice 5 voxel face underlay).
+    private readonly Dictionary<string, (byte R, byte G, byte B)> _baseColors = new();
+
+    /// <summary>Average opaque colour of a sprite, tinted for box-face
+    /// fills; the safe gray stands in for missing or fully-transparent art.</summary>
+    public (byte R, byte G, byte B) GetSpriteBaseColor(string key)
+        => _baseColors.TryGetValue(key, out var c) ? c : ((byte)150, (byte)150, (byte)160);
+
     /// <summary>Texture handle for a sprite key (e.g. "items/logs_oak"); 0 when
     /// the sprite is missing. Panels use this to draw real item sprites.</summary>
     public uint GetSpriteTexture(string key)
@@ -1567,6 +1691,18 @@ public sealed class SpriteRenderer : IDisposable
                 px[i + 2] = (byte)Math.Clamp(px[i + 2] * 255 / a, 0, 255);
             }
         }
+
+        // Average opaque colour, cached for voxel face fills (slice 5):
+        // billboard glyphs carry wide transparent margins, so box faces
+        // draw a tinted solid fill of this colour beneath the texture.
+        long sr = 0, sg = 0, sb = 0; int sc = 0;
+        for (int i = 0; i + 3 < px.Length; i += 4)
+        {
+            if (px[i + 3] <= 128) continue;
+            sr += px[i]; sg += px[i + 1]; sb += px[i + 2]; sc++;
+        }
+        if (sc > 0)
+            _baseColors[key] = ((byte)(sr / sc), (byte)(sg / sc), (byte)(sb / sc));
 
         uint tex = _gl.GenTexture();
         _gl.BindTexture(TextureTarget.Texture2D, tex);
