@@ -1845,6 +1845,18 @@ public sealed class SpriteRenderer : IDisposable
         return (int)Math.Clamp(darkness * stageMul * 255f, 0f, 255f);
     }
 
+    /// <summary>Cave Stage 3 (RED stub): the carried torch's pool radius
+    /// in world tiles — 2.5 when a torch is equipped, else 0.</summary>
+    public static float TorchGlowRadiusTiles(bool torchEquipped) => 0f;
+
+    /// <summary>Cave Stage 3 (RED stub): torch pool alpha = darkness ×
+    /// 0.75 (0–255) — it reads stronger than a fire pool.</summary>
+    public static int TorchGlowAlpha(float darkness) => 0;
+
+    /// <summary>Cave Stage 3 (RED stub): gemstone crystal glow alpha =
+    /// darkness × 0.40 — a faint cool lure in the dark.</summary>
+    public static int CrystalGlowAlpha(float darkness) => 0;
+
     // ─── Fire glow pool (slice 16) ──────────────────────────────────────
 
     private uint _glowTex;
