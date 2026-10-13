@@ -464,6 +464,50 @@ public sealed class RecruitmentSystem
                 if (!gatherInputs) continue;
             }
 
+            // Hauling, cave arm (colony-cave-haul slice): an expedition
+            // worker carrying goods in a cave walks to the cave EXIT — the
+            // cave-home tile — and hands the pack off to the SURFACE colony
+            // stockpile at the lip. The exit is the surface↔cave route; no
+            // cross-world pathing. Stockpile-full keeps the goods (no
+            // silent loss), matching TickDepositCarried.
+            if (inCave && colony?.IsFounded == true && npc.CarriedQuantity > 0)
+            {
+                int exitX = world.SpawnX, exitY = world.SpawnY;
+                float anchorX = (exitX + 0.5f) * Constants.TileSize;
+                float anchorY = (exitY + 0.5f) * Constants.TileSize;
+                float dx = anchorX - npc.WorldX, dy = anchorY - npc.WorldY;
+                float reach = Constants.TileSize * 1.5f;
+                if (dx * dx + dy * dy <= reach * reach)
+                {
+                    npc.VelocityX = npc.VelocityY = 0f;
+                    var task = colony.TaskBoard.GetOrAddDeposit(npc.NpcId);
+                    task.ItemId = npc.CarriedItemId ?? string.Empty;
+                    task.Quantity = npc.CarriedQuantity;
+                    int acceptable = Math.Min(npc.CarriedQuantity, colony.FreeCapacity);
+                    if (acceptable > 0 && colony.Store(npc.CarriedItemId ?? string.Empty, acceptable))
+                        npc.CarriedQuantity -= acceptable;
+                    if (npc.CarriedQuantity <= 0)
+                    {
+                        npc.CarriedItemId = null;
+                        npc.CarriedQuantity = 0;
+                        npc.CarryStatus = string.Empty;
+                        colony.TaskBoard.Release(task);
+                    }
+                    else
+                    {
+                        npc.CarryStatus = "Stockpile full";
+                        task.Status = "Blocked: stockpile full";
+                    }
+                    continue;
+                }
+                if (!MoveAlongPath(npc, world, exitX, exitY, dt, WalkSpeed)
+                    && _paths.TryGetValue(npc.NpcId, out var haulPlan) && haulPlan.Nodes == null)
+                {
+                    npc.CarryStatus = "No route to the exit";
+                }
+                continue;
+            }
+
             // Hauling: a surface-colony worker carrying goods walks them to
             // the stockpile before starting any new work. This one phase
             // serves gatherers, recipe-input runs, and construction supply.
