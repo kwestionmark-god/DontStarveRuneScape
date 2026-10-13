@@ -35,7 +35,9 @@ public static class VoxelBody
         new("hand_l",   -8.4f, 0f, 2.2f, 2.4f, 3.5f, 15.5f, 235, 200, 160),
         new("hand_r",    8.4f, 0f, 2.2f, 2.4f, 3.5f, 15.5f, 235, 200, 160),
         new("head",      0f, 0f, 7f,   6f,   8f, 25f,   235, 200, 160),  // skin
-        new("hair",      0f, 0f, 7.4f, 6.6f, 3.4f, 33f,   60, 40, 30),   // cap
+        new("hair",      0f, -0.8f, 7.4f, 5.4f, 10f, 26f,  60, 40, 30),   // wraps the back of the head
+
+        new("nose",      0f, 3.4f, 1.6f, 1.4f, 2f, 28f,   225, 190, 152), // the face tells the facing
     ];
 
     /// <summary>World-px heights convert to elevation units exactly like
