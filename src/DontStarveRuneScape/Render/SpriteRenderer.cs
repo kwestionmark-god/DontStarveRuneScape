@@ -1700,11 +1700,14 @@ public sealed class SpriteRenderer : IDisposable
             _ => "fire/fire_roaring",
         });
         // Stage geometry: the vertical axis is ELEVATION UNITS rendered at
-        // ~18 px/unit at this pitch (the pit side band is ~9 px). A roaring
-        // campfire should read ~3x the pit band above the rim; stages scale
-        // with the tank (vision-verification round 2: 1.05 read flat).
-        float hUnits = (stage == 1 ? 0.2f : stage == 2 ? 0.6f : stage == 3 ? 1.1f : 1.7f) * wobble;
-        float worldW = (stage == 1 ? 18f : stage == 2 ? 12f : stage == 3 ? 15f : 18f) * wobble;
+        // ~18 px/unit at this pitch (the pit side band is ~9 px). User
+        // tune-up 2026-10-13: "at half fuel it still burns like a candle" —
+        // the burning stage doubled, then the kimi-k3 eyes pass measured
+        // its bright core still ~7 px (the thin fire_low lick art read as
+        // a candle on half the flip frames) — stage 2 raised to 1.25 and
+        // its frames re-authored fat.
+        float hUnits = (stage == 1 ? 0.25f : stage == 2 ? 1.25f : 1.8f) * wobble;
+        float worldW = (stage == 1 ? 18f : stage == 2 ? 16f : 20f) * wobble;
 
         if (tex != 0)
         {

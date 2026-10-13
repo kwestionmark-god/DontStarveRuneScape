@@ -1565,14 +1565,20 @@ public sealed class Game
             {
                 var parts = entry.Split(':', StringSplitOptions.TrimEntries);
                 // Slice-14 grammar: "id:lit" (2 parts) = the AUTO clear-dry
-                // tile + a stocked BURNING hearth; "id:auto:lit" (3 parts)
-                // also accepted; "id:tx:ty" / "id:tx:ty:subx:suby" place
-                // at explicit tiles as before. (First try: auto+lit as
-                // "campfire:auto:lit" split to 3 parts and silently
-                // skipped — smoke hooks must never no-op silently.)
+                // tile + a stocked BURNING hearth; "id:lit:N" (3 parts) sets
+                // the reservoir to N units (staging a mid-fuel stage, e.g.
+                // campfire:lit:4 = exactly half — 30 + 4x30 of 300s);
+                // "id:auto:lit" also accepted; "id:tx:ty" /
+                // "id:tx:ty:subx:suby" place at explicit tiles as before.
+                // (First try: auto+lit as "campfire:auto:lit" split to 3
+                // parts and silently skipped — smoke hooks must never no-op
+                // silently.)
+                int litStock = Structure.FuelCapacityUnits - 1;
                 bool litPit = parts.Length == 4 && parts[3] == "lit"
                     || parts.Length == 3 && parts[1] == "auto" && parts[2] == "lit"
-                    || parts.Length == 2 && parts[1] == "lit";
+                    || parts.Length == 2 && parts[1] == "lit"
+                    || parts.Length == 3 && parts[1] == "lit"
+                        && int.TryParse(parts[2], out litStock) && litStock >= 0;
                 bool autoTile = litPit || (parts.Length == 3 && parts[1] == "auto")
                     || (parts.Length == 4 && parts[1] == "auto");
                 if (parts.Length != 3 && parts.Length != 5 && !litPit && !autoTile) continue;
@@ -1614,11 +1620,11 @@ public sealed class Game
                     Console.WriteLine($"DSR_TEST_STRUCTURE: {parts[0]} at ({stx},{sty}) refused: {placed.Message}");
                 else if (litPit)
                 {
-                    // Stock to one-under-full and burn a unit — StageOf reads
-                    // near-capacity and the flame renders roaring.
+                    // Burn a unit of the staged stock — StageOf reads the
+                    // tank's fill and the flame renders at that stage.
                     var s = BuildingSystem.Structures[^1];
                     s.FuelItemId = "oak_logs";
-                    s.FuelCount = Structure.FuelCapacityUnits - 1;
+                    s.FuelCount = litStock;
                     Firemaking?.LightHearthUnit("oak_logs", s.StructureDef!,
                         s.WorldX, s.WorldY, SkillManager);
                 }
