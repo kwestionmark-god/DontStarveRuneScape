@@ -87,7 +87,8 @@ public sealed class SurvivalSystem
         {
             // Drain 1 point every HUNGER_DRAIN_INTERVAL seconds,
             // scaled by environmental pressure and seasonal hunger modifier
-            float drainRate = _hungerDrainRate * EnvironmentalPressure * _seasonHungerMod;
+            float drainRate = _hungerDrainRate * EnvironmentalPressure * _seasonHungerMod
+                * (1f - 0.4f * Math.Clamp(WarmthFactor, 0f, 1f));
             Hunger -= drainRate * (dt / _hungerDrainInterval);
             Hunger = Math.Max(0.0f, Hunger);
         }

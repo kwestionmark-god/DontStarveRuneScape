@@ -772,6 +772,10 @@ public sealed class Game
             float survivalDt = DayNight?.Sleeping == true
                 ? dt * Constants.SleepTimeScale * Constants.SleepHungerFactor
                 : dt;
+            // Slice 17: feed the player the warmth of the strongest
+            // covering fire before the drain tick.
+            if (Survival != null && Firemaking != null && Player != null && World != null)
+                Survival.WarmthFactor = Firemaking.WarmthAt(Player.WorldX, Player.WorldY, BuildingSystem);
             Survival?.Tick(survivalDt);
             if (DayNight?.Sleeping == true)
                 Survival?.Heal(dt * Constants.SleepTimeScale * Constants.SleepHealPerSecond);

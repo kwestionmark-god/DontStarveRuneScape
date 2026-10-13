@@ -199,8 +199,22 @@ public sealed class FiremakingSkill
     }
 
     /// <summary>Slice 17: warmth 0–1 at a world position — the strongest
-    /// STAGE-scaled fire whose WarmthRadius covers it (stage/3). RED stub.</summary>
-    public float WarmthAt(float worldX, float worldY, Building.BuildingSystem? buildings) => 0f;
+    /// STAGE-scaled fire whose WarmthRadius covers it (stage / 3, so only
+    /// a roaring fire gives full warmth). Radius is warmthRadius * 32
+    /// world-px, matching the slice-16 glow footprint.</summary>
+    public float WarmthAt(float worldX, float worldY, Building.BuildingSystem? buildings)
+    {
+        float best = 0f;
+        foreach (var fire in _activeFires)
+        {
+            float radius = fire.WarmthRadius * 32f;
+            float dx = fire.WorldX - worldX, dy = fire.WorldY - worldY;
+            if (dx * dx + dy * dy > radius * radius) continue;
+            float warmth = StageOf(fire, buildings) / 3f;
+            if (warmth > best) best = warmth;
+        }
+        return best;
+    }
 
     /// <summary>Slice 13: light a hearth by burning one STOCKED fuel unit —
     /// the fire is the fuel table's per-unit seconds times the def's

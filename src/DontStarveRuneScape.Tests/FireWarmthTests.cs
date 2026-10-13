@@ -49,15 +49,17 @@ public class FireWarmthTests
     }
 
     [Theory]
-    // Stage scales warmth: embers one-third, burning two-thirds, roaring full.
-    [InlineData(12f, 1f / 3f)]  // <25% of 60 → embers
-    [InlineData(30f, 2f / 3f)]  // half → burning
-    [InlineData(50f, 1f)]       // >=75% → roaring
-    public void WarmthAt_ScalesWithBurnStage(float remaining, float expected)
+    // Stage scales warmth: embers one-third, burning two-thirds, roaring
+    // full. Remaining fractions of the unit's own MaxTime (ground fire).
+    [InlineData(0.20f, 1f / 3f)]  // <25% → embers
+    [InlineData(0.50f, 2f / 3f)]  // half → burning
+    [InlineData(0.90f, 1f)]       // >=75% → roaring
+    public void WarmthAt_ScalesWithBurnStage(float remainingFrac, float expected)
     {
         var game = MakeGame();
         game.Firemaking.LightFire(new() { ("oak_logs", 1) }, game.Inventory, 100f, 100f);
-        game.Firemaking.GetActiveFires()[0].RemainingTime = remaining;
+        var fire = game.Firemaking.GetActiveFires()[0];
+        fire.RemainingTime = fire.MaxTime * remainingFrac;
         Assert.Equal(expected,
             game.Firemaking.WarmthAt(105f, 105f, game.BuildingSystem), 3);
     }
@@ -67,9 +69,10 @@ public class FireWarmthTests
     {
         var game = MakeGame();
         game.Firemaking.LightFire(new() { ("oak_logs", 1) }, game.Inventory, 100f, 100f);
-        game.Firemaking.GetActiveFires()[0].RemainingTime = 12f; // embers
         game.Firemaking.LightFire(new() { ("oak_logs", 1) }, game.Inventory, 120f, 100f);
-        game.Firemaking.GetActiveFires()[1].RemainingTime = 50f; // roaring
+        var fires = game.Firemaking.GetActiveFires();
+        fires[0].RemainingTime = fires[0].MaxTime * 0.2f; // embers
+        fires[1].RemainingTime = fires[1].MaxTime * 0.9f; // roaring
         Assert.Equal(1f, game.Firemaking.WarmthAt(110f, 100f, game.BuildingSystem), 3);
     }
 
