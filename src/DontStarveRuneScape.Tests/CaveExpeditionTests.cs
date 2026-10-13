@@ -32,6 +32,7 @@ public class CaveExpeditionTests
             SkillManager = new SkillManager(),
             Inventory = new Inv(),
             Survival = new SurvivalSystem(),
+            ActionSystem = new Actions.ActionSystem(),
         };
         public NPCSystem Npcs = new();
         public ColonySystem Colony = new();
@@ -278,6 +279,12 @@ public class CaveExpeditionTests
                     .Where(m => m.IsAlive() && m.IsHostile)
                     .ToArray() ?? [];
                 Assert.NotEmpty(raidMonsters);
+                // Raid-during-expedition law: the player below MUST hear
+                // about it (previously the raid spawned silently, with only
+                // debug Console.WriteLine — a no-silent-losses violation).
+                h.Player.ActionSystem!.FlushNotifications();
+                Assert.Contains(h.Player.ActionSystem.Notifications, n =>
+                    n.Text.Contains("Raid", StringComparison.OrdinalIgnoreCase));
             }
 
     [Fact]
