@@ -270,7 +270,6 @@ public sealed class CaveWorldSystem
 
     private void TryRollRaid()
     {
-        Console.WriteLine($"TryRollRaid ENTRY: timer={_surfaceUnguardedTimer}, threshold={RaidThresholdSeconds}");
         if (_surfaceUnguardedTimer < RaidThresholdSeconds) return;
         if (_surface == null || _game.NPCSystem == null || _game.MonsterRegistry == null) return;
 
@@ -278,19 +277,17 @@ public sealed class CaveWorldSystem
         // overlapping the colony biome, then spawn a raid party at the
         // colony perimeter.
         var factionRegistry = _game.FactionRegistry;
-        if (factionRegistry == null) { Console.WriteLine("TryRollRaid: no factionRegistry"); return; }
+        if (factionRegistry == null) return;
         var colonySystem = _game.ColonySystem;
-        if (colonySystem == null || !colonySystem.IsFounded) { Console.WriteLine("TryRollRaid: no colonySystem"); return; }
+        if (colonySystem == null || !colonySystem.IsFounded) return;
         var colonyBiome = _surface.GetTile(colonySystem.AnchorTileX, colonySystem.AnchorTileY)?.Biome?.Id;
-        if (string.IsNullOrEmpty(colonyBiome)) { Console.WriteLine("TryRollRaid: no colonyBiome"); return; }
-        Console.WriteLine($"TryRollRaid: colonyBiome={colonyBiome}");
+        if (string.IsNullOrEmpty(colonyBiome)) return;
 
         var hostileFactions = factionRegistry.Factions.Values
             .Where(f => f.BaseHostility > 0f
                 && f.TerritoryBiomes.Contains(colonyBiome)
                 && f.FactionId.Length > 0)
             .ToArray();
-        Console.WriteLine($"TryRollRaid: hostileFactions count={hostileFactions.Length}");
         if (hostileFactions.Length == 0) return;
 
         // Filter to factions with standing < 0.25 (hostile tier)
@@ -299,16 +296,13 @@ public sealed class CaveWorldSystem
             .Where(f => 
             {
                 float standing = factionSystem?.StandingOf(f.FactionId) ?? QuestSystem.DefaultStanding;
-                Console.WriteLine($"TryRollRaid: faction={f.FactionId}, BaseHostility={f.BaseHostility}, standing={standing}");
                 return standing < 0.25f;
             })
             .ToArray();
-        Console.WriteLine($"TryRollRaid: trulyHostile count={trulyHostile.Length}");
         if (trulyHostile.Length == 0) return;
 
         var rand = new Random();
         var faction = trulyHostile[rand.Next(trulyHostile.Length)];
-        Console.WriteLine($"TryRollRaid: selected faction={faction.FactionId}, monsterTypes={string.Join(",", faction.HostileMonsterTypes)}");
         if (faction.HostileMonsterTypes.Length == 0) return;
 
         var monsterDefs = new List<MonsterDef>();
@@ -321,15 +315,14 @@ public sealed class CaveWorldSystem
                 if (biomeMonsters.TryGetValue(monsterId, out var def))
                 {
                     monsterDefs.Add(def);
-                    Console.WriteLine($"TryRollRaid: found monster {monsterId} in biome");
                     break;
                 }
             }
         }
-        Console.WriteLine($"TryRollRaid: monsterDefs count={monsterDefs.Count}");
         if (monsterDefs.Count == 0) return;
 
         int count = 2 + rand.Next(3); // 2-4
+        int spawns = 0;
         int anchorX = colonySystem.AnchorTileX;
         int anchorY = colonySystem.AnchorTileY;
         for (int i = 0; i < count; i++)
@@ -345,8 +338,15 @@ public sealed class CaveWorldSystem
             var combat = _surfaceCombat;
             if (combat == null) continue;
             combat.SpawnMonster(def, wx, wy);
-            Console.WriteLine($"TryRollRaid: spawned {def.Name} at ({spawnX},{spawnY})");
+            spawns++;
         }
+
+        if (spawns > 0)
+            // Actually tell the player below — a silent perimeter raid is a
+            // no-silent-losses violation (the daily 06:00 roll announces
+            // its own in MerchantVisitSystem).
+            _game.Player?.ActionSystem?.AddNotification(
+                "Raiders descend on the settlement while you're below!", (255, 90, 90));
 
         _surfaceUnguardedTimer = 0f;
     }
