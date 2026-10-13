@@ -1738,13 +1738,14 @@ public sealed class SpriteRenderer : IDisposable
     }
 
     /// <summary>The flame texture for a stage at a point in time (pure —
-    /// test-pinned). RED stub: today's behavior — only the burning stage
-    /// animates; embers and roaring hold a single static frame.</summary>
+    /// test-pinned). Every stage animates: embers pulse SLOW (1.2s — coals
+    /// breathe, two glow frames), burning keeps the 0.6s flip, roaring
+    /// flips FAST (0.4s — the crown licks swap lean and sparks jump).</summary>
     public static string FireSpriteKey(int stage, float animTime) => stage switch
     {
-        1 => "fire/fire_ember",
+        1 => animTime % 1.2f < 0.6f ? "fire/fire_ember" : "fire/fire_ember_b",
         2 => animTime % 0.6f < 0.3f ? "fire/fire_low" : "fire/fire_mid",
-        _ => "fire/fire_roaring",
+        _ => animTime % 0.4f < 0.2f ? "fire/fire_roaring" : "fire/fire_roaring_b",
     };
 
     /// <summary>One vertical world-anchored flame quad: an axis plane
