@@ -162,8 +162,9 @@ public sealed class FiremakingSkill
     /// 3 = roaring — classified off the remaining-vs-capacity fraction.</summary>
     public static int BurnStageOf(float remainingSeconds, float capacitySeconds)
     {
-        // RED stub.
-        return 0;
+        if (remainingSeconds <= 0f || capacitySeconds <= 0f) return 0;
+        float frac = remainingSeconds / capacitySeconds;
+        return frac < 0.25f ? 1 : frac < 0.75f ? 2 : 3;
     }
 
     /// <summary>Slice 13: light a hearth by burning one STOCKED fuel unit —
@@ -172,8 +173,25 @@ public sealed class FiremakingSkill
     public FireResult LightHearthUnit(string fuelId, Data.StructureDef def,
         float x, float y, SkillManager? skills = null)
     {
-        // RED stub.
-        return new FireResult { Success = false, Message = "No fuel stocked." };
+        if (def.BurnSeconds <= 0f)
+            return new FireResult { Success = false, Message = "Not a hearth." };
+        float perUnit = FuelTable.TryGetValue(fuelId, out var secs) ? secs : DefaultFuelSeconds;
+        float durationBonus = (skills?.GetSubStatPoints("firemaking", "duration") ?? 0f) * 5f;
+        float duration = perUnit * def.BurnRate + durationBonus;
+        _activeFires.Add(new FireInstance
+        {
+            WorldX = x,
+            WorldY = y,
+            RemainingTime = duration,
+            MaxTime = duration,
+        });
+        var name = Data.ItemCatalog.Get(fuelId)?.Name ?? fuelId;
+        return new FireResult
+        {
+            Success = true,
+            Message = $"The fire catches on the {name}!",
+            XpGained = 25f,
+        };
     }
 
     public void Tick(float dt) => Tick(dt, null);
@@ -182,12 +200,51 @@ public sealed class FiremakingSkill
     {
         for (int i = _activeFires.Count - 1; i >= 0; i--)
         {
-            // RED stub: the slice-13 auto-feed (pop the owner hearth's
-            // stocked unit on burnout) lands at GREEN here.
             _activeFires[i].RemainingTime -= dt;
             if (_activeFires[i].RemainingTime <= 0)
+            {
+                // Slice 13 auto-feed: a hearth with stocked fuel pops its
+                // next unit and keeps burning (the reservoir law).
+                if (buildings != null
+                    && TryPopHearthUnit(buildings, _activeFires[i]) is { } fresh)
+                {
+                    _activeFires[i] = fresh;
+                    continue;
+                }
                 _activeFires.RemoveAt(i);
+            }
         }
+    }
+
+    /// <summary>Pop the next stocked fuel unit off the hearth underneath a
+    /// dying fire (position-matched within 4px) and return the fresh
+    /// FireInstance; null when no stocked hearth owns the fire.</summary>
+    private FireInstance? TryPopHearthUnit(Building.BuildingSystem buildings, FireInstance dying)
+    {
+        foreach (var s in buildings.Structures)
+        {
+            if (!s.IsActive || s.FuelCount <= 0 || s.FuelItemId == null)
+                continue;
+            var def = s.StructureDef;
+            if (def == null || def.BurnSeconds <= 0f)
+                continue;
+            if (MathF.Abs(s.WorldX - dying.WorldX) >= 4f
+                || MathF.Abs(s.WorldY - dying.WorldY) >= 4f)
+                continue;
+            string fuelId = s.FuelItemId;
+            s.FuelCount--;
+            // The type memory sticks at zero (fire-reservoir law).
+            float perUnit = FuelTable.TryGetValue(fuelId, out var secs) ? secs : DefaultFuelSeconds;
+            float duration = perUnit * def.BurnRate;
+            return new FireInstance
+            {
+                WorldX = s.WorldX,
+                WorldY = s.WorldY,
+                RemainingTime = duration,
+                MaxTime = duration,
+            };
+        }
+        return null;
     }
 
     /// <summary>Standing-on-a-lit-fire damage (slice 12): while a live

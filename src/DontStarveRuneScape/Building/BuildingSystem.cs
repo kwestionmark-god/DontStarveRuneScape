@@ -522,6 +522,8 @@ public sealed class BuildingSystem
                 UpgradingToId = s.UpgradingToId,
                 WorkProgress = s.WorkProgress,
                 WorkStatus = s.WorkStatus,
+                FuelItemId = s.FuelItemId,
+                FuelUnitCount = s.FuelCount,
             })
             .ToArray();
         return snapshot;
@@ -563,6 +565,8 @@ public sealed class BuildingSystem
                     Health = s.Hp > 0 ? (int)s.Hp : (int)structureDef.Hp,
                     MaxHealth = (int)structureDef.Hp,
                     IsActive = true,
+                    FuelItemId = s.FuelItemId,
+                    FuelCount = s.FuelUnitCount,
                 });
                 if (structureDef.OccupiesTile)
                 {
@@ -617,10 +621,12 @@ public sealed class BuildingSystem
                 Layer = s.Layer,
                 WorldX = s.TileX * Constants.TileSize
                     + (s.SubX < 0 ? Constants.TileSize / 2f
-                                  : s.SubX * Constants.BrickCellSize + Constants.BrickCellSize / 2f),
+                                  : s.SubX * Constants.BrickCellSize
+                                    + Math.Max(1, structureDef.Footprint) * Constants.BrickCellSize / 2f),
                 WorldY = s.TileY * Constants.TileSize
                     + (s.SubY < 0 ? Constants.TileSize / 2f
-                                  : s.SubY * Constants.BrickCellSize + Constants.BrickCellSize / 2f),
+                                  : s.SubY * Constants.BrickCellSize
+                                    + Math.Max(1, structureDef.Footprint) * Constants.BrickCellSize / 2f),
                 Health = s.Hp > 0 ? (int)s.Hp : (int)structureDef.Hp,
                 MaxHealth = (int)structureDef.Hp,
                 IsActive = true,
@@ -634,6 +640,8 @@ public sealed class BuildingSystem
                 UpgradingToId = s.UpgradingToId,
                 WorkProgress = s.WorkProgress,
                 WorkStatus = string.IsNullOrEmpty(s.WorkStatus) ? "Idle" : s.WorkStatus,
+                FuelItemId = s.FuelItemId,
+                FuelCount = s.FuelUnitCount,
             });
             Structures[^1].WorkRecipeQueue.AddRange(s.WorkRecipeQueue ?? []);
             if (structureDef.OccupiesTile)

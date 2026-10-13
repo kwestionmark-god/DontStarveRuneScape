@@ -397,6 +397,16 @@ public sealed class Bootstrap
         // The fire menu's Rest row shares the sleep flow: the same gate
         // (night + valid spot) refuses visibly in the menu status line.
         _game.FireMenuPanel.OnRest = _ => { _game.FireInteraction?.TrySleep(); };
+        // Slice 13: the Fuel row feeds the reservoir; the Upgrade row kicks
+        // off the hearth's next tier through the colony flow.
+        _game.FireMenuPanel.OnFuel = _ => { _game.FireInteraction?.MenuFeedFire(); };
+        _game.FireMenuPanel.OnUpgrade = _ =>
+        {
+            if (_game.FireInteraction == null) return;
+            var r = _game.FireInteraction.TryUpgradeNearestHearth();
+            _game.Player?.ActionSystem?.AddNotification(r.Message, r.Success
+                ? Game.SuccessColor : Game.ErrorColor);
+        };
         _game.InteractSystem = new Interactions.InteractSystem(_game, npcFlows);
         _game.FireInteraction = new Interactions.FireInteraction(_game);
         _game.InputRouter = new InputRouter(_game, _game.InteractSystem, _game.FireInteraction, npcFlows);

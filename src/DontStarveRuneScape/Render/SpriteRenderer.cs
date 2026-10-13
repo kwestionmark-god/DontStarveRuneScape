@@ -1666,8 +1666,29 @@ public sealed class SpriteRenderer : IDisposable
     public void RenderFire(FireInstance fire, PrimitiveBatch batch, Camera camera)
     {
         var screen = camera.WorldToScreen(fire.WorldX, fire.WorldY, 0f);
-        float half = 10f * camera.Zoom;
-        batch.DrawScreenQuad(screen.X, screen.Y, half, half, 230, 140, 40);
+        float scale = camera.Zoom;
+        // Slice 13 burn stages ride the unit's own life cycle: roaring
+        // early, burning, then embers before it dies (screen Y grows
+        // downward — flames lift by subtracting).
+        float frac = fire.MaxTime > 0f ? Math.Clamp(fire.RemainingTime / fire.MaxTime, 0f, 1f) : 1f;
+        int stage = frac < 0.25f ? 1 : frac < 0.75f ? 2 : 3;
+
+        // Ember bed: always glowing while lit, widest and dullest at
+        // the embers stage.
+        float emberHalf = (stage == 1 ? 7f : 5f) * scale;
+        batch.DrawScreenQuad(screen.X, screen.Y - 2f * scale,
+            emberHalf, emberHalf * 0.55f, 200, 90, 30, 235);
+        if (stage == 1)
+            return;
+
+        float bodyH = (stage == 3 ? 26f : 16f) * scale;
+        float bodyW = (stage == 3 ? 11f : 8f) * scale;
+        batch.DrawScreenQuad(screen.X, screen.Y - bodyH * 0.5f - 2f * scale,
+            bodyW, bodyH * 0.5f, 230, 140, 40);
+        // The bright tip above the body.
+        float tipH = bodyH * 0.55f;
+        batch.DrawScreenQuad(screen.X, screen.Y - bodyH * 0.5f - tipH * 0.5f + scale,
+            bodyW * 0.5f, tipH * 0.5f, 250, 205, 90);
     }
 
     // ─── Soft ground shadow ───────────────────────────────────────────────

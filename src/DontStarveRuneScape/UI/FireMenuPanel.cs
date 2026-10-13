@@ -41,10 +41,19 @@ public sealed class FireMenuPanel
     private bool _statusOk;
     private readonly List<string> _statusExtra = [];
 
-    // Selection mode: 0 = recipe list, 1 = CRAFT/REST button.
+    // Selection mode: 0 = recipe list, 1 = CRAFT/FUEL/UPGRADE/REST button.
     private int _selectionMode = 0;
     private bool _pendingCraft;
     private bool _pendingRest;
+    private bool _pendingFuel;
+    private bool _pendingUpgrade;
+
+    // Slice 13: special rows live past the recipe list — the Fuel row
+    // always, the Upgrade row when the target hearth has a next tier,
+    // Rest last. A bare ground fire (FireTargetDef null) has no upgrade.
+    internal int FuelIndex => _sorted.Count;
+    internal int UpgradeIndex => FireTargetDef?.UpgradesTo != null ? _sorted.Count + 1 : -1;
+    internal int RestIndex => _sorted.Count + (UpgradeIndex > 0 ? 2 : 1);
 
     /// <summary>Single source of the fire-menu partition: a recipe belongs
     /// here when it requires a campfire/heat station or trains cooking.</summary>
@@ -76,15 +85,21 @@ public sealed class FireMenuPanel
     public string FireStatusText { get; set; } = string.Empty;
     public string FuelPreviewLine { get; set; } = string.Empty;
 
+    /// <summary>Slice 13: the reservoir gauge contents — burn fraction,
+    /// the stocked item + its unit count (null id = empty).</summary>
+    public float FireGaugeFraction { get; set; }
+    public string? ReservoirItemId { get; set; }
+    public int ReservoirCount { get; set; }
+
     public void HandleKey(Key key)
     {
         if (_selectionMode == 0)
         {
             if (key == Key.Up && SelectedIndex > 0)
                 SelectedIndex--;
-            else if (key == Key.Down && SelectedIndex < _sorted.Count)
+            else if (key == Key.Down && SelectedIndex < RestIndex)
                 SelectedIndex++;
-            else if ((key == Key.Right || key == Key.Tab) && _sorted.Count > 0)
+            else if (key == Key.Right || key == Key.Tab)
                 _selectionMode = 1;
             else
                 return;
@@ -97,8 +112,12 @@ public sealed class FireMenuPanel
             {
                 if (SelectedIndex < _sorted.Count)
                     _pendingCraft = true;
+                else if (SelectedIndex == FuelIndex)
+                    _pendingFuel = true;
+                else if (SelectedIndex == UpgradeIndex)
+                    _pendingUpgrade = true;
                 else
-                    _pendingRest = true; // past-the-end row = Rest until dawn
+                    _pendingRest = true; // past the special rows = Rest until dawn
             }
             else
                 return;
@@ -112,9 +131,9 @@ public sealed class FireMenuPanel
     {
         if (input.KeyRepeatUp && _selectionMode == 0 && SelectedIndex > 0)
             SelectedIndex--;
-        else if (input.KeyRepeatDown && _selectionMode == 0 && SelectedIndex < _sorted.Count)
+        else if (input.KeyRepeatDown && _selectionMode == 0 && SelectedIndex < RestIndex)
             SelectedIndex++;
-        else if (input.KeyRepeatRight && _selectionMode == 0 && _sorted.Count > 0)
+        else if (input.KeyRepeatRight && _selectionMode == 0)
             _selectionMode = 1;
         else if (input.KeyRepeatLeft && _selectionMode == 1)
             _selectionMode = 0;
@@ -123,8 +142,8 @@ public sealed class FireMenuPanel
 
     private void KeepSelectionInView()
     {
-        // The Rest row lives one past the end; allow the selection to rest on it.
-        int maxIndex = _sorted.Count; // index == count selects Rest
+        // Slice 13: the special rows (fuel/upgrade/rest) extend the list.
+        int maxIndex = RestIndex;
         if (SelectedIndex > maxIndex) SelectedIndex = maxIndex;
         if (SelectedIndex < _scroll) _scroll = SelectedIndex;
         if (SelectedIndex >= _scroll + VisibleRows) _scroll = SelectedIndex - VisibleRows + 1;
@@ -146,16 +165,26 @@ public sealed class FireMenuPanel
 
         float scroll = ui.GetScroll();
         if (scroll != 0f)
-            _scroll = Math.Clamp(_scroll - (int)scroll, 0, Math.Max(0, _sorted.Count - VisibleRows));
+            _scroll = Math.Clamp(_scroll - (int)scroll, 0, Math.Max(0, RestIndex - VisibleRows + 1));
 
-        for (int i = 0; i < VisibleRows && _scroll + i < _sorted.Count; i++)
+        int visibleTop = Math.Min(_scroll + VisibleRows, RestIndex + 1);
+        for (int i = 0; _scroll + i < visibleTop; i++)
         {
             if (ui.TryClick(_rowX, _rowY[i], _rowW, RowH))
             {
-                SelectedIndex = _scroll + i;
+                int idx = _scroll + i;
+                bool reselectSpecial = idx >= _sorted.Count && idx == SelectedIndex;
+                SelectedIndex = idx;
                 _selectionMode = 0;
                 _status = null;
                 _statusExtra.Clear();
+                if (reselectSpecial)
+                {
+                    // Clicking an already-selected special row ACTIVATES it.
+                    if (idx == FuelIndex) _pendingFuel = true;
+                    else if (idx == UpgradeIndex) _pendingUpgrade = true;
+                    else _pendingRest = true;
+                }
             }
         }
 
@@ -163,7 +192,9 @@ public sealed class FireMenuPanel
         if (craftHover) _selectionMode = 1;
 
         bool wantsCraft = ui.TryClick(_craftX, _craftY, CraftW, CraftH) || _pendingCraft;
-        bool wantsRest = !wantsCraft && _pendingRest;
+        bool wantsFuel = _pendingFuel;
+        bool wantsUpgrade = _pendingUpgrade;
+        bool wantsRest = _pendingRest;
         if (SelectedIndex < _sorted.Count && wantsCraft)
         {
             var result = crafting.Craft(_sorted[SelectedIndex].RecipeId, inventory, skills,
@@ -173,11 +204,21 @@ public sealed class FireMenuPanel
             _statusExtra.Clear();
             _statusExtra.AddRange(result.LevelUpMessages);
         }
-        else if (SelectedIndex >= _sorted.Count && (wantsRest || wantsCraft))
+        else if (SelectedIndex == FuelIndex && (wantsFuel || wantsCraft))
+        {
+            OnFuel?.Invoke(true);
+        }
+        else if (SelectedIndex == UpgradeIndex && (wantsUpgrade || wantsCraft))
+        {
+            OnUpgrade?.Invoke(true);
+        }
+        else if (SelectedIndex == RestIndex && (wantsRest || wantsCraft || wantsFuel || wantsUpgrade))
         {
             OnRest?.Invoke(true);
         }
         _pendingCraft = false;
+        _pendingFuel = false;
+        _pendingUpgrade = false;
         _pendingRest = false;
     }
 
@@ -189,9 +230,9 @@ public sealed class FireMenuPanel
             .Where(IsFireRecipe)
             .OrderBy(r => r.Tier).ThenBy(r => r.Name, StringComparer.Ordinal))
             _sorted.Add(recipe);
-        if (SelectedIndex > _sorted.Count)
-            SelectedIndex = _sorted.Count;
-        _scroll = Math.Clamp(_scroll, 0, Math.Max(0, _sorted.Count - VisibleRows));
+        if (SelectedIndex > RestIndex)
+            SelectedIndex = RestIndex;
+        _scroll = Math.Clamp(_scroll, 0, Math.Max(0, RestIndex - VisibleRows + 1));
     }
 
     public void Render(PrimitiveBatch batch, TextRenderer? text, SpriteRenderer? sprites,
@@ -216,6 +257,23 @@ public sealed class FireMenuPanel
         for (int i = 0; i < VisibleRows && _scroll + i < _sorted.Count; i++)
             RenderRow(batch, text, sprites, _sorted[_scroll + i], _scroll + i, inventory, skills,
                 availableStructures, unlockedRecipes);
+        // Slice 13: the special rows (fuel / upgrade / rest) render in the
+        // left list too — the fire verbs must be DISCOVERABLE.
+        for (int idx = Math.Max(_sorted.Count, _scroll); idx <= RestIndex; idx++)
+        {
+            int slot = idx - _scroll;
+            if (slot >= VisibleRows) break;
+            float y = _rowY[slot];
+            bool selected = idx == SelectedIndex;
+            if (selected)
+                batch.DrawScreenQuad(_rowX + _rowW * 0.5f, y + RowH * 0.5f,
+                    _rowW * 0.5f, RowH * 0.5f, 70, 52, 30);
+            string label = idx == FuelIndex ? "Feed the fire"
+                : idx == UpgradeIndex ? $"Upgrade: {FireTargetDef?.UpgradesTo ?? ""}"
+                : "Rest until dawn";
+            text.DrawText(batch, label, _rowX + 18f, y + RowH * 0.5f, 14,
+                (byte)220, (byte)190, (byte)120, bold: selected);
+        }
 
         RenderDetail(batch, text, sprites, inventory, skills, availableStructures, unlockedRecipes);
     }
@@ -264,6 +322,55 @@ public sealed class FireMenuPanel
         float dividerX = _detailX - 10f;
         batch.DrawScreenQuad(dividerX, _detailY + 200f, 0.5f, 200f,
             PanelChrome.BorderR, PanelChrome.BorderG, PanelChrome.BorderB, 90);
+
+        if (SelectedIndex == FuelIndex)
+        {
+            // Slice 13: the fuel reservoir — burn metrics, gauge, stock.
+            DrawLeft(batch, text, FireStatusText.Length > 0 ? FireStatusText : "Fire",
+                _detailX, _detailY + 8f, 18,
+                PanelChrome.TextR, PanelChrome.TextG, PanelChrome.TextB, bold: true);
+            // Gauge: the reservoir's total burn against a full stock.
+            float barY = _detailY + 52f;
+            batch.DrawScreenQuad(_detailX + 110f, barY, 110f, 7f, 30, 24, 18);
+            float frac = Math.Clamp(FireGaugeFraction, 0f, 1f);
+            if (frac > 0f)
+            {
+                byte fr = 250, fg = (byte)(frac > 0.25f ? 150 : 90);
+                batch.DrawScreenQuad(_detailX + 110f * frac, barY, 110f * frac, 7f,
+                    fr, fg, 40, 220);
+            }
+            // The reservoir box: stocked item + count (click to add one).
+            float boxX = _detailX + 30f, boxY = _detailY + 100f;
+            uint rtex = ReservoirItemId != null
+                ? sprites?.GetSpriteTexture(ItemCatalog.Get(ReservoirItemId)?.SpriteKey ?? ReservoirItemId) ?? 0
+                : 0;
+            batch.DrawScreenQuad(boxX + 20f, boxY + 20f, 20f, 20f, 40, 30, 22);
+            if (rtex != 0)
+                batch.DrawTexturedScreenQuad(boxX + 20f, boxY + 20f, 18f, 18f,
+                    rtex, 255, 255, 255, 255);
+            else
+                text.DrawText(batch, "?", boxX + 20f, boxY + 20f, 14, 150, 140, 130, bold: true);
+            if (ReservoirItemId != null && ReservoirCount > 0)
+                DrawLeft(batch, text, $"x{ReservoirCount}", boxX + 48f, boxY + 20f, 14,
+                    PanelChrome.TextR, PanelChrome.TextG, PanelChrome.TextB, bold: true);
+            DrawLeft(batch, text,
+                FuelPreviewLine.Length > 0 ? FuelPreviewLine : "Feed from your inventory.",
+                _detailX, _detailY + 156f, 13, 150, 140, 130);
+            DrawButton(batch, text, "FEED", _selectionMode == 1);
+            return;
+        }
+
+        if (SelectedIndex == UpgradeIndex && FireTargetDef is { UpgradesTo: { } targetId })
+        {
+            DrawLeft(batch, text, $"Upgrade to {targetId}", _detailX, _detailY + 8f, 18,
+                PanelChrome.TextR, PanelChrome.TextG, PanelChrome.TextB, bold: true);
+            DrawLeft(batch, text, "A colony crew rebuilds the hearth at its next tier.",
+                _detailX, _detailY + 64f, 13, 150, 140, 130);
+            DrawLeft(batch, text, "The fire and its reservoir carry over.",
+                _detailX, _detailY + 84f, 13, 150, 140, 130);
+            DrawButton(batch, text, "UPGRADE", _selectionMode == 1);
+            return;
+        }
 
         if (SelectedIndex >= _sorted.Count)
         {

@@ -118,7 +118,7 @@ public class FireHearthFuelTests
         bool fed = game.FireInteraction.MenuFeedFire();
 
         Assert.True(fed, "feeding a cold stocked fire succeeds");
-        Assert.Equal("oak_logs", hearth.FuelItemId);
+        Assert.Equal("oak_logs", hearth.FuelItemId); // the type memory sticks at zero
         Assert.Equal(0, hearth.FuelCount); // fed 1, popped 1 to light
         var fire = Assert.Single(game.Firemaking.GetActiveFires());
         Assert.Equal(30f, fire.MaxTime, 1); // one oak_log unit (fuel table), rate 1.0
@@ -162,7 +162,7 @@ public class FireHearthFuelTests
         Assert.Equal(4, game.Inventory.GetItemQuantity("oak_logs"));
         game.Player!.ActionSystem!.FlushNotifications();
         Assert.Contains(game.Player.ActionSystem.Notifications,
-            n => n.Text.Contains("stick"));
+            n => n.Text.Contains("Stick"));
     }
 
     [Fact]
@@ -307,6 +307,7 @@ public class FireHearthFuelTests
     {
         var game = MakeGame();
         AddHearth(game);
+        game.SkillManager!.AddXp("construction", SkillManager.XpForLevel(2) + 1f);
 
         var result = game.FireInteraction.TryUpgradeNearestHearth();
 
@@ -328,7 +329,7 @@ public class FireHearthFuelTests
         panel.Update(new InputState(), crafting, new Inv(), new SkillManager(), 1280, 720);
 
         // Walk the selection past the recipe list: the FUEL row.
-        for (int i = 0; i < 40; i++)
+        while (panel.SelectedIndex < panel.ListedRecipes.Count)
             panel.HandleKey(Key.Down);
         Assert.Equal(panel.ListedRecipes.Count, panel.SelectedIndex);
 

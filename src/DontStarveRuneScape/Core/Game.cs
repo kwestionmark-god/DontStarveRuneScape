@@ -573,6 +573,10 @@ public sealed class Game
     public void OpenFireMenu()
     {
         SetState(GameState.FireMenu);
+        // Slice 13: the menu targets the nearest hearth — its def drives
+        // the upgrade row and its reservoir drives the fuel pane.
+        if (FireMenuPanel != null && FireInteraction != null)
+            FireMenuPanel.FireTargetDef = FireInteraction.FindNearbyHearth()?.StructureDef;
     }
 
     /// <summary>
@@ -832,6 +836,18 @@ public sealed class Game
         if (State == GameState.FireMenu && FireMenuPanel != null && Crafting != null
             && Inventory != null && SkillManager != null && InputManager != null)
         {
+            // Slice 13: refresh the reservoir pane + metrics per-frame —
+            // the fire keeps burning while the menu is open.
+            if (FireInteraction != null)
+            {
+                FireMenuPanel.FireStatusText = FireInteraction.FireStatusLabel();
+                FireMenuPanel.FuelPreviewLine = FireInteraction.FuelPreviewText();
+                FireMenuPanel.FireGaugeFraction = FireInteraction.FireGaugeFraction();
+                var target = FireInteraction.FindNearbyHearth();
+                FireMenuPanel.FireTargetDef = target?.StructureDef ?? FireMenuPanel.FireTargetDef;
+                FireMenuPanel.ReservoirItemId = target?.FuelItemId;
+                FireMenuPanel.ReservoirCount = target?.FuelCount ?? 0;
+            }
             FireMenuPanel.Update(InputManager.InputState, Crafting, Inventory, SkillManager,
                 _lastScreenW, _lastScreenH, GetAvailableStructureIds(), Player?.UnlockedRecipes);
         }

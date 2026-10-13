@@ -67,7 +67,8 @@
     "burnable": true,
     "light_seconds": 90.0,
     "burn_rate": 1.0,
-    "contact_damage": 2.0
+    "contact_damage": 2.0,
+    "upgrades_to": "lined_fire_pit"
    },
    "lined_fire_pit": {
     "structure_id": "lined_fire_pit",
