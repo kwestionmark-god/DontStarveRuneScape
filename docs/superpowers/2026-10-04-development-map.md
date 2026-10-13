@@ -29,6 +29,30 @@ that section; they do not restate it.
 - **Caves stages 1–2.** Distance-band entrance, beacon, enter/exit prompt,
   persistent cave map, ore bands, cave troll. DS exploration and danger;
   RS mining gated by skill level.
+- **Caves stages 2¾ + 3 (2026-10-13).** Map-edge rock walls enclose the
+  cave (stepped shoulder/lip elevation cliff, crest-lit palette, stitched
+  seams, near-black in-cave clear color — the sky bleed is gone); real
+  darkness with light pools: carried torch pools light around the player,
+  fires pool via slice 16, gemstone deposits glow cool-blue.
+- **Vertical building slices 15–19 (2026-10-13).** Every flame stage
+  animates (embers pulse 1.2s, roaring flips 0.4s); firelight glow pools
+  on the ground under darkness (stage- and WarmthRadius-scaled);
+  WarmthRadius gameplay consumer (warmth slows hunger drain up to 40%);
+  the BONFIRE third hearth tier (first 3x3 footprint, warmth_radius 5);
+  walk-through fire entry bites (ceil(contact/2)).
+- **Voxel player body (2026-10-13).** The crossed-billboard paper doll is
+  replaced (on land) by a static voxel figure — stacked projected boxes
+  (legs/torso/sleeves/hands/head/hair, body.png palette), nose forward and
+  hair wrapped back so the figure reads its facing (the old back-sprite
+  item). NPCs/monsters keep the paper doll.
+- **Click-to-move wired (2026-10-13).** Ground left-click in Playing
+  walks there; WASD cancels. Alongside: the DSR_TEST_MOVE phased grammar
+  fixed (`up:999` single phases silently parsed to no keys).
+- **Colony cave↔surface routes (2026-10-13).** Expedition workers haul
+  packs to the cave exit and hand off to the surface stockpile; the
+  cave-raid spawn now announces to the player below.
+- **Legless monster sprite refresh (2026-10-13).** Djinn/serpent/snake/
+  sand_worm grown from single-shade blobs to authored 16x16 art.
 - **Gait and dome-boot rendering.** Shared gait for player, NPCs, and
   monsters (`b68da74`, `22ef2b8`); spherical dome boots (`338a684` and
   follow-ups). Presentation of the DS/RS character, not a new loop.

@@ -8,6 +8,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Cave stage 2¾ + 3 — walls and real darkness** — the cave map is
+  enclosed by stepped rock walls instead of ending in open sky (in-cave
+  background is near-black), and light pools where it should: your
+  carried torch casts a moving pool at night and underground, fires light
+  their surroundings, and gemstone deposits glow faintly cool-blue as
+  lures in the dark.
+- **Colony — cave expeditions deliver home** — workers hauling goods in
+  the cave now walk to the exit and hand their pack to the surface
+  stockpile; raids that spawn while you're underground are announced.
+- **Click-to-move** — left-click the ground to walk there (WASD cancels).
 - **Vertical building, slice 18 — the bonfire** — a new third hearth
   tier (campfire → stone-lined pit → bonfire): the first 3x3 footprint
   structure, a big open stone ring (0.75 tall) that burns each fuel unit
