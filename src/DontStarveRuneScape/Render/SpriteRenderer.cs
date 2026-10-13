@@ -227,6 +227,11 @@ public sealed class SpriteRenderer : IDisposable
     private readonly GaitAnimator _playerGait = new(GaitConfigs.Player);
     // Crossed-billboard half-planes, sorted by view depth every frame.
     private readonly BillQuad[] _bodyHalves = new BillQuad[4];
+
+    /// <summary>Scratch buffer for the voxel body (slice 20): 3 faces per
+    /// part is the max a camera-facing box ever shows.</summary>
+    private readonly VoxelBody.Face[] _voxelFacesBuffer =
+        new VoxelBody.Face[VoxelBody.PlayerModel.Length * 3];
     // Resource crossed-billboard halves (one shared rig: RenderResource
     // completes before the next drawable runs, same as the entity path).
     private readonly BillQuad[] _resourceHalves = new BillQuad[4];
@@ -1050,14 +1055,81 @@ public sealed class SpriteRenderer : IDisposable
                     baseTilt: airborne ? leap.Tilt : 0f);
             }
 
-            // Draw the cross: four half-quads back-to-front by view depth.
-            // Halves only meet at the fold line, so painter order is exact
-            // and stable under every yaw — no flicker as planes cross.
-            foreach (var hq in _bodyHalves)
-                batch.DrawScreenQuadCornersTexturedUSpan(
-                    hq.BLx, hq.BLy, hq.BRx, hq.BRy,
-                    hq.TRx, hq.TRy, hq.TLx, hq.TLy,
-                    bodyTex, 255, 255, 255, 255, hq.U0, hq.U1);
+            if (!swimming)
+            {
+                // Voxel body: the player's static classic-3D figure — a
+                // stack of projected world-space boxes (VoxelBody) wearing
+                // the body.png palette, lean-pivoted about the projected
+                // ground point and sprint-sheared exactly like the paper
+                // doll it replaces. Faces sort back-to-front by view depth
+                // across ALL parts (arms tuck behind the torso honestly).
+                int nf = 0;
+                var model = VoxelBody.PlayerModel;
+                for (int pi = 0; pi < model.Length; pi++)
+                    nf += VoxelBody.BuildPart(camera, player.WorldX, player.WorldY,
+                        elevation, gdirX, gdirY, model[pi], pi, _voxelFacesBuffer, nf);
+                // Shared transforms: lean about the ground point, jump lift,
+                // sprint forward shear on top corners weighted by part top.
+                var ground = camera.WorldToScreen(player.WorldX, player.WorldY, elevation);
+                float lc = MathF.Cos(lean), ls = MathF.Sin(lean);
+                float shearX = 0f, shearY = 0f;
+                if (_sprintEnv > 0.001f && (velX != 0f || velY != 0f))
+                {
+                    var g0 = ground;
+                    var g1 = camera.WorldToScreen(player.WorldX + gdirX, player.WorldY + gdirY, elevation);
+                    float dxs = g1.X - g0.X, dys = g1.Y - g0.Y;
+                    float lens = MathF.Sqrt(dxs * dxs + dys * dys);
+                    if (lens > 0.01f)
+                    {
+                        float amt = SprintForwardLeanPx * _sprintEnv * camera.Zoom / lens;
+                        shearX = dxs * amt; shearY = dys * amt;
+                    }
+                }
+                float modelTopPx = 35.6f; // PlayerModel silhouette top
+                (float X, float Y) Xform(float x, float y, bool top, float topFrac)
+                {
+                    if (airborne) y -= jumpLift;
+                    if (top)
+                    {
+                        x += shearX * topFrac;
+                        y += shearY * topFrac;
+                    }
+                    return (ground.X + (x - ground.X) * lc - (y - ground.Y) * ls,
+                            ground.Y + (x - ground.X) * ls + (y - ground.Y) * lc);
+                }
+                for (int i = 0; i < nf; i++)
+                {
+                    ref var f = ref _voxelFacesBuffer[i];
+                    float topFrac = (model[f.PartIndex].Base + model[f.PartIndex].H) / modelTopPx;
+                    (f.BLx, f.BLy) = Xform(f.BLx, f.BLy, false, 0f);
+                    (f.BRx, f.BRy) = Xform(f.BRx, f.BRy, false, 0f);
+                    (f.TRx, f.TRy) = Xform(f.TRx, f.TRy, true, topFrac);
+                    (f.TLx, f.TLy) = Xform(f.TLx, f.TLy, true, topFrac);
+                }
+                Array.Sort(_voxelFacesBuffer, 0, nf, Comparer<VoxelBody.Face>.Create(
+                    static (a, b) => a.Depth.CompareTo(b.Depth)));
+                for (int i = 0; i < nf; i++)
+                {
+                    ref var f = ref _voxelFacesBuffer[i];
+                    var part = model[f.PartIndex];
+                    float shade = f.Plane == 4 ? 1.12f : f.Plane is 0 or 2 ? 0.85f : 0.68f;
+                    batch.DrawScreenQuadCorners(
+                        f.BLx, f.BLy, f.BRx, f.BRy, f.TRx, f.TRy, f.TLx, f.TLy,
+                        (byte)Math.Clamp(part.R * shade, 0, 255),
+                        (byte)Math.Clamp(part.G * shade, 0, 255),
+                        (byte)Math.Clamp(part.B * shade, 0, 255), 255);
+                }
+            }
+            else
+            // Swimming keeps the paper doll: the crossed billboard reads
+            // from the waterline up, the voxel stack would need a clip.
+            {
+                foreach (var hq in _bodyHalves)
+                    batch.DrawScreenQuadCornersTexturedUSpan(
+                        hq.BLx, hq.BLy, hq.BRx, hq.BRy,
+                        hq.TRx, hq.TRy, hq.TLx, hq.TLy,
+                        bodyTex, 255, 255, 255, 255, hq.U0, hq.U1);
+            }
 
             if (bootTex != 0 && swimming)
             {
