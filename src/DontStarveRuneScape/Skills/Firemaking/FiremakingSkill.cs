@@ -167,6 +167,17 @@ public sealed class FiremakingSkill
         return frac < 0.25f ? 1 : frac < 0.75f ? 2 : 3;
     }
 
+    /// <summary>Slice 14: the RENDER stage of a live fire — the reservoir
+    /// fullness of the owning hearth (current unit + stock against a full
+    /// 10-unit tank), not just the current unit's life cycle, so a full
+    /// fire LOOKS full. Ground fires (no owning hearth) fall back to the
+    /// unit's own fraction.</summary>
+    public int StageOf(FireInstance fire, Building.BuildingSystem? buildings)
+    {
+        // RED stub.
+        return BurnStageOf(fire.RemainingTime, fire.MaxTime);
+    }
+
     /// <summary>Slice 13: light a hearth by burning one STOCKED fuel unit —
     /// the fire is the fuel table's per-unit seconds times the def's
     /// burn_rate, plus the duration sub-stat bonus.</summary>
