@@ -1845,17 +1845,25 @@ public sealed class SpriteRenderer : IDisposable
         return (int)Math.Clamp(darkness * stageMul * 255f, 0f, 255f);
     }
 
-    /// <summary>Cave Stage 3 (RED stub): the carried torch's pool radius
-    /// in world tiles — 2.5 when a torch is equipped, else 0.</summary>
-    public static float TorchGlowRadiusTiles(bool torchEquipped) => 0f;
+    /// <summary>Cave Stage 3: the carried torch's pool radius in world
+    /// tiles — 2.5 while a torch is equipped, else 0.</summary>
+    public static float TorchGlowRadiusTiles(bool torchEquipped) => torchEquipped ? 2.5f : 0f;
 
-    /// <summary>Cave Stage 3 (RED stub): torch pool alpha = darkness ×
-    /// 0.75 (0–255) — it reads stronger than a fire pool.</summary>
-    public static int TorchGlowAlpha(float darkness) => 0;
+    /// <summary>Cave Stage 3: torch pool alpha = darkness × 0.75 (0–255);
+    /// the torch reads brighter than any fire pool because it moves.</summary>
+    public static int TorchGlowAlpha(float darkness)
+    {
+        if (darkness <= 0.01f) return 0;
+        return (int)Math.Clamp(darkness * 0.75f * 255f, 0f, 255f);
+    }
 
-    /// <summary>Cave Stage 3 (RED stub): gemstone crystal glow alpha =
-    /// darkness × 0.40 — a faint cool lure in the dark.</summary>
-    public static int CrystalGlowAlpha(float darkness) => 0;
+    /// <summary>Cave Stage 3: gemstone crystal glow alpha = darkness ×
+    /// 0.40 — a faint cool lure half the torch's strength.</summary>
+    public static int CrystalGlowAlpha(float darkness)
+    {
+        if (darkness <= 0.01f) return 0;
+        return (int)Math.Clamp(darkness * 0.40f * 255f, 0f, 255f);
+    }
 
     // ─── Fire glow pool (slice 16) ──────────────────────────────────────
 
@@ -1878,7 +1886,9 @@ public sealed class SpriteRenderer : IDisposable
             float t = Math.Clamp(1f - d, 0f, 1f);
             byte a = (byte)(t * t * 255f);
             int i = (y * Size + x) * 4;
-            px[i] = 255; px[i + 1] = 170; px[i + 2] = 70; px[i + 3] = a;
+            // White base so the draw tint IS the pool color (slice 16 warm
+            // 255,170,70 / stage-3 crystal cool 120,180,255).
+            px[i] = 255; px[i + 1] = 255; px[i + 2] = 255; px[i + 3] = a;
         }
 
         uint tex = _gl.GenTexture();
@@ -1904,10 +1914,17 @@ public sealed class SpriteRenderer : IDisposable
     /// the darkness overlay so it reads as light pooling on the ground.</summary>
     public void DrawFireGlow(PrimitiveBatch batch, float screenX, float screenY,
         float radiusPx, byte alpha)
+        => DrawLightPool(batch, screenX, screenY, radiusPx, alpha, 255, 170, 70);
+
+    /// <summary>Slice 16/Stage-3: the generic radial light pool — tinted
+    /// (255,170,70) for firelight and torches, (120,180,255) for gemstone
+    /// crystals in the dark cave.</summary>
+    public void DrawLightPool(PrimitiveBatch batch, float screenX, float screenY,
+        float radiusPx, byte alpha, byte r, byte g, byte b)
     {
         if (alpha == 0 || radiusPx <= 0f) return;
         batch.DrawTexturedScreenQuad(screenX, screenY, radiusPx, radiusPx * 0.55f,
-            GetGlowTexture(), 255, 255, 255, alpha);
+            GetGlowTexture(), r, g, b, alpha);
     }
 
     /// <summary>One vertical world-anchored flame quad: an axis plane

@@ -2320,6 +2320,43 @@ public sealed class Game
             }
         }
 
+        // Cave Stage 3: the carried torch pools warm light around the
+        // player whenever it's dark (night surface too); gemstone deposits
+        // in the cave glow cool blue as lures.
+        if (Camera != null && glowDarkness > 0.01f)
+        {
+            if (Player != null && World != null
+                && string.Equals(Player.Gear?.Weapon?.Id, "torch", StringComparison.OrdinalIgnoreCase))
+            {
+                float torchR = SpriteRenderer.TorchGlowRadiusTiles(true) * Constants.TileSize * Camera.Zoom;
+                byte torchA = (byte)SpriteRenderer.TorchGlowAlpha(glowDarkness);
+                var tp = Camera.WorldToScreen(Player.WorldX, Player.WorldY,
+                    BlockStack.StandingElevationAt(World, BuildingSystem, Player.WorldX, Player.WorldY));
+                SpriteRenderer.DrawLightPool(batch, tp.X, tp.Y, torchR, torchA, 255, 200, 120);
+            }
+            if (World?.IsCave == true)
+            {
+                byte crystalA = (byte)SpriteRenderer.CrystalGlowAlpha(glowDarkness);
+                if (crystalA > 0)
+                {
+                    for (int tx = 0; tx < World.Width; tx++)
+                    for (int ty = 0; ty < World.Height; ty++)
+                    {
+                        var node = World.Tiles[tx, ty].ResourceNode;
+                        if (node?.ResourceId != "gemstone" || node.IsDepleted) continue;
+                        float wx = (tx + 0.5f) * Constants.TileSize;
+                        float wy = (ty + 0.5f) * Constants.TileSize;
+                        var cp = Camera.WorldToScreen(wx, wy, World.Tiles[tx, ty].Elevation);
+                        // Cheap view cull.
+                        if (cp.X < -200 || cp.X > _lastScreenW + 200 || cp.Y < -200 || cp.Y > _lastScreenH + 200)
+                            continue;
+                        SpriteRenderer.DrawLightPool(batch, cp.X, cp.Y,
+                            1.4f * Constants.TileSize * Camera.Zoom, crystalA, 120, 180, 255);
+                    }
+                }
+            }
+        }
+
         if (CombatSystem != null && Camera != null)
         {
             CombatUI.RenderDamageNumbers(gl, CombatSystem.DamageNumbers, Camera, batch, TextRenderer);
