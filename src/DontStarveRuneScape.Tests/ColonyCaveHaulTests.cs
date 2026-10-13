@@ -24,6 +24,7 @@ public class ColonyCaveHaulTests
     private sealed class Harness
     {
         public TileMap Cave = MakeCave();
+        public TileMap Surface = MakeCave(); // same flat field, IsCave cleared below
         public Player Player = new(3.5f * Constants.TileSize, 3.5f * Constants.TileSize)
         {
             Gear = new PlayerGear(),
@@ -62,6 +63,13 @@ public class ColonyCaveHaulTests
             return new CraftingSystem { Registry = recipes };
         }
 
+        public bool FoundColony()
+        {
+            var surface = MakeCave();
+            surface.IsCave = false;
+            return Colony.FoundAt(0f, 0f, surface);
+        }
+
         public RecruitNpc AddWorker(string id, int tileX, int tileY)
         {
             var npc = new RecruitNpc
@@ -94,14 +102,17 @@ public class ColonyCaveHaulTests
     public void CaveWorker_CarryingGoods_DepositsAtTheExit()
     {
         var h = new Harness();
-        h.Colony.FoundAt(0f, 0f, h.Cave); // anchor coords live in world px; cave-local is fine data-wise
+        h.FoundColony();
         var worker = h.AddWorker("w1", 10, 8);
         worker.CarriedItemId = "copper_ore";
         worker.CarriedQuantity = 2;
 
-        h.Tick(400); // enough to walk from (10,8) to the exit (3,8)
+        h.Tick(1600); // walk + any rest detour, with margin
 
-        Assert.Null(worker.CarriedItemId);
+        Assert.True(worker.CarriedItemId == null,
+            $"worker still carrying after 1600 ticks: pos=({worker.WorldX:F0},{worker.WorldY:F0}) " +
+            $"carried={worker.CarriedQuantity} status='{worker.CarryStatus}' need='{worker.ColonyNeedStatus}' " +
+            $"rest={worker.ColonyRest:F0} hunger={worker.ColonyHunger:F0}");
         Assert.Equal(0, worker.CarriedQuantity);
         Assert.Equal(2, h.Colony.GetItemQuantity("copper_ore"));
         // Delivered at the exit, not the anchor.
@@ -129,7 +140,7 @@ public class ColonyCaveHaulTests
     public void CaveWorker_FullStockpile_KeepsGoods_AndSaysSo()
     {
         var h = new Harness();
-        h.Colony.FoundAt(0f, 0f, h.Cave);
+        h.FoundColony();
         // Fill the stockpile to the brim.
         var cap = h.Colony.FreeCapacity;
         h.Colony.Store("dirt_brick", cap);
@@ -155,7 +166,7 @@ public class ColonyCaveHaulTests
         // Regression guard: surface behavior unchanged by the cave route.
         var h = new Harness();
         h.Cave.IsCave = false; // treat the same flat map as surface
-        h.Colony.FoundAt(0f, 0f, h.Cave);
+        h.FoundColony();
         var worker = h.AddWorker("w1", 10, 8);
         worker.CarriedItemId = "copper_ore";
         worker.CarriedQuantity = 2;
