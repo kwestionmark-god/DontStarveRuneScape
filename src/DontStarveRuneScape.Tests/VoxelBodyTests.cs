@@ -61,12 +61,14 @@ public class VoxelBodyTests
     [Fact]
     public void PlayerModel_Stacks_Contiguously()
     {
-        // The figure: legs 0-10, torso 10-25, head 25-33, hair overlapping
-        // the head's upper half (26) so it towers as a back-of-head mass.
+        // The charmed figure: belt 2.5-5.5, torso 5.5-15.5, head 15.5-27.5
+        // (big!), hair cap 27.5+.
         var byName = VoxelBody.PlayerModel.ToDictionary(p => p.Name);
-        Assert.Equal(10f, byName["torso"].Base);
-        Assert.Equal(25f, byName["head"].Base);
-        Assert.Equal(26f, byName["hair"].Base);
+        Assert.Equal(5.5f, byName["torso"].Base);
+        Assert.Equal(15.5f, byName["head"].Base);
+        Assert.Equal(27.5f, byName["hair_cap"].Base);
+        Assert.True(byName["head"].Base + byName["head"].H == byName["hair_cap"].Base,
+            "hair cap sits exactly on the head top");
         // Hands hang from the arm base down past the torso bottom.
         Assert.True(byName["hand_l"].Base < byName["arm_l"].Base);
     }

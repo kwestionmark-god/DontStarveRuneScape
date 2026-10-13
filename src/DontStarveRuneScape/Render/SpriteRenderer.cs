@@ -1065,9 +1065,13 @@ public sealed class SpriteRenderer : IDisposable
                 // across ALL parts (arms tuck behind the torso honestly).
                 int nf = 0;
                 var model = VoxelBody.PlayerModel;
+                // BuildPart's lon+ frame runs anti-parallel to gait travel
+                // under the current camera yaw, so the model (eyes/nose at
+                // lon+) is passed the reversed direction to face along
+                // travel. 2026-10-13 up/down captures pinned the polarity.
                 for (int pi = 0; pi < model.Length; pi++)
                     nf += VoxelBody.BuildPart(camera, player.WorldX, player.WorldY,
-                        elevation, gdirX, gdirY, model[pi], pi, _voxelFacesBuffer, nf);
+                        elevation, -gdirX, -gdirY, model[pi], pi, _voxelFacesBuffer, nf);
                 // Shared transforms: lean about the ground point, jump lift,
                 // sprint forward shear on top corners weighted by part top.
                 var ground = camera.WorldToScreen(player.WorldX, player.WorldY, elevation);
@@ -1085,7 +1089,7 @@ public sealed class SpriteRenderer : IDisposable
                         shearX = dxs * amt; shearY = dys * amt;
                     }
                 }
-                float modelTopPx = 35.6f; // PlayerModel silhouette top
+                float modelTopPx = 30.9f; // PlayerModel silhouette top
                 (float X, float Y) Xform(float x, float y, bool top, float topFrac)
                 {
                     if (airborne) y -= jumpLift;

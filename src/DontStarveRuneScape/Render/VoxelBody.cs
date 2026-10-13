@@ -27,17 +27,25 @@ public static class VoxelBody
     /// (BodyHeightWorld 88 halves through the 30°-pitch response).</summary>
     public static readonly Part[] PlayerModel =
     [
-        new("leg_l",    -2.9f, 0f, 3.2f, 4.2f, 10f, 0f,   60, 40, 30),   // brown pants
-        new("leg_r",     2.9f, 0f, 3.2f, 4.2f, 10f, 0f,   60, 40, 30),
-        new("torso",     0f, 0f, 13f,  6.5f, 15f, 10f,   34, 139, 34),   // green shirt
-        new("arm_l",    -8.4f, 0f, 2.6f, 2.8f, 6f, 19f,   34, 120, 40),  // sleeve
-        new("arm_r",     8.4f, 0f, 2.6f, 2.8f, 6f, 19f,   34, 120, 40),
-        new("hand_l",   -8.4f, 0f, 2.2f, 2.4f, 3.5f, 15.5f, 235, 200, 160),
-        new("hand_r",    8.4f, 0f, 2.2f, 2.4f, 3.5f, 15.5f, 235, 200, 160),
-        new("head",      0f, 0f, 7f,   6f,   8f, 25f,   235, 200, 160),  // skin
-        new("hair",      0f, -0.8f, 7.4f, 5.4f, 10f, 26f,  60, 40, 30),   // wraps the back of the head
-
-        new("nose",      0f, 3.4f, 1.6f, 1.4f, 2f, 28f,   225, 190, 152), // the face tells the facing
+        // The 'stubby boots' on body.png: a BELT (user, 2026-10-13) — the
+        // body hovers above the dome boots, no legs.
+        new("belt",      0f, 0f,    12f,  6.4f, 3f, 2.5f,   60, 40, 30),   // under the torso
+        new("torso",     0f, 0f,     11f, 5.5f, 10f, 5.5f, 34, 139, 34),  // green shirt
+        new("arm_l",    -6.8f, 0f,    2.4f, 2.6f, 6f, 9.5f,     34, 120, 40), // sleeve
+        new("arm_r",      6.8f, 0f,    2.4f, 2.6f, 6f, 9.5f,     34, 120, 40),
+        new("hand_l",    -6.8f, 0.2f, 2.0f, 2.2f, 3f, 6.5f,   235, 200, 160), // hip height
+        new("hand_r",      6.8f, 0.2f, 2.0f, 2.2f, 3f, 6.5f,   235, 200, 160),
+        // Big head — nearly half the figure's height, like the old art; hair
+        // wraps the top/back/sides with a stepped hem and only the front face
+        // is skin; eye insets and a tiny nose read the facing.
+        new("head",        0f, 0.3f,   9f, 7.5f, 12f, 15.5f,   235, 200, 160),
+        new("hair_cap",    0f, -0.2f,   9.4f, 8.0f, 3.4f, 27.5f,   60, 40, 30),
+        new("hair_back",   0f, -2.8f,   9.4f, 2.6f, 6.5f, 24f,   60, 40, 30),
+        new("hair_side_l", -4.0f, -0.6f, 1.4f, 4.4f, 6.5f, 24.5f, 60, 40, 30),
+        new("hair_side_r",  4.0f, -0.6f, 1.4f, 4.4f, 6.5f, 24.5f, 60, 40, 30),
+        new("eye_l",      -2.1f, 4.05f, 1.5f, 0.9f, 2f, 22.5f,    30, 25, 20),
+        new("eye_r",       2.1f, 4.05f, 1.5f, 0.9f, 2f, 22.5f,    30, 25, 20),
+        new("nose",        0f, 4.15f,   1.4f, 0.9f, 1.6f, 21f,   225, 190, 152),
     ];
 
     /// <summary>World-px heights convert to elevation units exactly like
