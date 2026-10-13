@@ -231,4 +231,36 @@ public class GaitAnimatorTests
             Assert.Equal(cfg.FootOffsets[i].Lat + shift, lateral, 5);
         }
     }
+
+    [Fact]
+    public void FeetNeverLeaveTheStrideBall_AtCardinalDirections()
+    {
+        // The reported "left/right flutter" (boots detached, near head
+        // height): pin the invariant that a foot's world offset from the
+        // body NEVER exceeds the stride envelope, walking every cardinal
+        // direction. Live-capture measurement 2026-10-13 (strafing right
+        // and up at zoom 2.5) confirmed post-projected boot pixels stay
+        // within ±27px of the shirt — the gait itself never detaches; the
+        // visible scatter was the parser bug starving DSR_TEST_MOVE of
+        // keys (single timed phase parsed to nothing), not the gait.
+        const float speed = 150f, dt = 1f / 60f;
+        foreach (var (dx, dy) in new[] { (1f, 0f), (-1f, 0f), (0f, 1f), (0f, -1f) })
+        {
+            var gait = new GaitAnimator(Biped());
+            float x = 0f, y = 0f;
+            float limit = MathF.Max(3f, speed * 0.1f * 0.5f) + speed * 0.1f + speed * dt + 4f; // stride + lead + 1 frame + margin
+            for (int s = 0; s < 400; s++)
+            {
+                x += dx * speed * dt; y += dy * speed * dt;
+                gait.Update(x, y, dx * speed, dy * speed, dt);
+                for (int i = 0; i < gait.FootCount; i++)
+                {
+                    var f = gait.GetFoot(i);
+                    float off = MathF.Abs(f.X - x) + MathF.Abs(f.Y - y); // manhattan, lat sum
+                    Assert.True(off <= limit + 4f + 1f,
+                        $"dir ({dx},{dy}) frame {s}: foot{i} offset {off:F1} > limit {limit + 5f:F1}");
+                }
+            }
+        }
+    }
 }

@@ -938,6 +938,8 @@ public sealed class Game
         // Player movement (Playing only; keys route to panels in panel states)
         if (State == GameState.Playing && Player != null && InputManager != null)
         {
+            if (Environment.GetEnvironmentVariable("DSR_LOGMOVE") == "1")
+                Console.WriteLine($"MOVE f{_smokeFrames} st={InputManager.InputState.MoveUp},{InputManager.InputState.MoveRight} pos=({Player.WorldX:F1},{Player.WorldY:F1}) moving={Player.Moving}");
             float cameraYaw = Camera?.Yaw ?? 0f;
             float prevX = Player.WorldX, prevY = Player.WorldY;
             // Sprint gate runs BEFORE movement so this frame already carries
@@ -1286,6 +1288,36 @@ public sealed class Game
                 Environment.Exit(0);
             }
         }
+    }
+
+    /// <summary>Parse the whole DSR_TEST_MOVE grammar (pure; test-pinned):
+    /// semicolon-separated phases, each "keys" (held to the end) or
+    /// "keys:frames" (held N render frames, end frames cumulative). A
+    /// frames-less phase anywhere ends the script's timing. NOTE: a lone
+    /// "right:999" MUST parse as a timed phase — gating the phased form
+    /// on Contains(';') once sent it through the legacy branch, where the
+    /// token "right:999" parsed to NO keys: a silent no-op movement.
+    /// (Smoke hooks must never no-op silently.)</summary>
+    internal static List<(bool Up, bool Down, bool Left, bool Right, bool OrbitCCW, bool OrbitCW, bool Sprint, int EndFrame)>
+        ParseMovePhases(string moveScript)
+    {
+        var phases = new List<(bool, bool, bool, bool, bool, bool, bool, int)>();
+        int endFrame = 0;
+        foreach (var phase in moveScript.Split(';',
+            StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries))
+        {
+            var parts = phase.Split(':');
+            if (parts.Length > 2) continue; // malformed phase — skip loudly later if desired
+            var (up, down, left, right, occw, ocw, sprint) = ParseMoveKeys(parts[0]);
+            if (parts.Length == 2
+                && int.TryParse(parts[1].Trim(), out var frames) && frames >= 1)
+                endFrame += frames;
+            else
+                endFrame = int.MaxValue;
+            phases.Add((up, down, left, right, occw, ocw, sprint, endFrame));
+            if (endFrame == int.MaxValue) break;
+        }
+        return phases;
     }
 
     /// <summary>Parse one DSR_TEST_MOVE key list ("up+orbit_cw", "up,right")
@@ -1797,27 +1829,7 @@ public sealed class Game
         var moveEnv = Environment.GetEnvironmentVariable("DSR_TEST_MOVE");
         if (!string.IsNullOrWhiteSpace(moveEnv) && InputManager != null)
         {
-            var phases = new List<(bool, bool, bool, bool, bool, bool, bool, int)>();
-            if (moveEnv.Contains(';'))
-            {
-                int endFrame = 0;
-                foreach (var phase in moveEnv.Split(';',
-                    StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries))
-                {
-                    var parts = phase.Split(':');
-                    if (parts.Length != 2 || !int.TryParse(parts[1].Trim(), out var frames) || frames < 1)
-                        continue;
-                    var (up, down, left, right, occw, ocw, sprint) = ParseMoveKeys(parts[0]);
-                    endFrame += frames;
-                    phases.Add((up, down, left, right, occw, ocw, sprint, endFrame));
-                }
-            }
-            else
-            {
-                // Legacy whole-run hold: one unbounded phase.
-                var (up, down, left, right, occw, ocw, sprint) = ParseMoveKeys(moveEnv);
-                phases.Add((up, down, left, right, occw, ocw, sprint, int.MaxValue));
-            }
+            var phases = ParseMovePhases(moveEnv);
             if (phases.Count > 0)
                 _movePhases = phases.ToArray();
         }

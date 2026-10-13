@@ -1035,6 +1035,11 @@ public sealed class SpriteRenderer : IDisposable
                     _playerGait.Update(player.WorldX, player.WorldY, velX, velY, dt,
                         lean * TurnLean.StanceShiftPerRad,
                         trail: BootTrailPx * _sprintEnv);
+                if (System.Environment.GetEnvironmentVariable("DSR_LOGGAIT") == "1")
+                    System.Console.WriteLine(
+                        $"PLAYERGAIT body=({player.WorldX:F1},{player.WorldY:F1}) vel=({velX:F1},{velY:F1}) " +
+                        $"f0=({_playerGait.GetFoot(0).X - player.WorldX:F1},{_playerGait.GetFoot(0).Y - player.WorldY:F1},sw{_playerGait.GetFoot(0).Swinging}) " +
+                        $"f1=({_playerGait.GetFoot(1).X - player.WorldX:F1},{_playerGait.GetFoot(1).Y - player.WorldY:F1},sw{_playerGait.GetFoot(1).Swinging}) elev={elevation:F2} swim={swimming}");
                 // Boot base color matches the player/boot.png leather tone.
                 // Airborne, the leap pose rides the dome draw: the arc lift
                 // plus the tuck bump, and the toe-off→heel-strike tilt.
