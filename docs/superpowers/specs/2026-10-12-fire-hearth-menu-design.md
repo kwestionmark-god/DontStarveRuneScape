@@ -1,7 +1,8 @@
 # Fire structure menu — fuel reservoir, burn stages, upgrade + fire art (slice 13)
 
 Date: 2026-10-12
-Status: drafted — decisions answered by the user 2026-10-12 (clarify round quoted verbatim), awaiting RED
+Status: implemented — RED b2066b2 / GREEN 023b8c2 (2026-10-12),
+suite 659 → 680 (679 green + 1 pre-existing skip)
 Slice line: vertical-building post-roadmap, slice 13 (fire-venue sequel + footprint arc "plain → lined" item)
 
 ## Design law (user's words, 2026-10-12)

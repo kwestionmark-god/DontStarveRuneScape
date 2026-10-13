@@ -21,6 +21,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   FREE cells; build ghost highlights the whole anchor extent; legacy
   tile-level campfires auto-migrate to the centered footprint on load.
 
+### Added
+- **Vertical building, slice 13 — the fire menu + fuel reservoir** —
+  E near ANY hearth (even a cold, burned-out campfire) now opens the
+  fire menu instead of sleeping at it. Hearths carry a fuel reservoir:
+  one fuel type, up to 10 units; feeding stocks a unit (5 firemaking XP)
+  and feeding a dead fire lights it (25 XP); stocked units auto-feed the
+  fire when it burns through. Each unit burns its real fuel-table value
+  times the fire's burn_rate (so the Stone-Lined Fire Pit's 1.5x
+  efficiency shows up per log). The menu's Fuel row shows burn metrics —
+  stage (embers / burning / roaring) + "about N min" + a gauge bar — and
+  a click-to-feed reservoir box (clicking an empty reservoir with no fuel
+  carried opens your inventory instead). New Upgrade row: a campfire
+  upgrades to a Stone-Lined Fire Pit through colony labor. Both fire
+  sprites redrawn (readable stone ring, crossed logs, ember coals) and
+  fires now render as staged flames (ember bed → body → bright tip).
+  Fire fuel stock persists through save/load.
+
 ### Changed
 - **Vertical building, slice 11 — monsters break walls** — walls buy
   time, not invincibility. A monster blocked by a player-built wall

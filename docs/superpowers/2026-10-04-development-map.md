@@ -711,6 +711,52 @@ law shapes it.
        on the lit face, burn-rate-consuming variant tiers, damage-on-
        WALKING-through (vs standing), structure upgrade interactions
        (plain → lined).
+     - **Vertical building, slice 13 — the fire structure menu + fuel
+       reservoir (user report 2026-10-12: "currently when 'e' is pressed
+       near the fire, it attempts to sleep.. i think we should create a
+       proper menu when interacting with the fire structure"). DONE
+       2026-10-12** (spec 2026-10-12-fire-hearth-menu-design.md; RED
+       b2066b2 / GREEN 023b8c2): a cold campfire was never a fire-menu
+       opener (fire-venue law: lit fires + stations only), so E fell
+       through to TrySleep — reported live in playtest. Now the hearth
+       STRUCTURE is the venue handle: any active finished hearth
+       (BurnSeconds > 0 — campfire, lined fire pit, firepit) within the
+       search radius opens the menu regardless of burn state, and sleep
+       near a fire lives in the menu's rest row. The slice then rebuilt
+       the fire's fuel model per the user's clarify-round answers
+       (verbatim in the spec): a per-structure FUEL RESERVOIR (single
+       fuel type, 10-unit cap, type memory sticks at zero — Structure
+       .FuelItemId/FuelCount, snapshot-persisted); feeding stocks +1
+       unit (5 XP), an OUT fire pops+lights on feed (25 XP), and
+       FiremakingSkill.Tick auto-feeds the next stocked unit on burnout
+       — per-unit seconds = fuel_table x burn_rate, so the lined pit's
+       1.5x efficiency now means something at every unit (the old flat
+       "entry fee + light_seconds" hearth law died; its pins were
+       retruthed). Burn METRICS in the menu: stage label + "about N min"
+       + gauge bar + hoverable reservoir box (empty engage with no
+       carried fuel opens the INVENTORY — the user's words — stocked
+       engage adds another of the type), plus the UPGRADE row
+       (campfire → lined pit via the existing colony UpgradeStructure
+       flow; structures.json gains the chain link). RenderFire draws a
+       staged flame (ember bed + body + bright tip, sized by the unit's
+       life-cycle stage) — pixel-verified in the smoketest (flame body
+       + tip at the fire's ground point; the slice-12 flat 20px square
+       is gone) — and both fire sprites were rewritten (chunky glint-
+       shaded stones, warm scorched bed, readable crossed logs, ember
+       coals — the "dark mat" look the screenshot showed is out).
+       Verified by 21 new contracts (cold-open ×3 + feed/no-fuel/
+       wrong-type/cap refusal table + XP split + auto-feed + per-unit
+       rates + stage table + status/preview strings + upgrade def data
+       + no-colony refusal + panel row indices + fuel/rest separation +
+       snapshot round-trip), 3 pre-green gate guards, 2 retruths, and
+       the two smoketest captures. Also fixed a slice-12 latent hole:
+       the generic RestoreSnapshot path recomputed a footprint
+       structure's WorldX at single-CELL center (8px drift after
+       save/load) — now footprint-extent centered. Suite 659 → 680
+       (679 green + 1 pre-existing skip). NEXT on the fire/menu arc
+       (user-adjacent): flame ANIMATION frames for the stages, warmth
+       radius consumer finally, burn-rate variant tiers beyond lined,
+       damage-on-WALKING-through, 3x3/4x4 workshop footprints.
     - **Progression accounting (user playtest finding, 2026-10-09).** The
       fishing rod is entry-tier by design but hangs on a deadlock:
        rod → planks → `goblin_diplomacy` (goblin CHIEF's quest, not
