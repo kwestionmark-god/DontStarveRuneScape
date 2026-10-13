@@ -1748,13 +1748,78 @@ public sealed class SpriteRenderer : IDisposable
         _ => animTime % 0.4f < 0.2f ? "fire/fire_roaring" : "fire/fire_roaring_b",
     };
 
-    /// <summary>Slice 16 (RED stub): the glow pool's screen radius in px
-    /// — footprint (warmthRadius * 32 world-px * zoom) scaled by stage.</summary>
-    public static float FireGlowRadiusPx(int stage, int warmthRadius, float zoom) => 0f;
+    /// <summary>Slice 16: the glow pool's screen radius in px — the warmth
+    /// footprint (warmthRadius * 32 world-px * zoom) scaled by the burn
+    /// stage: embers 0.5 / burning 0.8 / roaring 1.1.</summary>
+    public static float FireGlowRadiusPx(int stage, int warmthRadius, float zoom)
+    {
+        if (stage <= 0) return 0f;
+        float stageScale = stage == 1 ? 0.5f : stage == 2 ? 0.8f : 1.1f;
+        return warmthRadius * 32f * zoom * stageScale;
+    }
 
-    /// <summary>Slice 16 (RED stub): glow alpha 0–255 — zero in daylight,
-    /// stage-scaled 0.35/0.6/0.8 through the darkness factor.</summary>
-    public static int FireGlowAlpha(int stage, float darkness) => 0;
+    /// <summary>Slice 16: glow alpha 0–255 — zero at/under the daylight
+    /// floor, otherwise the darkness factor through a per-stage intensity
+    /// (embers 0.35 / burning 0.6 / roaring 0.8), clamped.</summary>
+    public static int FireGlowAlpha(int stage, float darkness)
+    {
+        if (stage <= 0 || darkness <= 0.01f) return 0;
+        float stageMul = stage == 1 ? 0.35f : stage == 2 ? 0.6f : 0.8f;
+        return (int)Math.Clamp(darkness * stageMul * 255f, 0f, 255f);
+    }
+
+    // ─── Fire glow pool (slice 16) ──────────────────────────────────────
+
+    private uint _glowTex;
+
+    /// <summary>Soft warm radial texture for the fire glow pool — same
+    /// quadratic-falloff idiom as the ground shadow, warm orange.</summary>
+    private uint GetGlowTexture()
+    {
+        if (_glowTex != 0) return _glowTex;
+
+        const int Size = 64;
+        var px = new byte[Size * Size * 4];
+        for (int y = 0; y < Size; y++)
+        for (int x = 0; x < Size; x++)
+        {
+            float nx = (x + 0.5f) / Size * 2f - 1f;
+            float ny = (y + 0.5f) / Size * 2f - 1f;
+            float d = MathF.Sqrt(nx * nx + ny * ny);
+            float t = Math.Clamp(1f - d, 0f, 1f);
+            byte a = (byte)(t * t * 255f);
+            int i = (y * Size + x) * 4;
+            px[i] = 255; px[i + 1] = 170; px[i + 2] = 70; px[i + 3] = a;
+        }
+
+        uint tex = _gl.GenTexture();
+        _gl.BindTexture(TextureTarget.Texture2D, tex);
+        _gl.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMinFilter, (int)TextureMinFilter.Linear);
+        _gl.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMagFilter, (int)TextureMagFilter.Linear);
+        _gl.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapS, (int)TextureWrapMode.ClampToEdge);
+        _gl.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapT, (int)TextureWrapMode.ClampToEdge);
+        unsafe
+        {
+            fixed (byte* ptr = px)
+            {
+                _gl.TexImage2D(TextureTarget.Texture2D, 0, InternalFormat.Rgba, Size, Size, 0,
+                    PixelFormat.Rgba, PixelType.UnsignedByte, ptr);
+            }
+        }
+        _glowTex = tex;
+        return _glowTex;
+    }
+
+    /// <summary>Draw the warm light pool under a fire — a soft radial
+    /// textured quad centered on the fire's screen position, drawn AFTER
+    /// the darkness overlay so it reads as light pooling on the ground.</summary>
+    public void DrawFireGlow(PrimitiveBatch batch, float screenX, float screenY,
+        float radiusPx, byte alpha)
+    {
+        if (alpha == 0 || radiusPx <= 0f) return;
+        batch.DrawTexturedScreenQuad(screenX, screenY, radiusPx, radiusPx * 0.55f,
+            GetGlowTexture(), 255, 255, 255, alpha);
+    }
 
     /// <summary>One vertical world-anchored flame quad: an axis plane
     /// (diag: false → X-axis; diag: true → the (1,1) diagonal) through

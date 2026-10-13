@@ -2244,21 +2244,44 @@ public sealed class Game
             drawFn();
 
         ParticleSystem?.Draw(gl);
+        // The darkness factor the fire-glow pool reads (slice 16): the
+        // night curve above ground, the constant cave overlay underground.
+        float glowDarkness;
         if (World?.IsCave == true)
+        {
             batch.DrawScreenQuad(screenWidth * .5f, screenHeight * .5f,
                 screenWidth * .5f, screenHeight * .5f, 13, 12, 21, 78);
+            glowDarkness = 78f / Constants.NightOverlayMaxAlpha;
+        }
         else
         {
             // Night darkness: full-screen overlay whose alpha follows the
             // day/night ambient curve (clear day = 0, midnight = max).
             float ambient = DayNight?.AmbientLevel ?? Constants.DayAmbientLevel;
-            float darkness = 1f - (ambient - Constants.NightAmbientLevel) /
+            glowDarkness = 1f - (ambient - Constants.NightAmbientLevel) /
                 (Constants.DayAmbientLevel - Constants.NightAmbientLevel);
-            if (darkness > 0.01f)
+            if (glowDarkness > 0.01f)
                 batch.DrawScreenQuad(screenWidth * .5f, screenHeight * .5f,
                     screenWidth * .5f, screenHeight * .5f, 8, 10, 32,
-                    (byte)(darkness * Constants.NightOverlayMaxAlpha));
+                    (byte)(glowDarkness * Constants.NightOverlayMaxAlpha));
             DrawCaveCompass(batch, screenWidth, screenHeight);
+        }
+
+        // Slice 16: warm light pools under live fires, drawn OVER the
+        // darkness so firelight reads on the ground. Radius grows with the
+        // burn stage and the fire's WarmthRadius; alpha fades out by day.
+        if (Firemaking != null && Camera != null && glowDarkness > 0.01f)
+        {
+            foreach (var fire in Firemaking.GetActiveFires())
+            {
+                int stage = Firemaking.StageOf(fire, BuildingSystem);
+                byte glowAlpha = (byte)SpriteRenderer.FireGlowAlpha(stage, glowDarkness);
+                if (glowAlpha == 0) continue;
+                var gp = Camera.WorldToScreen(fire.WorldX, fire.WorldY,
+                    BlockStack.StandingElevationAt(World!, BuildingSystem, fire.WorldX, fire.WorldY));
+                SpriteRenderer.DrawFireGlow(batch, gp.X, gp.Y,
+                    SpriteRenderer.FireGlowRadiusPx(stage, fire.WarmthRadius, Camera.Zoom), glowAlpha);
+            }
         }
 
         if (CombatSystem != null && Camera != null)
