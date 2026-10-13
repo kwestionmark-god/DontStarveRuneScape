@@ -702,7 +702,17 @@ public sealed class Game
     {
         if (SmokeTestPath != null)
         {
-            if (State == GameState.Title) SetState(GameState.CharacterSelect);
+            // DSR_LOAD_SAVE=<slot>: capture off the real save file instead of
+            // a fresh world (reproduces a live session's exact scene —
+            // structures, position, time of day).
+            if (State == GameState.Title)
+            {
+                var loadEnv = Environment.GetEnvironmentVariable("DSR_LOAD_SAVE");
+                if (!string.IsNullOrWhiteSpace(loadEnv) && int.TryParse(loadEnv, out var loadSlot))
+                    StartLoadingSave(loadSlot);
+                else
+                    SetState(GameState.CharacterSelect);
+            }
             else if (State == GameState.CharacterSelect)
             {
                 // Menu auto-advance bypasses StartNewGame, where DSR_SEED is
@@ -1725,6 +1735,20 @@ public sealed class Game
         if (float.TryParse(Environment.GetEnvironmentVariable("DSR_TEST_PITCH"),
                 out float pitchDeg) && Camera != null)
             Camera.SetOrbit(Camera.Yaw, pitchDeg * MathF.PI / 180f);
+
+        // DSR_DUMP_STRUCTURES=1: print the live structure list with projected
+        // screen positions (runs after the yaw/pitch pins so captures and
+        // coordinates describe the same orientation).
+        if (Environment.GetEnvironmentVariable("DSR_DUMP_STRUCTURES") == "1"
+            && BuildingSystem != null)
+        {
+            foreach (var s in BuildingSystem.Structures)
+            {
+                var scr = Camera?.WorldToScreen(s.WorldX, s.WorldY, 0f);
+                Console.WriteLine($"DSR_STRUCTURES: {s.StructureId} tile=({s.TileX},{s.TileY}) sub=({s.SubX},{s.SubY}) world=({s.WorldX:F0},{s.WorldY:F0}) screen=({scr?.X:F0},{scr?.Y:F0}) uc={s.IsUnderConstruction}");
+            }
+            Console.WriteLine($"DSR_STRUCTURES: player=({Player?.WorldX:F0},{Player?.WorldY:F0}) yaw={Camera?.Yaw:F3}");
+        }
 
         var keysEnv = Environment.GetEnvironmentVariable("DSR_TEST_KEYS");
         if (!string.IsNullOrWhiteSpace(keysEnv) && InputRouter != null)

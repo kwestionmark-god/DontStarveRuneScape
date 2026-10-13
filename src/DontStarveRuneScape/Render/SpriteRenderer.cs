@@ -319,6 +319,33 @@ public sealed class SpriteRenderer : IDisposable
         => BuildBoxVoxel(camera, x0, x1, y0, y1, baseElev, stackHeight,
             northTop, eastTop, southTop, westTop, faces);
 
+    /// <summary>Neighbour-column MAX for one face of an fp×fp footprint
+    /// structure: the face's edge cells run PERPENDICULAR to its normal
+    /// (N/S faces along X, E/W along Y), stepping one sub-cell outward with
+    /// tile-edge wraparound. Stepping along the normal instead samples the
+    /// footprint's own interior on the N/W faces and self-culls them.
+    /// Returns NegativeInfinity where no neighbour column exists.</summary>
+    internal static float FootprintFaceTop(TileMap world,
+        BuildingSystem? buildings, int tileX, int tileY,
+        int cellX, int cellY, int footprint, int dx, int dy)
+    {
+        float top = float.NegativeInfinity;
+        for (int i = 0; i < footprint; i++)
+        {
+            int cx = cellX + (dy != 0 ? i : 0);
+            int cy = cellY + (dx != 0 ? i : 0);
+            int ntx = tileX, nty = tileY;
+            int nsx = cx + dx, nsy = cy + dy;
+            if (nsx > 3) { ntx++; nsx = 0; }
+            if (nsx < 0) { ntx--; nsx = 3; }
+            if (nsy > 3) { nty++; nsy = 0; }
+            if (nsy < 0) { nty--; nsy = 3; }
+            float? t = BlockStack.BrickColumnTopAt(world, buildings, ntx, nty, nsx, nsy);
+            if (t.HasValue && t.Value > top) top = t.Value;
+        }
+        return top;
+    }
+
     /// <summary>Shared box core (slices 5-7): a world-space box over
     /// [x0,x1]x[y0,y1] x [baseElev, baseElev+stackHeight], drawn as a top
     /// face plus camera-facing side faces. A side face is culled where the
@@ -1527,23 +1554,9 @@ public sealed class SpriteRenderer : IDisposable
                 float bx0 = structure.TileX * Constants.TileSize + structure.SubX * cs;
                 float by0 = structure.TileY * Constants.TileSize + structure.SubY * cs;
                 float FaceTop(int cellX, int cellY, int dx, int dy)
-                {
-                    float top = float.NegativeInfinity;
-                    for (int i = 0; i < fp; i++)
-                    {
-                        int cx = cellX + (dx != 0 ? i : 0);
-                        int cy = cellY + (dy != 0 ? i : 0);
-                        int ntx = structure.TileX, nty = structure.TileY;
-                        int nsx = cx + dx, nsy = cy + dy;
-                        if (nsx > 3) { ntx++; nsx = 0; }
-                        if (nsx < 0) { ntx--; nsx = 3; }
-                        if (nsy > 3) { nty++; nsy = 0; }
-                        if (nsy < 0) { nty--; nsy = 3; }
-                        float? t = BlockStack.BrickColumnTopAt(world, buildings, ntx, nty, nsx, nsy);
-                        if (t.HasValue && t.Value > top) top = t.Value;
-                    }
-                    return top;
-                }
+                    => FootprintFaceTop(world, buildings,
+                        structure.TileX, structure.TileY, cellX, cellY, fp, dx, dy);
+
                 fc = BuildBrickVoxel(camera, bx0, by0, bx0 + fp * cs, by0 + fp * cs,
                     elevation, structure.StructureDef.StackHeight,
                     FaceTop(structure.SubX, structure.SubY, 0, -1),
