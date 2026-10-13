@@ -174,7 +174,27 @@ public sealed class FiremakingSkill
     /// unit's own fraction.</summary>
     public int StageOf(FireInstance fire, Building.BuildingSystem? buildings)
     {
-        // RED stub.
+        if (buildings != null)
+        {
+            foreach (var s in buildings.Structures)
+            {
+                if (!s.IsActive || s.IsUnderConstruction)
+                    continue;
+                var def = s.StructureDef;
+                if (def == null || def.BurnSeconds <= 0f)
+                    continue;
+                if (MathF.Abs(s.WorldX - fire.WorldX) >= 4f
+                    || MathF.Abs(s.WorldY - fire.WorldY) >= 4f)
+                    continue;
+                string id = s.FuelItemId ?? string.Empty;
+                float perUnit = id.Length > 0 && FuelTable.TryGetValue(id, out var secs)
+                    ? secs : DefaultFuelSeconds;
+                perUnit *= def.BurnRate;
+                float capacity = Building.Structure.FuelCapacityUnits * perUnit;
+                float total = fire.RemainingTime + s.FuelCount * perUnit;
+                return BurnStageOf(total, capacity);
+            }
+        }
         return BurnStageOf(fire.RemainingTime, fire.MaxTime);
     }
 

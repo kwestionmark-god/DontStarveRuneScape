@@ -832,6 +832,7 @@ public sealed class SpriteRenderer : IDisposable
     // bob. Game.cs advances it once per update; render reads only.
     public float AnimTime { get; private set; }
     public void AdvanceAnimation(float dt) => AnimTime += dt;
+    private int _fireLogCount;
 
     // Fishing cast visuals (the TriggerPlayerSwing pattern, target-
     // addressed): Game.cs sets the spot's world position every frame while
@@ -1587,14 +1588,21 @@ public sealed class SpriteRenderer : IDisposable
                 byte vr = structure.IsUnderConstruction ? (byte)190 : (byte)255;
                 byte vg = structure.IsUnderConstruction ? (byte)175 : (byte)255;
                 byte vb = structure.IsUnderConstruction ? (byte)125 : (byte)255;
+                // Slice 14: a voxel def may carry a dedicated SIDE texture
+                // (the campfire pit wall) — sides take it, the top keeps
+                // the main sprite. Absent = one texture everywhere, as ever.
+                uint sideTex = structure.StructureDef.SideSpriteKey != null
+                    ? GetSpriteTexture(structure.StructureDef.SideSpriteKey)
+                    : 0;
                 for (int i = 0; i < fc; i++)
                 {
                     ref var fq = ref _voxelFaces[i];
                     FillFace(in fq);
+                    uint faceTex = fq.Plane != 4 && sideTex != 0 ? sideTex : tex;
                     batch.DrawScreenQuadCornersTextured(
                         fq.BLx, fq.BLy, fq.BRx, fq.BRy,
                         fq.TRx, fq.TRy, fq.TLx, fq.TLy,
-                        tex, vr, vg, vb, alpha);
+                        faceTex, vr, vg, vb, alpha);
                 }
             }
             else
@@ -1663,32 +1671,85 @@ public sealed class SpriteRenderer : IDisposable
         }
     }
 
-    public void RenderFire(FireInstance fire, PrimitiveBatch batch, Camera camera)
+    /// <summary>Slice 14: a live fire is a pair of world-anchored crossed
+    /// planes wearing the stage's flame sprite — volume at every yaw, the
+    /// engine's own prop idiom. The stage comes from the reservoir's
+    /// fullness (FiremakingSkill.StageOf), the flame grows with the tank;
+    /// a position-seeded flicker wobbles size/drift so fires never beat
+    /// in sync. baseElev anchors the flame bed at the pit's top.</summary>
+    public void RenderFire(FireInstance fire, int stage, float baseElev,
+        PrimitiveBatch batch, Camera camera)
     {
-        var screen = camera.WorldToScreen(fire.WorldX, fire.WorldY, 0f);
-        float scale = camera.Zoom;
-        // Slice 13 burn stages ride the unit's own life cycle: roaring
-        // early, burning, then embers before it dies (screen Y grows
-        // downward — flames lift by subtracting).
-        float frac = fire.MaxTime > 0f ? Math.Clamp(fire.RemainingTime / fire.MaxTime, 0f, 1f) : 1f;
-        int stage = frac < 0.25f ? 1 : frac < 0.75f ? 2 : 3;
-
-        // Ember bed: always glowing while lit, widest and dullest at
-        // the embers stage.
-        float emberHalf = (stage == 1 ? 7f : 5f) * scale;
-        batch.DrawScreenQuad(screen.X, screen.Y - 2f * scale,
-            emberHalf, emberHalf * 0.55f, 200, 90, 30, 235);
-        if (stage == 1)
+        if (stage <= 0)
             return;
+        if (Environment.GetEnvironmentVariable("DSR_LOGFIRE") == "1" && _fireLogCount++ < 4)
+        {
+            var texQ = GetSpriteTexture("fire/fire_roaring");
+            System.IO.File.AppendAllText("/var/home/kwestionmark/.hermes/cache/scratch/dsr-s9/firedbg.log",
+                $"RenderFire stage {stage} pos ({fire.WorldX},{fire.WorldY}) elev {baseElev} texQ {texQ}\n");
+        }
+        float time = AnimTime;
+        float phase = fire.WorldX * 0.7f + fire.WorldY * 1.3f;
+        float wobble = 1f + 0.08f * MathF.Sin(time * 6f + phase);
+        float drift = 2.0f * MathF.Sin(time * 3.7f + phase * 0.7f);
 
-        float bodyH = (stage == 3 ? 26f : 16f) * scale;
-        float bodyW = (stage == 3 ? 11f : 8f) * scale;
-        batch.DrawScreenQuad(screen.X, screen.Y - bodyH * 0.5f - 2f * scale,
-            bodyW, bodyH * 0.5f, 230, 140, 40);
-        // The bright tip above the body.
-        float tipH = bodyH * 0.55f;
-        batch.DrawScreenQuad(screen.X, screen.Y - bodyH * 0.5f - tipH * 0.5f + scale,
-            bodyW * 0.5f, tipH * 0.5f, 250, 205, 90);
+        uint tex = GetSpriteTexture(stage switch
+        {
+            1 => "fire/fire_ember",
+            2 => AnimTime % 0.6f < 0.3f ? "fire/fire_low" : "fire/fire_mid",
+            _ => "fire/fire_roaring",
+        });
+        // Stage geometry: the vertical axis is ELEVATION UNITS rendered at
+        // ~18 px/unit at this pitch (the pit side band is ~9 px). A roaring
+        // campfire should read ~3x the pit band above the rim; stages scale
+        // with the tank (vision-verification round 2: 1.05 read flat).
+        float hUnits = (stage == 1 ? 0.2f : stage == 2 ? 0.6f : stage == 3 ? 1.1f : 1.7f) * wobble;
+        float worldW = (stage == 1 ? 18f : stage == 2 ? 12f : stage == 3 ? 15f : 18f) * wobble;
+
+        if (tex != 0)
+        {
+            // Two perpendicular DIAGONAL planes (never both edge-on at
+            // the common 0/45/90 yaws — equalized volume).
+            DrawFlamePlane(batch, camera, fire.WorldX, fire.WorldY, baseElev,
+                worldW, hUnits, drift, diag: false, tex);
+            DrawFlamePlane(batch, camera, fire.WorldX, fire.WorldY, baseElev,
+                worldW, hUnits, drift, diag: true, tex);
+        }
+        else
+        {
+            // Textureless fallback (unit tests, missing assets): the old
+            // flat quad, still staged.
+            var ground = camera.WorldToScreen(fire.WorldX, fire.WorldY, baseElev);
+            float bodyH = hUnits * 18f * camera.Zoom;
+            batch.DrawScreenQuad(ground.X, ground.Y - bodyH * 0.5f,
+                8f * camera.Zoom, bodyH * 0.5f, 230, 140, 40);
+        }
+    }
+
+    /// <summary>One vertical world-anchored flame quad: an axis plane
+    /// (diag: false → X-axis; diag: true → the (1,1) diagonal) through
+    /// (wx, wy), rooted at baseElev (UNITS), w world-px wide and h
+    /// ELEVATION-UNITS tall, flicker-drifted sideways at the top.</summary>
+    private static void DrawFlamePlane(PrimitiveBatch batch, Camera camera,
+        float wx, float wy, float baseElev, float width, float height,
+        float drift, bool diag, uint tex)
+    {
+        float half = width * 0.5f;
+        // Plane pair: the X axis + the (1,1) diagonal — 45 degrees apart,
+        // so at every cardinal yaw at least one reads full; no yaw leaves
+        // both edge-on.
+        float dx, dy;
+        if (diag) { dx = half * 0.7071f; dy = half * 0.7071f; }
+        else { dx = half; dy = 0f; }
+        var bl = camera.WorldToScreen(wx - dx, wy - dy, baseElev);
+        var br = camera.WorldToScreen(wx + dx, wy + dy, baseElev);
+        var tr = camera.WorldToScreen(wx + dx, wy + dy, baseElev + height);
+        var tl = camera.WorldToScreen(wx - dx, wy - dy, baseElev + height);
+        float topDrift = drift * camera.Zoom * 0.1f;
+        batch.DrawScreenQuadCornersTextured(
+            bl.X, bl.Y, br.X, br.Y,
+            tr.X + topDrift, tr.Y, tl.X + topDrift, tl.Y,
+            tex, 255, 255, 255, 255);
     }
 
     // ─── Soft ground shadow ───────────────────────────────────────────────

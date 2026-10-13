@@ -63,6 +63,7 @@
      "desert"
     ],
     "sprite_key": "structure/campfire",
+    "sprite_side": "structure/campfire_side",
     "occupies_tile": true,
     "burnable": true,
     "light_seconds": 90.0,
@@ -100,6 +101,7 @@
      "desert"
     ],
     "sprite_key": "structure/stone_fire_ring",
+    "sprite_side": "structure/stone_fire_ring_side",
     "occupies_tile": true,
     "burnable": true,
     "light_seconds": 90.0,

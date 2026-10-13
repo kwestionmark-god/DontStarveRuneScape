@@ -670,6 +670,7 @@ public sealed class Game
     /// </summary>
     public string? SmokeTestPath { get; set; }
     private int _smokeFrames;
+    private int _fireLoopLogCount;
     private readonly List<(int X, int Y)> _pendingClicks = new();
     // Held-key script from DSR_TEST_MOVE ("right:20;up+orbit_cw:10" or the
     // legacy whole-run "up,orbit_cw"): held flags with an exclusive end
@@ -1559,11 +1560,35 @@ public sealed class Game
             && !string.IsNullOrWhiteSpace(structHook) && World != null && Player != null
             && BuildingSystem != null && Inventory != null && SkillManager != null)
         {
+            int anchorStx = -1, anchorSty = -1;
             foreach (var entry in structHook.Split(',', StringSplitOptions.TrimEntries))
             {
                 var parts = entry.Split(':', StringSplitOptions.TrimEntries);
-                if (parts.Length != 3 && parts.Length != 5) continue;
-                if (!int.TryParse(parts[1], out int stx) || !int.TryParse(parts[2], out int sty)) continue;
+                // Slice-14 grammar: "id:lit" (2 parts) = the AUTO clear-dry
+                // tile + a stocked BURNING hearth; "id:auto:lit" (3 parts)
+                // also accepted; "id:tx:ty" / "id:tx:ty:subx:suby" place
+                // at explicit tiles as before. (First try: auto+lit as
+                // "campfire:auto:lit" split to 3 parts and silently
+                // skipped — smoke hooks must never no-op silently.)
+                bool litPit = parts.Length == 4 && parts[3] == "lit"
+                    || parts.Length == 3 && parts[1] == "auto" && parts[2] == "lit"
+                    || parts.Length == 2 && parts[1] == "lit";
+                bool autoTile = litPit || (parts.Length == 3 && parts[1] == "auto")
+                    || (parts.Length == 4 && parts[1] == "auto");
+                if (parts.Length != 3 && parts.Length != 5 && !litPit && !autoTile) continue;
+                int stx, sty;
+                if (autoTile)
+                {
+                    // Deterministic clear-dry-tile scan (the fire-menu
+                    // staging tile) — explicit coords land IN WATER on
+                    // some seeds and the dry-land gate refuses.
+                    var auto = FindFireMenuStageTile(World, NPCSystem, CombatSystem);
+                    if (auto == null) continue;
+                    stx = auto.Value.X;
+                    sty = auto.Value.Y;
+                }
+                else if (!int.TryParse(parts[1], out stx) || !int.TryParse(parts[2], out sty))
+                    continue;
                 // 5-part entries place bricks at a sub-cell (slice 7b):
                 // id:tx:ty:subx:suby.
                 int ssx = 0, ssy = 0;
@@ -1587,13 +1612,38 @@ public sealed class Game
                         World, Inventory, SkillManager);
                 if (!placed.Success)
                     Console.WriteLine($"DSR_TEST_STRUCTURE: {parts[0]} at ({stx},{sty}) refused: {placed.Message}");
+                else if (litPit)
+                {
+                    // Stock to one-under-full and burn a unit — StageOf reads
+                    // near-capacity and the flame renders roaring.
+                    var s = BuildingSystem.Structures[^1];
+                    s.FuelItemId = "oak_logs";
+                    s.FuelCount = Structure.FuelCapacityUnits - 1;
+                    Firemaking?.LightHearthUnit("oak_logs", s.StructureDef!,
+                        s.WorldX, s.WorldY, SkillManager);
+                }
+                if (placed.Success)
+                {
+                    anchorStx = stx;
+                    anchorSty = sty;
+                }
+                if (placed.Success && litPit
+                    && Environment.GetEnvironmentVariable("DSR_LOGFIRE") == "1"
+                    && Firemaking != null)
+                {
+                    var fires = Firemaking.GetActiveFires();
+                    var s = BuildingSystem.Structures[^1];
+                    Console.WriteLine($"DSR_LOGFIRE: hearth at ({s.WorldX},{s.WorldY}) stock {s.FuelItemId}x{s.FuelCount}"
+                        + $" fires {fires.Count}"
+                        + (fires.Count > 0 ? $" stage {Firemaking.StageOf(fires[0], BuildingSystem)}" : ""));
+                }
             }
-            // Anchor the camera near the LAST staged tile so probes see it.
-            var last = structHook.Split(',', StringSplitOptions.TrimEntries)[^1].Split(':');
-            if (last.Length >= 3 && int.TryParse(last[1], out int ltx) && int.TryParse(last[2], out int lty))
+            // Anchor the camera near the LAST staged tile so probes see it —
+            // resolved coords (the "auto" tile form can't be re-parsed).
+            if (anchorStx >= 0)
             {
-                Player.WorldX = (ltx + 0.5f) * Constants.TileSize - 2f * Constants.TileSize;
-                Player.WorldY = (lty + 0.5f) * Constants.TileSize;
+                Player.WorldX = (anchorStx + 0.5f) * Constants.TileSize - 2f * Constants.TileSize;
+                Player.WorldY = (anchorSty + 0.5f) * Constants.TileSize;
                 Player.TargetX = Player.WorldX;
                 Player.TargetY = Player.WorldY;
             }
@@ -2138,11 +2188,17 @@ public sealed class Game
 
             if (!World.IsCave && Firemaking != null)
             {
+                if (Environment.GetEnvironmentVariable("DSR_LOGFIRE") == "1" && _fireLoopLogCount++ < 3)
+                    System.IO.File.AppendAllText("/var/home/kwestionmark/.hermes/cache/scratch/dsr-s9/firedbg.log",
+                        $"fires loop: {Firemaking.GetActiveFires().Count} active\n");
                 foreach (var fire in Firemaking.GetActiveFires())
                 {
                     float sortY = FireSortKey(fire.WorldX, fire.WorldY, World);
                     var f = fire;
-                    drawables.Add((sortY, seq++, () => SpriteRenderer.RenderFire(f, batch, Camera)));
+                    drawables.Add((sortY, seq++, () => SpriteRenderer.RenderFire(f,
+                        Firemaking.StageOf(f, BuildingSystem),
+                        BlockStack.StandingElevationAt(World, BuildingSystem, f.WorldX, f.WorldY),
+                        batch, Camera)));
                 }
             }
         }
