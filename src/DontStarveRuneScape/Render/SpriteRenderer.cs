@@ -1748,6 +1748,14 @@ public sealed class SpriteRenderer : IDisposable
         _ => animTime % 0.4f < 0.2f ? "fire/fire_roaring" : "fire/fire_roaring_b",
     };
 
+    /// <summary>Slice 16 (RED stub): the glow pool's screen radius in px
+    /// — footprint (warmthRadius * 32 world-px * zoom) scaled by stage.</summary>
+    public static float FireGlowRadiusPx(int stage, int warmthRadius, float zoom) => 0f;
+
+    /// <summary>Slice 16 (RED stub): glow alpha 0–255 — zero in daylight,
+    /// stage-scaled 0.35/0.6/0.8 through the darkness factor.</summary>
+    public static int FireGlowAlpha(int stage, float darkness) => 0;
+
     /// <summary>One vertical world-anchored flame quad: an axis plane
     /// (diag: false → X-axis; diag: true → the (1,1) diagonal) through
     /// (wx, wy), rooted at baseElev (UNITS), w world-px wide and h
