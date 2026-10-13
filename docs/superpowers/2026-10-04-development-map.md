@@ -647,6 +647,70 @@ law shapes it.
        green; the brick band chips at cadence; DamageStructure unit
        (partial chip stands, lethal chip removes + frees, neighbours
        untouched). Suite 643 → 648.
+     - **Vertical building, slice 12 — structure footprint reform, slice
+       1: the campfire family (user ideation 2026-10-12, moved to the
+       head of the queue over the parked queue). DONE 2026-10-12** (spec
+       2026-10-12-campfire-footprint-design.md; RED d4149f6 / GREEN
+       b71c4e5). The user's verbatim ask: "since our tiles each consist
+       of 4x4 grids, id like to reform structures to have variable
+       designs based within the 4x4 possibility space.. for example, for
+       a campfire, lets explore a 2x2 structure with fire animations?
+       add collision.. perhaps even damage upon collision or while
+       standing on... this gives us opportunities to have variants of
+       campfires, like lined pits that could cost more, but also not
+       cause damage upon collision, etc... another feature id like to
+       add to campfires is a burn rate, etc.. which can play
+       meaningfully into the variants framework". The campfire is now
+       the first MULTI-SUB-CELL structure: `StructureDef.Footprint`
+       (parser default 1) with `PlaceFootprint` — a 2x2 anchor-anchored
+       extent on the 4x4 grid, 0.5-units SQUAT (grounded movers are
+       walled, the player hops onto it within the climb cap), solid on
+       exactly its four cells via `BlockStack.SubHeightAt` footprint-
+       extent membership — the single root fix that carries
+       CanStep/GroundedSlide/StandingElevationAt/BrickColumnTopAt
+       (movement, standing lift, and occlusion all route through it).
+       Standing on a LIT fire bites: `TickContactDamage` in the Game
+       loop — a live fire at a `ContactDamage > 0` footprint with the
+       player inside the extent bites whole HP at HP/second with a
+       first-bite notification (no silent losses); lined variants
+       carry 0 and never bite. Variants framework: `BurnRate` feeds
+       `BurnSeconds` (LightSeconds x BurnRate) into every light call
+       site (placement, FireInteraction refuel, worker completion), so
+       the new Stone-Lined Fire Pit (stone 6 + stick 2, construction
+       2, hp 20) trades cost for SAFETY (contact 0) and EFFICIENCY
+       (burn 1.5 → 135 s vs 90 s). Rendering: the voxel branch
+       generalizes to fp x fp boxes with per-face span occlusion
+       (FaceTop = MAX over the footprint edge cells, tile-edge
+       wrapping; fp=1 reduces exactly to the slice-8 queries), the
+       authored 32x32 full-bleed sprite maps 1:1 on the 2x2 faces, and
+       the build ghost highlights the whole anchor extent (spilling
+       anchors read red). Compatibility: the tile-level call AUTO-
+       CENTERS to anchor (4-fp)/2 — every legacy id-based call site,
+       save row, and panel keeps its position — and legacy tile-level
+       save rows migrate to the centered footprint BEFORE the slice-7a
+       mound blow-up (which a now-IsBlock campfire would otherwise
+       hit: 32 brick copies of a fire ring). The colony work-area
+       contract survives: footprint sites keep their anchor, so worker
+       completion finishes the footprint hearth and lights BurnSeconds.
+       Bricks share a campfire tile honestly: only footprint-COVERED
+       cells refuse (free cells still build; the brick stacking path
+       untouched). User decisions 2026-10-12 (all recommended
+       defaults): 2 HP/s lit-only bite, squat 0.5 voxel + authored
+       32x32 art, lined-pit bundle (safe + efficient in one variant),
+       in-place def flip with centered migration. Verified by 11 state
+       contracts (def pins incl. 32x32 IHDR, placement + solidity,
+       auto-center, grounded-blocked/airborne-hop, spill refusal,
+       brick coexistence + live freeing, burn seconds 90/135, lit-only
+       bite + lined safety + first-bite notification, legacy-row
+       migration single-structure) plus 10 fixture retruths recorded
+       (the campfire was the suite's universal NON-BLOCK fixture — 8
+       tests restaged to chest with data-reason comments, Building
+       Pipeline def pins flipped with the new block truth). Suite
+       648 → 659 (658 green + 1 pre-existing skip). NEXT on this arc:
+       3x3/4x4 footprints (workshop-scale machines), fire ANIMATIONS
+       on the lit face, burn-rate-consuming variant tiers, damage-on-
+       WALKING-through (vs standing), structure upgrade interactions
+       (plain → lined).
     - **Progression accounting (user playtest finding, 2026-10-09).** The
       fishing rod is entry-tier by design but hangs on a deadlock:
        rod → planks → `goblin_diplomacy` (goblin CHIEF's quest, not

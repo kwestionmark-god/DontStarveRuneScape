@@ -1,7 +1,8 @@
 # Campfire footprint reform — the first multi-sub-cell structure (vertical building slice 12)
 
 Date: 2026-10-12
-Status: drafted — awaiting RED
+Status: implemented — RED d4149f6 / GREEN b71c4e5 (2026-10-12),
+suite 648 → 659 (658 green + 1 pre-existing skip)
 Slice line: vertical-building post-roadmap, slice 12 (the banked
 "structure footprint reform" arc, user-picked start: campfires)
 

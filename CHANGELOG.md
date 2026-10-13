@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Vertical building, slice 12 — structure footprints + the campfire
+  family** — the first multi-sub-cell structure. The campfire is now a
+  2x2 footprint block (0.5 units squat) on the 4x4 brick grid: it walls
+  grounded movers, you can hop onto it, and standing on a LIT one
+  bites 2 HP/s (with a first-bite notification — no silent losses).
+  New Stone-Lined Fire Pit variant: stone 6 + stick 2, construction 2 —
+  safe to stand on (zero contact damage) and burns 1.5x longer
+  (135 s vs 90 s). New def fields drive the variants framework:
+  `footprint`, `contact_damage`, `burn_rate` (→ `BurnSeconds` feeds
+  every fire-lighting call site). Bricks share a footprint tile's
+  FREE cells; build ghost highlights the whole anchor extent; legacy
+  tile-level campfires auto-migrate to the centered footprint on load.
+
 ### Changed
 - **Vertical building, slice 11 — monsters break walls** — walls buy
   time, not invincibility. A monster blocked by a player-built wall
