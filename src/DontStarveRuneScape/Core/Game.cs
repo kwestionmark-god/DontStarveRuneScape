@@ -1205,6 +1205,10 @@ public sealed class Game
             gl.ClearColor(28 / 255f, 18 / 255f, 12 / 255f, 1f);
         else if (State == GameState.Error)
             gl.ClearColor(40 / 255f, 12 / 255f, 12 / 255f, 1f);
+        else if (World?.IsCave == true)
+            // Stage 2¾: the cave's clear color is near-black rock — the
+            // sky-blue fog reading past the map edge broke enclosure.
+            gl.ClearColor(14 / 255f, 12 / 255f, 18 / 255f, 1f);
         else
             gl.ClearColor(fog.R / 255f, fog.G / 255f, fog.B / 255f, 1f);
         gl.Clear((uint)Silk.NET.OpenGL.ClearBufferMask.ColorBufferBit);

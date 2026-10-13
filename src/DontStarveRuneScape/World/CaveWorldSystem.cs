@@ -364,6 +364,17 @@ public sealed class CaveWorldSystem
             cavern.TerrainColors[elevation.ToString()] = [
                 (int)(48 + 42 * shade), (int)(43 + 35 * shade), (int)(54 + 38 * shade)];
         }
+        // Stage 2¾: the wall band (elev 27+) is DARK rock on the faces,
+        // with the LIP (31) reading as lighter crest stone so a nearly
+        // top-down viewing angle (the south edge) still catches the wall's
+        // top edges instead of dissolving into the dark floor.
+        for (int elevation = 27; elevation <= 30; elevation++)
+        {
+            float sh = 1f - (elevation - 27) / 5f; // 1.0 → 0.4 below the lip
+            cavern.TerrainColors[elevation.ToString()] = [
+                (int)(40 + 18 * sh), (int)(36 + 16 * sh), (int)(46 + 18 * sh)];
+        }
+        cavern.TerrainColors["31"] = [66, 60, 66];
         map.BiomeRegistry = new BiomeRegistry([cavern]);
         for (int x = 0; x < size; x++)
         for (int y = 0; y < size; y++)
@@ -379,6 +390,21 @@ public sealed class CaveWorldSystem
                           + Noise.PNoise2(x * .19f + 73 + seed * .00013f, y * .19f - 41 - seed * .00017f) * .8f;
             tile.Elevation = Math.Clamp(15f + radius * 8f + rolling, 13f, 26f);
             tile.Moisture = .25f;
+
+            // Stage 2¾: the outer two rings become rock walls enclosing the
+            // cave — a stepped cliff (shoulder 28+, lip 31) so the abrupt
+            // map edge reads as enclosure instead of clear-color void. The
+            // height does the blocking: the CanStep climb gate refuses the
+            // cliff, and the stitch law keeps every crease shared.
+            int ring = Math.Min(Math.Min(x, size - 1 - x), Math.Min(y, size - 1 - y));
+            if (ring == 1)
+            {
+                // Rolling dips negative — the shoulder must never sag back
+                // under 28 (the floor's top) so the step stays a cliff.
+                tile.Elevation = Math.Max(29.5f, 29.5f + rolling * 0.3f);
+            }
+            else if (ring == 0)
+                tile.Elevation = 31f;
         }
         // Corner stitch shared with the surface: every vertex reads the
         // min-corner tile's elevation so adjacent quads share edges exactly.
