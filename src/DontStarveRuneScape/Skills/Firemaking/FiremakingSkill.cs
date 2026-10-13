@@ -330,6 +330,22 @@ public sealed class FiremakingSkill
                 }
             if (!lit) continue;
 
+            // Slice 19: ENTRY bite — stepping into a live footprint pays
+            // immediately (ceil(damage/2)), so crossing a fire is never
+            // free; the latch re-arms once the player leaves.
+            if (!_contactInside)
+            {
+                _contactInside = true;
+                int entryBite = (int)MathF.Ceiling(s.StructureDef.ContactDamage / 2f);
+                if (entryBite > 0)
+                {
+                    player.TakeDamage(entryBite);
+                    _contactNotified = true;
+                    player.ActionSystem?.AddNotification(
+                        "You ran through the fire!", (255, 120, 40));
+                }
+            }
+
             _contactAccumulator += s.StructureDef.ContactDamage * dt;
             if (_contactAccumulator >= 1f)
             {
@@ -345,13 +361,15 @@ public sealed class FiremakingSkill
             }
             return; // one fire underfoot is enough
         }
-        // Off the fire: reset the bite latch.
+        // Off the fire: reset the bite latches.
         _contactAccumulator = 0f;
         _contactNotified = false;
+        _contactInside = false;
     }
 
     private float _contactAccumulator;
     private bool _contactNotified;
+    private bool _contactInside;
 
     /// <summary>Get snapshot for saving.</summary>
     public FireSnapshot GetSnapshot()
