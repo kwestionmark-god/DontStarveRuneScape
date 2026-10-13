@@ -1706,12 +1706,7 @@ public sealed class SpriteRenderer : IDisposable
         float wobble = 1f + 0.08f * MathF.Sin(time * 6f + phase);
         float drift = 2.0f * MathF.Sin(time * 3.7f + phase * 0.7f);
 
-        uint tex = GetSpriteTexture(stage switch
-        {
-            1 => "fire/fire_ember",
-            2 => AnimTime % 0.6f < 0.3f ? "fire/fire_low" : "fire/fire_mid",
-            _ => "fire/fire_roaring",
-        });
+        uint tex = GetSpriteTexture(FireSpriteKey(stage, AnimTime));
         // Stage geometry: the vertical axis is ELEVATION UNITS rendered at
         // ~18 px/unit at this pitch (the pit side band is ~9 px). User
         // tune-up 2026-10-13: "at half fuel it still burns like a candle" —
@@ -1741,6 +1736,16 @@ public sealed class SpriteRenderer : IDisposable
                 8f * camera.Zoom, bodyH * 0.5f, 230, 140, 40);
         }
     }
+
+    /// <summary>The flame texture for a stage at a point in time (pure —
+    /// test-pinned). RED stub: today's behavior — only the burning stage
+    /// animates; embers and roaring hold a single static frame.</summary>
+    public static string FireSpriteKey(int stage, float animTime) => stage switch
+    {
+        1 => "fire/fire_ember",
+        2 => animTime % 0.6f < 0.3f ? "fire/fire_low" : "fire/fire_mid",
+        _ => "fire/fire_roaring",
+    };
 
     /// <summary>One vertical world-anchored flame quad: an axis plane
     /// (diag: false → X-axis; diag: true → the (1,1) diagonal) through

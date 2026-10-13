@@ -58,6 +58,29 @@ public class FireFlameVisualTests
         AssertIhdr("Assets/sprites/fire/fire_low.png", 32, 48);
         AssertIhdr("Assets/sprites/fire/fire_mid.png", 32, 48);
         AssertIhdr("Assets/sprites/fire/fire_roaring.png", 32, 48);
+        // Slice 15: every stage animates — embers pulse, roaring licks flip.
+        AssertIhdr("Assets/sprites/fire/fire_ember_b.png", 32, 48);
+        AssertIhdr("Assets/sprites/fire/fire_roaring_b.png", 32, 48);
+    }
+
+    // ── §2b Slice 15: every stage animates (the burning stage already
+    // flip-flopped; embers and roaring were static single frames) ────────
+
+    [Theory]
+    // Burning keeps the slice-14 0.6s flip.
+    [InlineData(2, 0.10f, "fire/fire_low")]
+    [InlineData(2, 0.35f, "fire/fire_mid")]
+    // Embers pulse SLOW (1.2s period) between two coal-glow frames.
+    [InlineData(1, 0.10f, "fire/fire_ember")]
+    [InlineData(1, 0.70f, "fire/fire_ember_b")]
+    [InlineData(1, 1.30f, "fire/fire_ember")]
+    // Roaring flips FAST (0.4s period) between two crown frames.
+    [InlineData(3, 0.10f, "fire/fire_roaring")]
+    [InlineData(3, 0.30f, "fire/fire_roaring_b")]
+    [InlineData(3, 0.50f, "fire/fire_roaring")]
+    public void FireSpriteKey_EveryStage_Animates(int stage, float time, string expected)
+    {
+        Assert.Equal(expected, Render.SpriteRenderer.FireSpriteKey(stage, time));
     }
 
     // ── §2 The stage of a fire is its RESERVOIR fullness ─────────────────
