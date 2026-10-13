@@ -225,8 +225,6 @@ public sealed class FiremakingSkill
         };
     }
 
-    public void Tick(float dt) => Tick(dt, null);
-
     public void Tick(float dt, Building.BuildingSystem? buildings)
     {
         for (int i = _activeFires.Count - 1; i >= 0; i--)

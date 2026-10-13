@@ -1023,8 +1023,10 @@ public sealed class Game
         // Combat
         CombatSystem?.Tick(dt, Player, NPCSystem, World, BuildingSystem);
 
-        // Firemaking
-        Firemaking?.Tick(dt);
+        // Firemaking (fires tick + hearth auto-feed — the buildings arg
+        // carries the reservoirs; a null here = fires out with full stock,
+        // the 2026-10-13 live-playtest bug)
+        Firemaking?.Tick(dt, BuildingSystem);
         // Slice 12: standing inside a lit footprint fire's ring bites.
         Firemaking?.TickContactDamage(Player, BuildingSystem, dt);
 
