@@ -40,6 +40,7 @@ public class VerticalBuildingTests
             Inventory.AddItem("stone", 20);
             Inventory.AddItem("stick", 20);
             Inventory.AddItem("dirt_brick", 20);
+            Inventory.AddItem("planks", 8);
         }
 
         private static BuildingSystem MakeBuildings()
@@ -145,7 +146,9 @@ public class VerticalBuildingTests
         var h = new Harness();
         h.MakeSlopeAt44();
 
-        var result = h.Buildings.PlaceStructure("campfire", 4, 4, h.World, h.Inventory, h.Skills);
+        // Slice 12 retruth: the campfire is a footprint BLOCK now (flat-pad
+        // gate applies) — the non-block fixture is the chest.
+        var result = h.Buildings.PlaceStructure("chest", 4, 4, h.World, h.Inventory, h.Skills);
 
         Assert.True(result.Success, result.Message);
     }

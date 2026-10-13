@@ -39,6 +39,9 @@
     "structure_type": "portable",
     "construction_sub_stat": "common",
     "hp": 5,
+    "is_block": true,
+    "stack_height": 0.5,
+    "footprint": 2,
     "materials": [
      [
       "stick",
@@ -60,9 +63,47 @@
      "desert"
     ],
     "sprite_key": "structure/campfire",
-    "occupies_tile": false,
+    "occupies_tile": true,
     "burnable": true,
-    "light_seconds": 90.0
+    "light_seconds": 90.0,
+    "burn_rate": 1.0,
+    "contact_damage": 2.0
+   },
+   "lined_fire_pit": {
+    "structure_id": "lined_fire_pit",
+    "name": "Stone-Lined Fire Pit",
+    "structure_type": "fixed",
+    "construction_sub_stat": "common",
+    "hp": 20,
+    "is_block": true,
+    "stack_height": 0.5,
+    "footprint": 2,
+    "materials": [
+     [
+      "stone",
+      6
+     ],
+     [
+      "stick",
+      2
+     ]
+    ],
+    "requires_structure_level": 1,
+    "requires_skill_level": 2,
+    "biome_compatible": [
+     "forest",
+     "plains",
+     "coastal",
+     "swamp",
+     "mountains",
+     "desert"
+    ],
+    "sprite_key": "structure/stone_fire_ring",
+    "occupies_tile": true,
+    "burnable": true,
+    "light_seconds": 90.0,
+    "burn_rate": 1.5,
+    "contact_damage": 0.0
    },
    "firepit": {
     "structure_id": "firepit",

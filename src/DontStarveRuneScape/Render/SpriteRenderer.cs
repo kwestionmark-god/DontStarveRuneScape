@@ -1513,34 +1513,42 @@ public sealed class SpriteRenderer : IDisposable
             int fc;
             if (structure.SubX >= 0)
             {
-                // Slice 7b: a brick is a fixed 16px box over its sub-cell;
-                // neighbour tops are the adjacent SUB-CELL columns,
-                // wrapping across tile edges at the grid boundary.
+                // Slice 7b: a brick is a fixed 16px box over its sub-cell.
+                // Slice 12: footprint structures (the campfire family) are
+                // fp x fp boxes over their anchor extent — the sprite maps
+                // full-UV per face, so a 32x32 texture reads 1:1 on a 2x2.
+                // Neighbour tops: per-face MAX over the span's adjacent
+                // cells (conservative whole-face cull), wrapping across
+                // tile edges at the grid boundary; fp = 1 reduces exactly
+                // to the single-cell brick queries.
+                int fp = Math.Max(1, structure.StructureDef.Footprint);
                 float cs = Constants.BrickCellSize;
                 float bx0 = structure.TileX * Constants.TileSize + structure.SubX * cs;
                 float by0 = structure.TileY * Constants.TileSize + structure.SubY * cs;
-                float SubNeighbourTop(int ntx, int nty, int nsx, int nsy)
+                float FaceTop(int cellX, int cellY, int dx, int dy)
                 {
-                    // Slice 8: only a neighbouring brick/block column
-                    // occludes a face — bare terrain elevation never
-                    // hides bricks beside slopes. No column = fully exposed.
-                    return BlockStack.BrickColumnTopAt(world, buildings,
-                        ntx, nty, nsx, nsy) ?? float.NegativeInfinity;
+                    float top = float.NegativeInfinity;
+                    for (int i = 0; i < fp; i++)
+                    {
+                        int cx = cellX + (dx != 0 ? i : 0);
+                        int cy = cellY + (dy != 0 ? i : 0);
+                        int ntx = structure.TileX, nty = structure.TileY;
+                        int nsx = cx + dx, nsy = cy + dy;
+                        if (nsx > 3) { ntx++; nsx = 0; }
+                        if (nsx < 0) { ntx--; nsx = 3; }
+                        if (nsy > 3) { nty++; nsy = 0; }
+                        if (nsy < 0) { nty--; nsy = 3; }
+                        float? t = BlockStack.BrickColumnTopAt(world, buildings, ntx, nty, nsx, nsy);
+                        if (t.HasValue && t.Value > top) top = t.Value;
+                    }
+                    return top;
                 }
-                int etx = structure.SubX < 3 ? structure.TileX : structure.TileX + 1;
-                int ex = structure.SubX < 3 ? structure.SubX + 1 : 0;
-                int wtx = structure.SubX > 0 ? structure.TileX : structure.TileX - 1;
-                int wx = structure.SubX > 0 ? structure.SubX - 1 : 3;
-                int nty = structure.SubY > 0 ? structure.TileY : structure.TileY - 1;
-                int ny = structure.SubY > 0 ? structure.SubY - 1 : 3;
-                int sty = structure.SubY < 3 ? structure.TileY : structure.TileY + 1;
-                int sy = structure.SubY < 3 ? structure.SubY + 1 : 0;
-                fc = BuildBrickVoxel(camera, bx0, by0, bx0 + cs, by0 + cs,
+                fc = BuildBrickVoxel(camera, bx0, by0, bx0 + fp * cs, by0 + fp * cs,
                     elevation, structure.StructureDef.StackHeight,
-                    SubNeighbourTop(structure.TileX, nty, structure.SubX, ny),
-                    SubNeighbourTop(etx, structure.TileY, ex, structure.SubY),
-                    SubNeighbourTop(structure.TileX, sty, structure.SubX, sy),
-                    SubNeighbourTop(wtx, structure.TileY, wx, structure.SubY),
+                    FaceTop(structure.SubX, structure.SubY, 0, -1),
+                    FaceTop(structure.SubX + fp - 1, structure.SubY, 1, 0),
+                    FaceTop(structure.SubX, structure.SubY + fp - 1, 0, 1),
+                    FaceTop(structure.SubX, structure.SubY, -1, 0),
                     _voxelFaces);
             }
             else

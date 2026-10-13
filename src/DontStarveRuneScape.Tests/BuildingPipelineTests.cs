@@ -1,6 +1,7 @@
 namespace DontStarveRuneScape.Tests;
 
 using DontStarveRuneScape.Building;
+using DontStarveRuneScape.Config;
 using DontStarveRuneScape.Data;
 using DontStarveRuneScape.Inventory;
 using DontStarveRuneScape.Skills;
@@ -27,7 +28,10 @@ public class BuildingPipelineTests
         Assert.Equal(2, campfire.Materials.Length);
         Assert.Equal(("stick", 2), (campfire.Materials[0].ItemId, campfire.Materials[0].Quantity));
         Assert.Equal(("stone", 2), (campfire.Materials[1].ItemId, campfire.Materials[1].Quantity));
-        Assert.False(campfire.OccupiesTile);
+        Assert.True(campfire.OccupiesTile);   // slice 12: footprint block holds its tile
+        Assert.True(campfire.IsBlock);        // 2x2 squat solid on the brick grid
+        Assert.Equal(2, campfire.Footprint);
+        Assert.Equal(0.5f, campfire.StackHeight);
         Assert.True(campfire.Burnable);
         Assert.Equal("common", campfire.SubStat);
         Assert.Contains("forest", campfire.BiomeCompatibility);
@@ -48,6 +52,11 @@ public class BuildingPipelineTests
         inventory.AddItem("stick", 5);
         inventory.AddItem("stone", 5);
         var world = new TileMap(8, 8);
+        // Slice 12 retruth: the campfire is a footprint BLOCK now — blocks
+        // need dry land, so the materials test builds on a dry plain.
+        for (int x = 0; x < 8; x++)
+            for (int y = 0; y < 8; y++)
+                world.Tiles[x, y].Elevation = Constants.SeaLevel + 5f;
 
         var result = system.PlaceStructure("campfire", 3, 3, world, inventory, new SkillManager());
         Assert.True(result.Success, result.Message);

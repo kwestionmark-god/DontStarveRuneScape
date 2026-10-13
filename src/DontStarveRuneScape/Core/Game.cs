@@ -1008,6 +1008,8 @@ public sealed class Game
 
         // Firemaking
         Firemaking?.Tick(dt);
+        // Slice 12: standing inside a lit footprint fire's ring bites.
+        Firemaking?.TickContactDamage(Player, BuildingSystem, dt);
 
         // Building
         BuildingSystem?.Tick(dt, CombatSystem);
@@ -2355,18 +2357,24 @@ public sealed class Game
         // faint fills for the grid, a SOLID fill on the hovered cell — gold
         // where a brick can go, red where it can't. No sprite preview: the
         // sub-cell is the target, not the tile.
+        // Slice 12: footprint defs (campfires) highlight their whole
+        // anchor extent; anchors that would spill the tile read invalid.
         if (def.IsBlock && BuildingPendingId != "fence_block" && BuildSubCursor is { } sub)
         {
+            int fp = Math.Max(1, def.Footprint);
+            bool fits = sub.X + fp <= Constants.BrickSubCells && sub.Y + fp <= Constants.BrickSubCells;
             float ghostElev = tile.HasWater ? tile.GetSurfaceElevation() : tile.Elevation;
             var cells = SpriteRenderer.BuildGhostSubCells(Camera,
                 BuildCursor.Value.X, BuildCursor.Value.Y, ghostElev);
-            byte gr = valid ? (byte)222 : (byte)220;
-            byte gg = valid ? (byte)192 : (byte)80;
-            byte gb = valid ? (byte)132 : (byte)80;
-            int hovered = sub.Y * 4 + sub.X;
+            byte gr = valid && fits ? (byte)222 : (byte)220;
+            byte gg = valid && fits ? (byte)192 : (byte)80;
+            byte gb = valid && fits ? (byte)132 : (byte)80;
             for (int i = 0; i < cells.Length; i++)
             {
-                byte a = i == hovered ? (byte)120 : (byte)36;
+                int cxx = i % 4, cyy = i / 4;
+                bool inFootprint = cxx >= sub.X && cxx < sub.X + fp
+                    && cyy >= sub.Y && cyy < sub.Y + fp;
+                byte a = inFootprint ? (byte)120 : (byte)36;
                 var c = cells[i];
                 batch.DrawScreenQuadCorners(c.BLx, c.BLy, c.BRx, c.BRy,
                     c.TRx, c.TRy, c.TLx, c.TLy, gr, gg, gb, a);

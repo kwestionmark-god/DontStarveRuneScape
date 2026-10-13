@@ -38,7 +38,11 @@ public static class BlockStack
                 continue;
             if (s.SubX >= 0)
             {
-                if (s.SubX == subX && s.SubY == subY)
+                // Slice 12: footprint structures cover their anchor extent;
+                // single-cell bricks cover exactly their own cell.
+                int fp = Math.Max(1, s.StructureDef.Footprint);
+                if (subX >= s.SubX && subX < s.SubX + fp
+                    && subY >= s.SubY && subY < s.SubY + fp)
                     height = MathF.Max(height, (s.Layer + 1) * s.StructureDef.StackHeight);
             }
             else

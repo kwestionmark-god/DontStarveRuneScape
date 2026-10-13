@@ -236,7 +236,9 @@ public class VerticalLandingTests
     public void RenderTop_NonBlock_StaysAtTileElevation()
     {
         var h = new Harness();
-        var def = h.Buildings.Registry!.GetStructure("campfire")!;
+        // Slice 12 retruth: the campfire is a footprint BLOCK now — the
+        // non-block fixture is the chest.
+        var def = h.Buildings.Registry!.GetStructure("chest")!;
         var s = new Structure { StructureId = def.Id, StructureDef = def, TileX = 4, TileY = 4 };
         float tileElev = Constants.SeaLevel + 5f;
         Assert.Equal(tileElev, BlockStack.RenderTop(tileElev, s));

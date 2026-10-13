@@ -44,6 +44,9 @@ public class CampfireFootprintTests
             Inventory.AddItem("stick", 30);
             Inventory.AddItem("stone", 30);
             Inventory.AddItem("planks", 8);
+            // A pit-builder has construction XP (the lined pit gates at
+            // level 2 = 83 XP on the OSRS curve).
+            Skills.AddXp("construction", 100f);
         }
 
         private static BuildingSystem MakeBuildings()

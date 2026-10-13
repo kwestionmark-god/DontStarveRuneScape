@@ -53,7 +53,7 @@ public sealed class FireInteraction
             }
             foreach (var (itemId, qty) in hearthFuel)
                 game.Inventory.RemoveItem(itemId, qty);
-            var result = game.Firemaking.LightHearth(hearth.StructureDef!.LightSeconds,
+            var result = game.Firemaking.LightHearth(hearth.StructureDef!.BurnSeconds,
                 hearth.WorldX, hearth.WorldY, game.SkillManager);
             if (game.Player.ActionSystem != null)
                 game.Player.ActionSystem.AddNotification(result.Message, result.Success

@@ -45,9 +45,148 @@ public sealed class BuildingSystem
         if (def == null)
             return (false, "Unknown structure.");
         if (def.IsBlock && structureId != "fence_block")
+        {
+            // Slice 12: multi-cell footprints (the campfire family) place
+            // at a sub-cell anchor with the footprint extending +x/+y.
+            if (def.Footprint > 1)
+                return PlaceFootprint(def, tileX, tileY, subX, subY,
+                    world, inventory, skillManager, colony, firemaking);
             return PlaceBrick(def, tileX, tileY, subX, subY,
                 world, inventory, skillManager, colony, firemaking);
+        }
         return PlaceStructure(structureId, tileX, tileY, world, inventory, skillManager, colony, firemaking);
+    }
+
+    /// <summary>Does an occupant's footprint cover sub-cell (x, y) of its
+    /// tile? Tile-level occupants (SubX < 0) cover every cell; footprint
+    /// structures cover their anchor extent; single-cell bricks cover
+    /// exactly their own cell.</summary>
+    private static bool CoversCell(Structure s, int x, int y)
+    {
+        if (s.SubX < 0) return true;
+        int fp = Math.Max(1, s.StructureDef?.Footprint ?? 1);
+        return x >= s.SubX && x < s.SubX + fp && y >= s.SubY && y < s.SubY + fp;
+    }
+
+    /// <summary>Footprint placement (slice 12): a Footprint>1 block places
+    /// at a sub-cell ANCHOR with the square footprint extending +x/+y. The
+    /// tile-level call (subX/subY = -1) auto-centers — the footprint's
+    /// center then equals the tile center, so every legacy id-based call
+    /// site and save keeps its position. No stacking: one footprint
+    /// structure per anchor; overlapping cells refuse anything.</summary>
+    private (bool Success, string Message) PlaceFootprint(StructureDef def, int tileX, int tileY,
+        int subX, int subY, TileMap world, Inv inventory, SkillManager skillManager,
+        ColonySystem? colony, Skills.Firemaking.FiremakingSkill? firemaking)
+    {
+        int fp = def.Footprint;
+        if (subX < 0 || subY < 0)
+        {
+            // Auto-center (the tile-level entry): (4 - fp) / 2.
+            subX = (Constants.BrickSubCells - fp) / 2;
+            subY = subX;
+        }
+        if (subX < 0 || subX + fp > Constants.BrickSubCells
+            || subY < 0 || subY + fp > Constants.BrickSubCells)
+            return (false, "The footprint doesn't fit there.");
+
+        var tile = world.GetTile(tileX, tileY);
+        if (tile == null)
+            return (false, "Can't build there.");
+
+        // Occupancy: every covered cell must be free of anything.
+        var occupants = Structures.Where(s => s.IsActive && s.TileX == tileX && s.TileY == tileY).ToList();
+        for (int cx = subX; cx < subX + fp; cx++)
+            for (int cy = subY; cy < subY + fp; cy++)
+                if (occupants.Any(s => CoversCell(s, cx, cy)))
+                    return (false, "That spot is occupied.");
+
+        // Blocks are ground with vertical extent: flat pad + dry land.
+        if (tile.HasWater)
+            return (false, "Can't build a block in water.");
+        var corners = tile.CornerElevations;
+        if (corners is { Length: 4 })
+        {
+            float spread = corners.Max() - corners.Min();
+            if (spread > Constants.FlatPadMaxSpread)
+                return (false, "Needs flat ground — level this tile with a shovel.");
+        }
+
+        if (tile.Biome != null && def.BiomeCompatibility.Length > 0 &&
+            !def.BiomeCompatibility.Contains(tile.Biome.Id))
+            return (false, $"A {def.Name} can't be built on {tile.Biome.Id}.");
+
+        if (skillManager.GetSkillLevel("construction") < def.RequiresSkillLevel)
+            return (false, $"Requires construction level {def.RequiresSkillLevel}.");
+
+        var placed = new Structure
+        {
+            StructureId = def.Id,
+            StructureDef = def,
+            TileX = tileX,
+            TileY = tileY,
+            SubX = subX,
+            SubY = subY,
+            Layer = 0,
+            WorldX = tileX * Constants.TileSize + subX * Constants.BrickCellSize + fp * Constants.BrickCellSize / 2f,
+            WorldY = tileY * Constants.TileSize + subY * Constants.BrickCellSize + fp * Constants.BrickCellSize / 2f,
+            Health = (int)def.Hp,
+            MaxHealth = (int)def.Hp,
+        };
+        int homeDx = tileX - (colony?.AnchorTileX ?? tileX);
+        int homeDy = tileY - (colony?.AnchorTileY ?? tileY);
+        bool insideColonyWorkArea = colony?.IsFounded == true
+            && homeDx * homeDx + homeDy * homeDy <= colony.WorkRadiusTiles * colony.WorkRadiusTiles;
+        if (insideColonyWorkArea && colony != null)
+        {
+            // Same contract as the tile-level path: carried materials bank
+            // into the stockpile and the site awaits workers. The site
+            // keeps its anchor, so the finished hearth keeps the footprint
+            // (and the worker completion lights BurnSeconds).
+            foreach (var material in def.Materials)
+            {
+                int transfer = Math.Min(inventory.GetItemQuantity(material.ItemId), material.Quantity);
+                if (transfer > 0 && colony.CanStore(material.ItemId, transfer))
+                {
+                    inventory.RemoveItem(material.ItemId, transfer);
+                    colony.Store(material.ItemId, transfer);
+                }
+            }
+            placed.IsUnderConstruction = true;
+            placed.WorkStatus = "Awaiting materials";
+            Structures.Add(placed);
+            if (def.OccupiesTile)
+                tile.Structure = def;
+            return (true, $"{def.Name} construction site placed.");
+        }
+
+        // Materials: all-or-nothing, inventory first then the colony store.
+        foreach (var material in def.Materials)
+        {
+            int available = inventory.GetItemQuantity(material.ItemId)
+                + (colony?.GetItemQuantity(material.ItemId) ?? 0);
+            if (available < material.Quantity)
+                return (false, $"Missing materials: needs {material.Quantity} {material.ItemId}.");
+        }
+        foreach (var material in def.Materials)
+        {
+            int fromInventory = Math.Min(inventory.GetItemQuantity(material.ItemId), material.Quantity);
+            if (fromInventory > 0) inventory.RemoveItem(material.ItemId, fromInventory);
+            int fromColony = material.Quantity - fromInventory;
+            if (fromColony > 0 && colony?.RemoveItem(material.ItemId, fromColony) != true)
+                throw new InvalidOperationException("Construction material storage changed during placement.");
+        }
+
+        Structures.Add(placed);
+        if (def.OccupiesTile)
+            tile.Structure = def;
+
+        // The player laid it with their own hands: same placement XP as
+        // every other structure build, and a hearth lights on placement.
+        skillManager.AddXp("construction", 10f);
+        if (firemaking != null && def.BurnSeconds > 0f)
+            firemaking.LightHearth(def.BurnSeconds, placed.WorldX, placed.WorldY, null);
+
+        return (true, $"Built {def.Name}.");
     }
 
     /// <summary>Brick placement: gates in the historical order (occupancy,
@@ -71,6 +210,11 @@ public sealed class BuildingSystem
         var occupants = Structures.Where(s => s.IsActive && s.TileX == tileX && s.TileY == tileY).ToList();
         if (occupants.Any(s => s.StructureDef?.IsBlock != true))
             return (false, "That tile already has a structure.");
+        // Footprint honesty (slice 12): a footprint block covering the
+        // target cell refuses the brick — the tile's FREE cells still
+        // build. Bricks themselves keep the stacking path below.
+        if (occupants.Any(s => (s.StructureDef?.Footprint ?? 1) > 1 && CoversCell(s, subX, subY)))
+            return (false, "That spot is occupied.");
 
         // Blocks are ground with vertical extent: flat pad + dry land (the
         // same tile-level truth the old mounds gated on).
@@ -150,9 +294,15 @@ public sealed class BuildingSystem
             return (false, "Unknown structure.");
         // Bricks place per sub-cell only (slice 7a): a tile-level call has
         // no idea which of the 16 cells the player means. Fences stay
-        // tile-level.
+        // tile-level. Footprint blocks (slice 12) auto-center from the
+        // tile-level call — the legacy id-based call sites keep working.
         if (def.IsBlock && structureId != "fence_block")
+        {
+            if (def.Footprint > 1)
+                return PlaceFootprint(def, tileX, tileY, -1, -1,
+                    world, inventory, skillManager, colony, firemaking);
             return (false, "Pick a spot on the brick grid.");
+        }
 
         var tile = world.GetTile(tileX, tileY);
         if (tile == null)
@@ -255,8 +405,8 @@ public sealed class BuildingSystem
         // (light_seconds > 0) lights its fire on placement when firemaking is
         // wired. Skill/level gates read the player, so the XP is earned here.
         skillManager.AddXp("construction", 10f);
-        if (firemaking != null && def.LightSeconds > 0f)
-            firemaking.LightHearth(def.LightSeconds, placed.WorldX, placed.WorldY, null);
+        if (firemaking != null && def.BurnSeconds > 0f)
+            firemaking.LightHearth(def.BurnSeconds, placed.WorldX, placed.WorldY, null);
 
         return (true, $"Built {def.Name}.");
     }
@@ -389,6 +539,38 @@ public sealed class BuildingSystem
             // which the old "id" lookup never matched).
             var structureDef = Registry?.GetStructure(s.StructureId);
             if (structureDef == null) continue;
+
+            // Slice 12: a legacy tile-level row of a FOOTPRINT def migrates
+            // to the centered footprint — checked BEFORE the mound blow-up
+            // below, which a now-IsBlock campfire would otherwise hit
+            // (32 brick copies of a fire ring!).
+            if (structureDef.Footprint > 1 && s.SubX < 0)
+            {
+                int anchor = (Constants.BrickSubCells - structureDef.Footprint) / 2;
+                Structures.Add(new Structure
+                {
+                    StructureId = s.StructureId,
+                    StructureDef = structureDef,
+                    TileX = s.TileX,
+                    TileY = s.TileY,
+                    SubX = anchor,
+                    SubY = anchor,
+                    Layer = 0,
+                    WorldX = s.TileX * Constants.TileSize + anchor * Constants.BrickCellSize
+                        + structureDef.Footprint * Constants.BrickCellSize / 2f,
+                    WorldY = s.TileY * Constants.TileSize + anchor * Constants.BrickCellSize
+                        + structureDef.Footprint * Constants.BrickCellSize / 2f,
+                    Health = s.Hp > 0 ? (int)s.Hp : (int)structureDef.Hp,
+                    MaxHealth = (int)structureDef.Hp,
+                    IsActive = true,
+                });
+                if (structureDef.OccupiesTile)
+                {
+                    var ftile = world.GetTile(s.TileX, s.TileY);
+                    if (ftile != null) ftile.Structure = structureDef;
+                }
+                continue;
+            }
 
             // Slice 7a migration: a pre-brick tile-level mound materializes
             // as a full 4x4 x 2-course brick block — same tile footprint,

@@ -176,8 +176,55 @@ public sealed class FiremakingSkill
     /// never bite.</summary>
     public void TickContactDamage(Core.Player? player, Building.BuildingSystem? buildings, float dt)
     {
-        // RED stub: nothing bites today.
+        if (player == null || buildings == null) return;
+
+        foreach (var s in buildings.Structures)
+        {
+            if (!s.IsActive || s.SubX < 0 || s.StructureDef is not { ContactDamage: > 0f })
+                continue;
+
+            // The player must be standing inside the footprint.
+            int ptx = (int)(player.WorldX / Config.Constants.TileSize);
+            int pty = (int)(player.WorldY / Config.Constants.TileSize);
+            if (ptx != s.TileX || pty != s.TileY) continue;
+            int psx = (int)(player.WorldX / Config.Constants.BrickCellSize) % Config.Constants.BrickSubCells;
+            int psy = (int)(player.WorldY / Config.Constants.BrickCellSize) % Config.Constants.BrickSubCells;
+            int fp = Math.Max(1, s.StructureDef.Footprint);
+            if (psx < s.SubX || psx >= s.SubX + fp || psy < s.SubY || psy >= s.SubY + fp)
+                continue;
+
+            // …and a fire must be LIVE at the structure.
+            bool lit = false;
+            foreach (var f in _activeFires)
+                if (MathF.Abs(f.WorldX - s.WorldX) < 4f && MathF.Abs(f.WorldY - s.WorldY) < 4f)
+                {
+                    lit = true;
+                    break;
+                }
+            if (!lit) continue;
+
+            _contactAccumulator += s.StructureDef.ContactDamage * dt;
+            if (_contactAccumulator >= 1f)
+            {
+                int bite = (int)_contactAccumulator;
+                _contactAccumulator -= bite;
+                player.TakeDamage(bite);
+                if (!_contactNotified)
+                {
+                    _contactNotified = true;
+                    player.ActionSystem?.AddNotification(
+                        "You're standing in the fire!", (255, 120, 40));
+                }
+            }
+            return; // one fire underfoot is enough
+        }
+        // Off the fire: reset the bite latch.
+        _contactAccumulator = 0f;
+        _contactNotified = false;
     }
+
+    private float _contactAccumulator;
+    private bool _contactNotified;
 
     /// <summary>Get snapshot for saving.</summary>
     public FireSnapshot GetSnapshot()
