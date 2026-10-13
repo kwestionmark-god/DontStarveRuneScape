@@ -15,7 +15,7 @@ using Xunit;
 /// </summary>
 public class CaveInnardsTests
 {
-    private static ResourceRegistry RealResources()
+    internal static ResourceRegistry RealResources()
     {
         // Bootstrap converts raw rows inline (Bootstrap.cs:53-83) — mirror
         // the fields the vein defs actually carry (sprite_key above all).
