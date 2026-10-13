@@ -47,6 +47,11 @@ public sealed class SurvivalSystem
     private object? _seasonSystem;
     public object? WeatherSystem { get; set; }
 
+    /// <summary>Slice 17: fire warmth 0–1, set per-frame by the game loop
+    /// from FiremakingSkill.WarmthAt. Hunger drain runs up to 40% slower at
+    /// full warmth (RED stub: stored, unused).</summary>
+    public float WarmthFactor { get; set; }
+
     // ─── Configuration (from Constants) ──────────────────────────────────────
 
     private readonly float _hungerDrainInterval = Constants.HungerDrainInterval;

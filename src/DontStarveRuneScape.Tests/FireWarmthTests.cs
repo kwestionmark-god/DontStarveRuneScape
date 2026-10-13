@@ -1,0 +1,89 @@
+namespace DontStarveRuneScape.Tests;
+
+using DontStarveRuneScape.Core;
+using DontStarveRuneScape.Building;
+using DontStarveRuneScape.Data;
+using DontStarveRuneScape.Skills;
+using DontStarveRuneScape.Skills.Firemaking;
+using DontStarveRuneScape.Survival;
+using DontStarveRuneScape.Config;
+using Xunit;
+
+/// <summary>
+/// Vertical building, slice 17: WarmthRadius gets a gameplay consumer —
+/// standing within a lit fire's warmth radius halves the slice's hunger
+/// drain pressure (warm bodies burn fewer calories; winter's 1.2x drain
+/// up to 40% softer at a roaring fire).
+/// </summary>
+public class FireWarmthTests
+{
+    private static Game MakeGame()
+    {
+        var game = new Game();
+        game.Player = new Player(100f, 110f) { ActionSystem = new Actions.ActionSystem() };
+        game.Inventory = new DontStarveRuneScape.Inventory.Inventory();
+        game.SkillManager = new SkillManager();
+        game.World = new DontStarveRuneScape.World.TileMap(24, 24);
+        game.Firemaking = new FiremakingSkill();
+        var registry = new StructureDefRegistry();
+        registry.LoadAll();
+        game.BuildingSystem = new BuildingSystem { Registry = registry };
+        game.FireInteraction = new Interactions.FireInteraction(game);
+        return game;
+    }
+
+    [Fact]
+    public void WarmthAt_NoFires_IsZero()
+    {
+        var game = MakeGame();
+        Assert.Equal(0f, game.Firemaking.WarmthAt(100f, 110f, game.BuildingSystem));
+    }
+
+    [Fact]
+    public void WarmthAt_FireBeyondRadius_IsZero()
+    {
+        var game = MakeGame();
+        // Lit ground fire at (100,100); default WarmthRadius 3 tiles = 96px.
+        game.Firemaking.LightFire(new() { ("oak_logs", 1) }, game.Inventory, 100f, 100f);
+        Assert.Equal(0f, game.Firemaking.WarmthAt(100f + 97f, 100f, game.BuildingSystem));
+    }
+
+    [Theory]
+    // Stage scales warmth: embers one-third, burning two-thirds, roaring full.
+    [InlineData(12f, 1f / 3f)]  // <25% of 60 → embers
+    [InlineData(30f, 2f / 3f)]  // half → burning
+    [InlineData(50f, 1f)]       // >=75% → roaring
+    public void WarmthAt_ScalesWithBurnStage(float remaining, float expected)
+    {
+        var game = MakeGame();
+        game.Firemaking.LightFire(new() { ("oak_logs", 1) }, game.Inventory, 100f, 100f);
+        game.Firemaking.GetActiveFires()[0].RemainingTime = remaining;
+        Assert.Equal(expected,
+            game.Firemaking.WarmthAt(105f, 105f, game.BuildingSystem), 3);
+    }
+
+    [Fact]
+    public void WarmthAt_TwoFires_TakesStrongest()
+    {
+        var game = MakeGame();
+        game.Firemaking.LightFire(new() { ("oak_logs", 1) }, game.Inventory, 100f, 100f);
+        game.Firemaking.GetActiveFires()[0].RemainingTime = 12f; // embers
+        game.Firemaking.LightFire(new() { ("oak_logs", 1) }, game.Inventory, 120f, 100f);
+        game.Firemaking.GetActiveFires()[1].RemainingTime = 50f; // roaring
+        Assert.Equal(1f, game.Firemaking.WarmthAt(110f, 100f, game.BuildingSystem), 3);
+    }
+
+    [Fact]
+    public void HungerDrain_WarmPlayer_DrainsUpToFortyPercentLess()
+    {
+        var cold = new SurvivalSystem();
+        var warm = new SurvivalSystem();
+        warm.WarmthFactor = 1f;
+        float h0 = cold.Hunger;
+        cold.Tick(Constants.HungerDrainInterval);
+        warm.Tick(Constants.HungerDrainInterval);
+        float coldDrain = h0 - cold.Hunger;
+        float warmDrain = h0 - warm.Hunger;
+        Assert.Equal(coldDrain * 0.6f, warmDrain, 3);
+    }
+}

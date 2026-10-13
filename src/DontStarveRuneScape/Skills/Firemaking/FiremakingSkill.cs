@@ -198,6 +198,10 @@ public sealed class FiremakingSkill
         return BurnStageOf(fire.RemainingTime, fire.MaxTime);
     }
 
+    /// <summary>Slice 17: warmth 0–1 at a world position — the strongest
+    /// STAGE-scaled fire whose WarmthRadius covers it (stage/3). RED stub.</summary>
+    public float WarmthAt(float worldX, float worldY, Building.BuildingSystem? buildings) => 0f;
+
     /// <summary>Slice 13: light a hearth by burning one STOCKED fuel unit —
     /// the fire is the fuel table's per-unit seconds times the def's
     /// burn_rate, plus the duration sub-stat bonus.</summary>
