@@ -158,10 +158,32 @@ public sealed class FiremakingSkill
         };
     }
 
-    public void Tick(float dt)
+    /// <summary>Slice 13 burn stages: 0 = out, 1 = embers, 2 = burning,
+    /// 3 = roaring — classified off the remaining-vs-capacity fraction.</summary>
+    public static int BurnStageOf(float remainingSeconds, float capacitySeconds)
+    {
+        // RED stub.
+        return 0;
+    }
+
+    /// <summary>Slice 13: light a hearth by burning one STOCKED fuel unit —
+    /// the fire is the fuel table's per-unit seconds times the def's
+    /// burn_rate, plus the duration sub-stat bonus.</summary>
+    public FireResult LightHearthUnit(string fuelId, Data.StructureDef def,
+        float x, float y, SkillManager? skills = null)
+    {
+        // RED stub.
+        return new FireResult { Success = false, Message = "No fuel stocked." };
+    }
+
+    public void Tick(float dt) => Tick(dt, null);
+
+    public void Tick(float dt, Building.BuildingSystem? buildings)
     {
         for (int i = _activeFires.Count - 1; i >= 0; i--)
         {
+            // RED stub: the slice-13 auto-feed (pop the owner hearth's
+            // stocked unit on burnout) lands at GREEN here.
             _activeFires[i].RemainingTime -= dt;
             if (_activeFires[i].RemainingTime <= 0)
                 _activeFires.RemoveAt(i);

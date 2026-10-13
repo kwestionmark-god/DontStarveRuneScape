@@ -59,6 +59,23 @@ public sealed class FireMenuPanel
     /// until dawn; wired by Bootstrap to the sleep flow.</summary>
     public Action<bool>? OnRest { get; set; }
 
+    /// <summary>Slice 13: the Fuel row — feed the hearth's reservoir.
+    /// Wired by Bootstrap to FireInteraction.MenuFeedFire.</summary>
+    public Action<bool>? OnFuel { get; set; }
+
+    /// <summary>Slice 13: the Upgrade row — kick off the hearth's
+    /// upgrade chain step (campfire -> lined fire pit).</summary>
+    public Action<bool>? OnUpgrade { get; set; }
+
+    /// <summary>Slice 13: the hearth def the menu opened on (null = a bare
+    /// ground fire / station). Set by Game when opening the menu.</summary>
+    public StructureDef? FireTargetDef { get; set; }
+
+    /// <summary>Slice 13: status label + fuel preview text, refreshed
+    /// per-frame by Game.Update from FireInteraction.</summary>
+    public string FireStatusText { get; set; } = string.Empty;
+    public string FuelPreviewLine { get; set; } = string.Empty;
+
     public void HandleKey(Key key)
     {
         if (_selectionMode == 0)

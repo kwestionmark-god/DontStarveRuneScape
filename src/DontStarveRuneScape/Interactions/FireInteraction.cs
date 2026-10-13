@@ -217,4 +217,40 @@ public sealed class FireInteraction
             && StructureUtils.IsStructureNearby(structures, game.Player.WorldX, game.Player.WorldY,
                 s.StructureId, Constants.CampfireSearchRadiusTiles));
     }
+
+    // ─── Slice 13: the fuel reservoir + menu verbs (RED stubs) ────────────
+
+    /// <summary>Feed the nearest hearth's reservoir one unit of fuel —
+    /// the stocked fuel type when occupied, else the best carried unit.
+    /// Feeding an OUT fire lights it.</summary>
+    public bool MenuFeedFire()
+    {
+        // RED stub.
+        return false;
+    }
+
+    /// <summary>The fire-menu header line for the nearest hearth: name,
+    /// burn stage ("out" / "embers" / "burning" / "roaring"), and a
+    /// "about N min" remainder.</summary>
+    public string FireStatusLabel()
+    {
+        // RED stub.
+        return string.Empty;
+    }
+
+    /// <summary>Detail text for the fuel row: the stocked item + count or
+    /// the best carried unit's preview ("+30s per Oak Logs").</summary>
+    public string FuelPreviewText()
+    {
+        // RED stub.
+        return string.Empty;
+    }
+
+    /// <summary>Start the nearest hearth's def upgrade chain step (the
+    /// colony-worker upgrade flow; campfire -> lined fire pit).</summary>
+    public (bool Success, string Message) TryUpgradeNearestHearth()
+    {
+        // RED stub.
+        return (false, "Nothing here can be upgraded.");
+    }
 }

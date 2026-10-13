@@ -34,6 +34,12 @@ public sealed class Structure
     /// <summary>Target tier for an in-progress upgrade (null = none).</summary>
     public string? UpgradingToId { get; set; }
 
+    /// <summary>Slice 13 fuel reservoir: the single fuel TYPE stocked in
+    /// a hearth (null = empty) and its unit count (0..FuelCapacityUnits).</summary>
+    public string? FuelItemId { get; set; }
+    public int FuelCount { get; set; }
+    public const int FuelCapacityUnits = 10;
+
     /// <summary>Blueprint site awaiting stockpile materials and worker time.</summary>
     public bool IsUnderConstruction { get; set; }
     /// <summary>Required materials have been charged to this construction job.</summary>

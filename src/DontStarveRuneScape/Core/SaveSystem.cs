@@ -448,6 +448,9 @@ public sealed class StructureSnapshot
     public string? UpgradingToId { get; set; }
     public float WorkProgress { get; set; }
     public string WorkStatus { get; set; } = "Idle";
+    // Slice 13: the hearth fuel reservoir (null/0 = empty legacy row).
+    public string? FuelItemId { get; set; }
+    public int FuelUnitCount { get; set; }
 }
 
 public sealed class FireSnapshot

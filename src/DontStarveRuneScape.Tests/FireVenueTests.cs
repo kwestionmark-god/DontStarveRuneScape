@@ -308,9 +308,14 @@ public class FireVenueTests
 
         var fires = game.Firemaking.GetActiveFires();
         Assert.True(fires.Count > 0, "relight must spawn a fire at the hearth");
-        // Hearth relight burns the def's light_seconds (campfire 90s), not the
-        // fuel-table ground-fire duration (2 oak_logs = 60s).
-        Assert.Equal(90f, fires[0].MaxTime, 3);
+        // Slice 13 retruth: a relight feeds the reservoir — the burning unit
+        // is one oak_log's fuel-table seconds (30s), NOT the flat
+        // light_seconds (90s); the stocked second unit is queued on the
+        // structure.
+        Assert.Equal(30f, fires[0].MaxTime, 3);
+        var hearth = game.BuildingSystem.Structures[0];
+        Assert.Equal("oak_logs", hearth.FuelItemId);
+        Assert.Equal(1, hearth.FuelCount);
         float xp = game.SkillManager.GetSkill("firemaking").Xp;
         Assert.True(xp > 0f, $"relight must pay firemaking XP, got {xp}");
         Assert.True(game.Inventory.GetItemQuantity("oak_logs") < 5,
@@ -365,8 +370,11 @@ public class FireVenueTests
     }
 
     [Fact]
-    public void E_NearColdHearth_DoesNotOpenFireMenu()
+    public void E_NearColdHearth_OpensFireMenu()
     {
+        // Slice 13 retruth: the hearth STRUCTURE is the menu handle — a
+        // cold campfire opens the fire menu (sleep moved INTO the menu's
+        // rest row), so E no longer falls through to TrySleep.
         var game = new Game();
         game.Player = new Player(100f, 100f)
         {
@@ -393,11 +401,12 @@ public class FireVenueTests
             WorldY = 100f,
             IsActive = true,
         });
+        game.FireInteraction = new FireInteraction(game);
         var interact = new InteractSystem(game);
 
         interact.HandleInteract();
 
-        Assert.NotEqual(GameState.FireMenu, game.State);
+        Assert.Equal(GameState.FireMenu, game.State);
     }
 
     private static Game MakeGameAtFire()
