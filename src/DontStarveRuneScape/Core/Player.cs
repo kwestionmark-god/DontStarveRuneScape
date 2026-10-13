@@ -127,6 +127,11 @@ public sealed class Player
         if (inputState.MoveLeft) dx -= 1.0f;
         if (inputState.MoveRight) dx += 1.0f;
 
+        // Click-to-move law: any held WASD key cancels a click-walk
+        // immediately — keys always win over the queued target.
+        if (dx != 0.0f || dy != 0.0f)
+            Moving = false;
+
         // Normalize diagonal movement
         float length = MathF.Sqrt(dx * dx + dy * dy);
         if (length > 0)

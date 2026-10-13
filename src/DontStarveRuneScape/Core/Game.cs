@@ -943,6 +943,16 @@ public sealed class Game
             // Sprint gate runs BEFORE movement so this frame already carries
             // the boost; "moving" is read from the held WASD flags.
             var st = InputManager.InputState;
+            // Click-to-move: a ground left-click in Playing state (panels
+            // own their clicks; build mode owns placement clicks) sends the
+            // player walking to the clicked world point. WASD cancels —
+            // ApplyKeyInput clears the walk when any move key is held.
+            if (st.MouseLeftClick && !BuildMode && Camera != null)
+            {
+                var (clickWx, clickWy) = Camera.ScreenToWorld(st.MouseX, st.MouseY);
+                Player.MoveTo(clickWx, clickWy);
+                st.MouseLeftClick = false;
+            }
             Player.UpdateSprint(st.Sprint,
                 st.MoveUp || st.MoveDown || st.MoveLeft || st.MoveRight, dt);
             Player.UpdateJump(dt);
