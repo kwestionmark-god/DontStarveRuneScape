@@ -12,7 +12,12 @@
     "stack_height": 1.25,
     "hp": 20,
     "occupies_tile": true,
-    "materials": [["dirt_brick", 1]],
+    "materials": [
+     [
+      "dirt_brick",
+      1
+     ]
+    ],
     "requires_structure_level": 1,
     "requires_skill_level": 1,
     "biome_compatible": [],
@@ -27,7 +32,12 @@
     "stack_height": 1,
     "hp": 10,
     "occupies_tile": true,
-    "materials": [["stick", 2]],
+    "materials": [
+     [
+      "stick",
+      2
+     ]
+    ],
     "requires_structure_level": 1,
     "requires_skill_level": 1,
     "biome_compatible": [],
@@ -106,7 +116,8 @@
     "burnable": true,
     "light_seconds": 90.0,
     "burn_rate": 1.5,
-    "contact_damage": 0.0
+    "contact_damage": 0.0,
+    "upgrades_to": "bonfire"
    },
    "firepit": {
     "structure_id": "firepit",
@@ -514,6 +525,44 @@
     "sprite_key": "structure/alchemy_table",
     "occupies_tile": true,
     "burnable": true
+   },
+   "bonfire": {
+    "structure_id": "bonfire",
+    "name": "Bonfire",
+    "structure_type": "fixed",
+    "construction_sub_stat": "common",
+    "hp": 30,
+    "is_block": true,
+    "stack_height": 0.75,
+    "footprint": 3,
+    "materials": [
+     [
+      "stick",
+      8
+     ],
+     [
+      "stone",
+      10
+     ]
+    ],
+    "requires_structure_level": 1,
+    "requires_skill_level": 3,
+    "biome_compatible": [
+     "forest",
+     "plains",
+     "coastal",
+     "swamp",
+     "mountains",
+     "desert"
+    ],
+    "sprite_key": "structure/bonfire",
+    "sprite_side": "structure/bonfire_side",
+    "occupies_tile": true,
+    "burnable": true,
+    "light_seconds": 90.0,
+    "burn_rate": 2.0,
+    "warmth_radius": 5,
+    "contact_damage": 3.0
    }
   },
   "defensive": {

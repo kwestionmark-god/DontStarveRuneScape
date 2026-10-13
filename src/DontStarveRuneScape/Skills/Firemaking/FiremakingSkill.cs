@@ -233,6 +233,7 @@ public sealed class FiremakingSkill
             WorldY = y,
             RemainingTime = duration,
             MaxTime = duration,
+            WarmthRadius = def.WarmthRadius, // slice 18: the hearth's tier sizes the warmth
         });
         var name = Data.ItemCatalog.Get(fuelId)?.Name ?? fuelId;
         return new FireResult

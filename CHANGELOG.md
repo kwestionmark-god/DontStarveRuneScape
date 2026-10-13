@@ -8,6 +8,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Vertical building, slice 18 — the bonfire** — a new third hearth
+  tier (campfire → stone-lined pit → bonfire): the first 3x3 footprint
+  structure, a big open stone ring (0.75 tall) that burns each fuel unit
+  twice as long, bites harder (3 HP/s standing), and warms a wider area
+  via the new warmth_radius structure field (5 tiles vs the usual 3).
+  Needs construction 3, a pile of sticks and stone, and upgrades from
+  the lined pit through the fire menu.
+- **Vertical building, slices 16–17 — firelight glow and real warmth** —
+  fires now pool soft warm light onto the ground around them after dark
+  (bigger and brighter as the fire grows; invisible by day), and
+  standing inside a fire's warmth radius slows your hunger drain by up
+  to 40% — sheltering by a roaring fire is real survival strategy now,
+  especially in winter.
+- **Vertical building, slice 15 — every fire stage animates** — embers
+  pulse with a slow breathing glow and roaring fires flip their flame
+  crowns fast; only the mid "burning" stage animated before.
 - **Vertical building, slice 14 — the fire look** — the campfire pit
   finally reads as built stone: side faces wear a dedicated pit-wall
   texture (stone courses, mortar seams, lit lip) instead of the

@@ -1627,6 +1627,12 @@ public sealed class Game
                 World.SetElevationOverride(stx + 1, sty + 1, Constants.SeaLevel + 5f);
                 foreach (var material in def.Materials)
                     Inventory.AddItem(material.ItemId, material.Quantity);
+                // Grant the def's construction skill gate too (slice 18:
+                // the bonfire's level-3 requirement made the hook refuse —
+                // smoke hooks stage for real, gates included by granting).
+                if (SkillManager.GetSkill("construction").Level < def.RequiresSkillLevel)
+                    SkillManager.AddXp("construction",
+                        SkillManager.XpForLevel(def.RequiresSkillLevel) + 1f);
                 var placed = parts.Length == 5
                     ? BuildingSystem.PlaceStructure(parts[0], stx, sty, ssx, ssy,
                         World, Inventory, SkillManager)

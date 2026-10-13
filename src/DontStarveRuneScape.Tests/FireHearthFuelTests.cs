@@ -299,7 +299,9 @@ public class FireHearthFuelTests
         registry.LoadAll();
 
         Assert.Equal("lined_fire_pit", registry.GetStructure("campfire")!.UpgradesTo);
-        Assert.Null(registry.GetStructure("lined_fire_pit")!.UpgradesTo);
+        // Retruth (slice 18): the chain extends — lined pit now upgrades
+        // to the bonfire; the bonfire is the terminal tier.
+        Assert.Equal("bonfire", registry.GetStructure("lined_fire_pit")!.UpgradesTo);
     }
 
     [Fact]

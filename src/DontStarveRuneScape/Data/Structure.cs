@@ -61,6 +61,11 @@ public sealed class StructureDef : DataRecord
     /// long the hearth burns without code (1 = baseline).</summary>
     public float BurnRate { get; init; } = 1f;
 
+    /// <summary>Slice 18: tiles a hearth fire at this structure warms
+    /// (data key: warmth_radius); fed into FireInstance.WarmthRadius at
+    /// light time. Default 3 — the historical campfire radius.</summary>
+    public int WarmthRadius { get; init; } = 3;
+
     /// <summary>Slice 14: optional SIDE-face texture for voxel blocks
     /// (data key: sprite_side); null = the top sprite on every face
     /// (all bricks: unchanged).</summary>
@@ -162,6 +167,7 @@ public sealed class StructureDefRegistry
             Footprint = Math.Max(1, (int)GetFloat(e, "footprint")),
             ContactDamage = GetFloat(e, "contact_damage"),
             BurnRate = GetFloat(e, "burn_rate") > 0f ? GetFloat(e, "burn_rate") : 1f,
+            WarmthRadius = GetInt(e, "warmth_radius") is > 0 ? GetInt(e, "warmth_radius")!.Value : 3,
             // Slice 14: absent = the top sprite on all faces.
             SideSpriteKey = e.TryGetProperty("sprite_side", out var side)
                 && side.ValueKind == JsonValueKind.String ? side.GetString() : null,
