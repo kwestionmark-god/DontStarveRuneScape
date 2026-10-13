@@ -1,7 +1,10 @@
 # Fire look reform — volumetric staged flames + voxel side faces (slice 14)
 
 Date: 2026-10-12
-Status: drafted — awaiting RED
+Status: implemented — RED f98cde6 / GREEN b257d59 (2026-10-12),
+suite 680 → 686 (685 green + 1 pre-existing skip);
+render iterations vision-verified across 4 rounds (flat card →
+units bug → starburst textures → signed-off teardrop tongues)
 Slice line: vertical-building post-roadmap, slice 14 (the fire-visual
 sequel: the user's "full fuel" screenshot critique)
 
@@ -85,14 +88,32 @@ unit's private burn cycle).
 4. Stage machine pins: capacity fractions 0/1/2/3 (already covered by
    BurnStageOf table — reuse, no dup: StageOf's return IS
    BurnStageOf(total, capacity) — pin through StageOf with harness).
-5. Smoketest A/B: DSR_TEST_FIREPLACE=1 stages a placed + FULLY STOCKED
-   campfire (placed at the fire-menu stage tile, reservoir set to
-   capacity, lit) — the same-camera capture pixel-verifies: (a) new
-   side art present (side-stone palette present on the 2x2 block's
-   faces), (b) the roaring crossed flame's texels above the pit ABOVE
-   the old flat quad's single square, orbiting keeps volume (two yaw
-   captures differ ONLY within the flame bbox + keep texels at 135°).
-   Captures saved for the user.
+5. Smoketest staging: `DSR_TEST_STRUCTURE=campfire:lit` (the 2-part
+   grammar — auto dry tile + stocked + burning; the original
+   `campfire:auto:lit` colon form silently no-op'd — smoke hooks must
+   never no-op silently) + DSR_SEED=42 (changed-seed A/B is invalid —
+   StartNewGame randomizes the seed per boot) + DSR_TEST_HOUR=14 +
+   DSR_TEST_YAW=0/22 sweeps. Renders verified by a vision-iteration loop
+   (the model's own eyes on the captures): v1 flat-card flag, v2 the
+   world-px-as-elevation-units bug (the pit is 0.5 units; ~18 px/unit at
+   this pitch — re-scaled), v3 proportions pass but radial-starburst
+   textures rejected, v4 teardrop tongues (belly sin growth + tip pinch
+   + bent tips + side forks + sparks) SIGNED OFF. Suit record: the
+   RenderFire dead-code and the `!diag` axis flip were both written,
+   caught by reading the diff, and fixed pre-capture.
+
+## Verification log
+
+- Iteration 1 (axes planes, world-px heights ~42): flat starburst of
+  the wrong scale; vision verdict FAIL.
+- Iteration 2 (heights in units, X+diag planes): proportions right for
+  the last time but planes collapsed at 45°; vision verdict FAIL.
+- Iteration 3 (0.2/0.6/1.1/1.7 unit stages): height solved, silhouette
+  = spiky texture (the generator's fault, not the geometry); vision
+  verdict: fix the SPRITES.
+- Iteration 4 (teardrop tongues + side forks + sparks): SIGNED OFF —
+  upright tongues, ~2 pit-bands, yaw-shifting silhouette, stone pit
+  readable, no breakage.
 
 ## Non-goals
 

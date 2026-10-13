@@ -757,7 +757,39 @@ law shapes it.
        (user-adjacent): flame ANIMATION frames for the stages, warmth
        radius consumer finally, burn-rate variant tiers beyond lined,
        damage-on-WALKING-through, 3x3/4x4 workshop footprints.
-    - **Progression accounting (user playtest finding, 2026-10-09).** The
+     - **Vertical building, slice 14 — fire look reform (the user's
+       full-fuel screenshot critique: "proper surface area for the
+       sides... visual designs/animations for different stages of fuel
+       capacity"). DONE 2026-10-12** (spec
+       2026-10-12-fire-flame-visuals-design.md; RED f98cde6 / GREEN
+       b257d59): `StructureDef.SideSpriteKey` (sprite_side) gives voxel
+       blocks a dedicated SIDE texture — the campfire/lined pit wear a
+       stone pit-wall band (lit lip + mortar seams + charred top edge),
+       the top keeps the ring art; every other block holds the
+       one-texture law. RenderFire rebuilt as CROSSED world-anchored
+       planes (X + 45° diagonal pair — no cardinal yaw shows both
+       edge-on) wearing four authored staged flame sprites (ember coals
+       / low lick / burning tongue / roaring crown + side forks +
+       sparks, teardrop bellies + pinched bent tips), staged by
+       reservoir FULLNESS (StageOf — a full tank stays roaring while
+       the current unit dies), position-seeded wobble so fires never
+       beat in sync, and the burning stage flip-flops two frames —
+       live animation. FOUR vision-verified iterations on the captures
+       (the model's own eyes): v1 flat card (my planes read as one),
+       v2 the px-vs-units bug (the pit is 0.5 ELEVATION units, ~18
+       px/unit at the camera pitch — 42 "px" of flame was a 390px
+       spike), v3 proportions pass but radial-starburst sprites
+       rejected (generator rewrote the licks), v4 SIGNED OFF. Smoke
+       hook grammar grew `DSR_TEST_STRUCTURE=campfire:lit` (auto dry
+       tile + stocked + burning — the colon-form `auto:lit` silently
+       no-op'd first; recorded in the seams: smoke hooks must never
+       no-op silently) + DSR_SEED pins the world for honest A/B (the
+       map randomizes per boot otherwise). Suite 680 → 686 (685 green
+       + 1 pre-existing skip). LAW for the arc: a flat-looking flame
+       is a TEXTURE bug, not geometry — the v3 starburst came from
+       concentric-wedge licks; teardrop bellies + tip pinch + bent
+       tips are what read as fire.
+     - **Progression accounting (user playtest finding, 2026-10-09).** The
       fishing rod is entry-tier by design but hangs on a deadlock:
        rod → planks → `goblin_diplomacy` (goblin CHIEF's quest, not
        Shaman Kree's) → intelligence level 5 (388 XP) + commerce 3 +

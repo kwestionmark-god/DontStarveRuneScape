@@ -8,20 +8,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
-- **Vertical building, slice 12 — structure footprints + the campfire
-  family** — the first multi-sub-cell structure. The campfire is now a
-  2x2 footprint block (0.5 units squat) on the 4x4 brick grid: it walls
-  grounded movers, you can hop onto it, and standing on a LIT one
-  bites 2 HP/s (with a first-bite notification — no silent losses).
-  New Stone-Lined Fire Pit variant: stone 6 + stick 2, construction 2 —
-  safe to stand on (zero contact damage) and burns 1.5x longer
-  (135 s vs 90 s). New def fields drive the variants framework:
-  `footprint`, `contact_damage`, `burn_rate` (→ `BurnSeconds` feeds
-  every fire-lighting call site). Bricks share a footprint tile's
-  FREE cells; build ghost highlights the whole anchor extent; legacy
-  tile-level campfires auto-migrate to the centered footprint on load.
-
-### Added
+- **Vertical building, slice 14 — the fire look** — the campfire pit
+  finally reads as built stone: side faces wear a dedicated pit-wall
+  texture (stone courses, mortar seams, lit lip) instead of the
+  squashed top ring. The fire itself is now a proper volumetric flame:
+  two world-anchored crossed planes wearing staged sprites — ember
+  coals, a low lick, a burning flame, and a roaring crown with side
+  forks and sparks — sized by how much FUEL the fire holds, with a
+  gentle wobble so it dances. Stock up the reservoir and the fire
+  literally roars taller.
 - **Vertical building, slice 13 — the fire menu + fuel reservoir** —
   E near ANY hearth (even a cold, burned-out campfire) now opens the
   fire menu instead of sleeping at it. Hearths carry a fuel reservoir:
@@ -37,6 +32,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   sprites redrawn (readable stone ring, crossed logs, ember coals) and
   fires now render as staged flames (ember bed → body → bright tip).
   Fire fuel stock persists through save/load.
+- **Vertical building, slice 12 — structure footprints + the campfire
+  family** — the first multi-sub-cell structure. The campfire is now a
+  2x2 footprint block (0.5 units squat) on the 4x4 brick grid: it walls
+  grounded movers, you can hop onto it, and standing on a LIT one
+  bites 2 HP/s (with a first-bite notification — no silent losses).
+  New Stone-Lined Fire Pit variant: stone 6 + stick 2, construction 2 —
+  safe to stand on (zero contact damage) and burns 1.5x longer
+  (135 s vs 90 s). New def fields drive the variants framework:
+  `footprint`, `contact_damage`, `burn_rate` (→ `BurnSeconds` feeds
+  every fire-lighting call site). Bricks share a footprint tile's
+  FREE cells; build ghost highlights the whole anchor extent; legacy
+  tile-level campfires auto-migrate to the centered footprint on load.
 
 ### Changed
 - **Vertical building, slice 11 — monsters break walls** — walls buy
