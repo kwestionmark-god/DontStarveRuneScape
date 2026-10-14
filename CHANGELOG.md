@@ -8,6 +8,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Colony — expedition guards actually escort** — a guard you bring into
+  the cave now shadows you through the dark (follows past 2.5 tiles, posts
+  up beside you, and watches an 8-tile radius around YOU instead of
+  patrolling an anchor back on the surface). And the surface-unguarded
+  raid timer now genuinely ticks during real play — previously only tests
+  advanced it, so raids-while-underground never happened in-game.
+- **Cave stage 3 — cave food pressure** — the deeps finally feed you, a
+  little: glowcap mushrooms grow in small rings at mid-depth (four sites
+  between the copper band and the gold end, deterministic per seed). Raw
+  and faintly toxic — +9 hunger, -1 HP, hand-foraged, 2 picks per cap,
+  slow regrow. Enough to keep a desperate expedition alive; real rations
+  still win.
 - **Voxel player body — the slab rewrite** — the player's voxel body is
   now built at runtime from real art: body.png wears the front face
   exactly as drawn (eyes and all), with generated side and back views
