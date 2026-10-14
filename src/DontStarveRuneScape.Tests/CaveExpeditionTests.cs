@@ -301,4 +301,24 @@ public class CaveExpeditionTests
         Assert.True(h.CaveSystem.HasSurfaceGuards()); // guard2 still there
         Assert.Equal(0f, h.CaveSystem.SurfaceUnguardedTimer); // timer resets with guard present
     }
+
+    [Fact]
+    public void GameUpdate_AdvancesTheSurfaceUnguardedTimer()
+    {
+        // Production wiring pin: Game.Update must tick the cave system, or
+        // the surface-unguarded raid timer only ever advances in tests
+        // that call Tick by hand (the Harness.Tick did exactly that).
+        var h = new Harness();
+        h.SetupGame();
+        // No guards anywhere: entering the cave leaves the surface
+        // unguarded, so the timer should advance every real update.
+        h.CaveSystem.InteractWith(h.Surface.GetTile(5, 5)!);
+        Assert.True(h.CaveSystem.IsInside);
+        float before = h.CaveSystem.SurfaceUnguardedTimer;
+
+        h.Game.Update(1f);
+
+        Assert.True(h.CaveSystem.SurfaceUnguardedTimer > before,
+            $"Game.Update did not tick the cave system (timer stayed {h.CaveSystem.SurfaceUnguardedTimer})");
+    }
 }
