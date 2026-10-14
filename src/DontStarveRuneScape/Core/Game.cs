@@ -65,6 +65,8 @@ public sealed class Game
     // World & Player
     public TileMap? World { get; set; }
     public CaveWorldSystem? CaveWorlds { get; set; }
+    // Cave Stage 3 flavor: drip/echo scheduler, live only while below.
+    private World.CaveAmbience? _caveAmbience;
     public MerchantVisitSystem? MerchantVisitSystem { get; set; }
     public Player? Player { get; set; }
 
@@ -972,6 +974,21 @@ public sealed class Game
                 Player.VelocityX = 0f;
                 Player.VelocityY = 0f;
             }
+        }
+
+        // Cave Stage 3 flavor: drips and echoes whisper through the
+        // notification channel while the player is below; the scheduler
+        // dies at the exit so the story restarts on the next descent.
+        if (World?.IsCave == true && Player?.ActionSystem != null)
+        {
+            _caveAmbience ??= new World.CaveAmbience(Seed);
+            var ambienceLine = _caveAmbience.Tick(dt);
+            if (ambienceLine != null)
+                Player.ActionSystem.AddNotification(ambienceLine, (120, 160, 190));
+        }
+        else
+        {
+            _caveAmbience = null;
         }
 
         // Survival tile effects
