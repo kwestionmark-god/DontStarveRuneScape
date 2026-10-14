@@ -156,7 +156,7 @@ public class CaveExpeditionTests
             {
                 Recruits.Tick(dt, Npcs, Player, Game.World,
                     Colony.IsFounded ? Colony : null, Buildings, Crafting, Skills, Combat, Foods,
-                    null, null, Weather, null, Clock);
+                    null, null, Weather, null, Clock, CaveSystem);
                 CaveSystem?.Tick(dt);
                 Clock.Tick(dt);
             }

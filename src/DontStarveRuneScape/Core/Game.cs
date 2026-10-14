@@ -1080,7 +1080,8 @@ public sealed class Game
         NPCSystem?.Tick(dt);
         RecruitmentSystem?.Tick(dt, NPCSystem, Player, World, ColonySystem,
             BuildingSystem, Crafting, SkillManager, CombatSystem, FoodRegistry,
-            FactionRegistry, FactionSystem, WeatherSystem, Firemaking);
+            FactionRegistry, FactionSystem, WeatherSystem, Firemaking,
+            caveWorlds: CaveWorlds);
         NPCSystem?.TickFactionNPCs(dt);
 
         // Pets: follower follow-tick + colony guard (surface only — pets

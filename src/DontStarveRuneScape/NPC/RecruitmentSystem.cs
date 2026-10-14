@@ -65,7 +65,8 @@ public sealed class RecruitmentSystem
         FactionRegistry? factions = null, FactionSystem? factionSystem = null,
         DontStarveRuneScape.Seasons.WeatherSystem? weather = null,
         DontStarveRuneScape.Skills.Firemaking.FiremakingSkill? firemaking = null,
-        DontStarveRuneScape.World.DayNightCycle? clock = null)
+        DontStarveRuneScape.World.DayNightCycle? clock = null,
+        DontStarveRuneScape.World.CaveWorldSystem? caveWorlds = null)
     {
         if (dt <= 0f || npcSystem == null || player?.Inventory == null || world == null)
             return;
@@ -204,7 +205,13 @@ public sealed class RecruitmentSystem
             }
             if (npc.RecruitBehavior == "guard")
             {
-                TickGuard(npc, home, dt, world, colony, combat, player, skills, factions, factionSystem);
+                // Cave expedition: a guard underground with the player
+                // escorts — anchors on the player instead of the surface
+                // colony's home tile.
+                bool escorting = caveWorlds?.IsInside == true
+                    && caveWorlds.IsGuardOnExpedition(npc.NpcId);
+                TickGuard(npc, home, dt, world, colony, combat, player, skills,
+                    factions, factionSystem, escorting);
                 continue;
             }
             // Companion: follow/tether/flee steering — a full behavior, not a
@@ -1248,11 +1255,14 @@ public sealed class RecruitmentSystem
 
     private void TickGuard(Npc guard, (int X, int Y) home, float dt, TileMap world,
         ColonySystem? colony, CombatSystem? combat, Player player, SkillManager? skills,
-        FactionRegistry? factions, FactionSystem? factionSystem)
+        FactionRegistry? factions, FactionSystem? factionSystem, bool escorting = false)
     {
-        float anchorX = (home.X + 0.5f) * Constants.TileSize;
-        float anchorY = (home.Y + 0.5f) * Constants.TileSize;
-        float defenseRadius = (colony?.IsFounded == true ? 6f : 4f) * Constants.TileSize;
+        // Escort (cave expedition): the anchor IS the player — the guard
+        // shadows them through the dark instead of patrolling a home tile
+        // on another map.
+        float anchorX = escorting ? player.WorldX : (home.X + 0.5f) * Constants.TileSize;
+        float anchorY = escorting ? player.WorldY : (home.Y + 0.5f) * Constants.TileSize;
+        float defenseRadius = (escorting ? 8f : colony?.IsFounded == true ? 6f : 4f) * Constants.TileSize;
         float radiusSq = defenseRadius * defenseRadius;
         var threat = combat?.Monsters.Where(m => m.IsAlive() && m.IsHostile
                 && IsSettlementThreat(m, factions, factionSystem))
@@ -1277,6 +1287,22 @@ public sealed class RecruitmentSystem
             guard.VelocityX = guard.VelocityY = 0f;
             if (combat != null && skills != null && player.Inventory != null)
                 combat.GuardAttack(guard, target, player.Inventory, skills, dt);
+            return;
+        }
+
+        if (escorting)
+        {
+            // No threat: shadow the player — close in past 2.5 tiles, post
+            // up inside that (never stack the player's tile). Between the
+            // bands just hold position.
+            float pdx = player.WorldX - guard.WorldX;
+            float pdy = player.WorldY - guard.WorldY;
+            float pdistSq = pdx * pdx + pdy * pdy;
+            float followStart = 2.5f * Constants.TileSize;
+            if (pdistSq > followStart * followStart)
+                MoveGuard(guard, world, player.WorldX, player.WorldY, dt);
+            else
+                guard.VelocityX = guard.VelocityY = 0f;
             return;
         }
 
