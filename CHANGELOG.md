@@ -8,6 +8,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Voxel player body — the slab rewrite** — the player's voxel body is
+  now built at runtime from real art: body.png wears the front face
+  exactly as drawn (eyes and all), with generated side and back views
+  carrying the other surfaces. The old hand-tuned part stack is gone.
+- **Cave stage 3 — depth palette** — the cave's darkness deepens and
+  cools the further you push from the exit: a gloomy violet near the
+  mouth, an oppressive blue-black at the far wall, and your light pools
+  matter more the deeper you go.
+- **Cave stage 3 — drips and echoes** — the cavern whispers while you're
+  below: water drips, echoes roll, something skitters between the rocks.
+  Deterministic per world, 20–45 seconds apart.
 - **Cave stage 2¾ + 3 — walls and real darkness** — the cave map is
   enclosed by stepped rock walls instead of ending in open sky (in-cave
   background is near-black), and light pools where it should: your
