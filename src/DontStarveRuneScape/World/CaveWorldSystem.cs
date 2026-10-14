@@ -411,7 +411,41 @@ public sealed class CaveWorldSystem
         map.BuildCornerElevations();
         map.Tiles[map.SpawnX, map.SpawnY].IsCaveExit = true;
         PlaceOreVeins(map, resources, seed);
+        PlaceGlowcapRings(map, resources, seed);
         return map;
+    }
+
+    /// <summary>
+    /// Cave food pressure: rings of glowcap mushrooms at mid-depth — a
+    /// raw, modest desperation snack (the only food below) that keeps a
+    /// deep expedition alive without replacing surface rations.
+    /// Deterministic per seed, same idiom as the ore veins.
+    /// </summary>
+    private static void PlaceGlowcapRings(TileMap map, ResourceRegistry? resources, int seed)
+    {
+        if (resources == null) return;
+        var def = resources.GetResource("glow_cap");
+        if (def == null) return;
+
+        // Ring anchors along the descent corridor, between the copper
+        // band and the gold/gemstone deep end.
+        var anchors = new (int X, int Y)[] { (22, 32), (31, 40), (36, 24), (44, 36) };
+        var random = new Random(seed ^ 0x474C4F57); // "GLOW"
+        foreach (var (cx, cy) in anchors)
+        {
+            int count = 4 + random.Next(3); // 4-6 caps per ring
+            double baseAngle = random.NextDouble() * Math.PI * 2;
+            for (int i = 0; i < count; i++)
+            {
+                double a = baseAngle + i * (Math.PI * 2 / count);
+                float r = 1.5f + (float)random.NextDouble();
+                int x = cx + (int)MathF.Round(MathF.Cos((float)a) * r);
+                int y = cy + (int)MathF.Round(MathF.Sin((float)a) * r);
+                var tile = map.GetTile(x, y);
+                if (tile == null || tile.IsCaveExit || tile.ResourceNode != null) continue;
+                tile.ResourceNode = new ResourceNode("glow_cap", def, Math.Max(1, def.DepletionCount));
+            }
+        }
     }
 
     private static void PlaceOreVeins(TileMap map, ResourceRegistry? resources, int seed)

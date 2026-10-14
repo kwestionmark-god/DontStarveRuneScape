@@ -1298,6 +1298,34 @@
       },
       "display_scale": 0.9,
       "size_variance": 0.25
+    },
+    {
+      "id": "glow_cap",
+      "name": "Glowcap Mushroom",
+      "biome": "cavern",
+      "tier": 1,
+      "rarity": "common",
+      "category": "herb",
+      "base_density": 0.0,
+      "yield_item": "glow_cap",
+      "yield_quantity": 1,
+      "xp_reward": 5.0,
+      "depletion_count": 2,
+      "regrow_time": 180.0,
+      "sprite_key": "plants/glow_cap",
+      "requires_tool": null,
+      "biome_affinity": {
+        "forest": 0.0,
+        "plains": 0.0,
+        "swamp": 0.0,
+        "coastal": 0.0,
+        "mountains": 0.0,
+        "desert": 0.0
+      },
+      "required_level": 1,
+      "display_scale": 0.8,
+      "size_variance": 0.4
     }
+
   ]
 }

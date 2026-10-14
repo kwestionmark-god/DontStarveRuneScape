@@ -1857,6 +1857,20 @@
       "is_essential_tool": false,
       "is_food": false,
       "sprite_key": "gear/steel_boots"
+    },
+    {
+      "id": "glow_cap",
+      "name": "Glowcap Mushroom",
+      "stack_size": 10,
+      "is_equippable": false,
+      "is_essential_tool": false,
+      "is_food": true,
+      "is_raw": true,
+      "spoilage_seconds": 600,
+      "hunger_restore": 9,
+      "hp_restore": -1,
+      "sprite_key": "items/glow_cap"
     }
+
   ]
 }

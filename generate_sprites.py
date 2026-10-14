@@ -5808,6 +5808,53 @@ def generate_gear_sprites() -> None:
 
 # ── Main ──────────────────────────────────────────────────────────────
 
+def generate_glowcap_sprites() -> None:
+    """Glowcap mushroom (cave food-pressure plant): dim cyan-glowing caps,
+    pale stems — reads as a faint lure in the dark. World sprite goes under
+    plants/, the inventory icon under items/."""
+    # Palette
+    STEM = (215, 208, 190)      # pale cave-stem
+    STEM_SHADE = (170, 160, 145)
+    CAP = (70, 170, 195)        # dim cyan cap
+    CAP_LIGHT = (120, 210, 225) # lit cap edge
+    CAP_GLOW = (170, 235, 245)  # brightest glints (spore dots)
+
+    # World sprite: a small ring of three caps on a dark tuft.
+    plants_dir = os.path.join(OUTPUT_ROOT, "plants")
+    os.makedirs(plants_dir, exist_ok=True)
+    world = pygame.Surface((RESOURCE_SIZE, RESOURCE_SIZE), pygame.SRCALPHA)
+    # tallest center stem+cap
+    rectangle(world, (7, 8, 2, 6), STEM)
+    world.set_at((7, 13), STEM_SHADE)
+    circle(world, (8, 6), 3, CAP)
+    circle(world, (8, 5), 2, CAP_LIGHT)
+    world.set_at((7, 5), CAP_GLOW)
+    world.set_at((9, 6), CAP_GLOW)
+    # left cap, smaller
+    rectangle(world, (3, 10, 2, 4), STEM)
+    circle(world, (4, 8), 2, CAP)
+    world.set_at((3, 7), CAP_LIGHT)
+    # right cap, smallest
+    rectangle(world, (11, 11, 2, 3), STEM)
+    circle(world, (12, 9), 2, CAP)
+    world.set_at((12, 8), CAP_LIGHT)
+    save_surface(os.path.join(plants_dir, "glow_cap.png"), world)
+
+    # Inventory icon: a single picked cap with stem.
+    items_dir = os.path.join(OUTPUT_ROOT, "items")
+    icon = pygame.Surface((RESOURCE_SIZE, RESOURCE_SIZE), pygame.SRCALPHA)
+    rectangle(icon, (7, 8, 3, 6), STEM)
+    rectangle(icon, (7, 12, 3, 2), STEM_SHADE)
+    circle(icon, (8, 6), 4, CAP)
+    circle(icon, (8, 5), 3, CAP_LIGHT)
+    icon.set_at((6, 5), CAP_GLOW)
+    icon.set_at((10, 6), CAP_GLOW)
+    icon.set_at((8, 4), CAP_GLOW)
+    save_surface(os.path.join(items_dir, "glow_cap.png"), icon)
+
+    print("  Generated glowcap sprites (plants/glow_cap, items/glow_cap)")
+
+
 def main() -> None:
     """Generate all sprites."""
     print("Initializing pygame...")
@@ -5818,6 +5865,7 @@ def main() -> None:
     print("\nGenerating sprites for Don't Starve RuneScape...")
 
     generate_player_sprites()
+    generate_glowcap_sprites()
     generate_player_body_views()
     generate_tree_sprites()
     generate_rock_sprites()
