@@ -228,10 +228,22 @@ public sealed class SpriteRenderer : IDisposable
     // Crossed-billboard half-planes, sorted by view depth every frame.
     private readonly BillQuad[] _bodyHalves = new BillQuad[4];
 
-    /// <summary>Scratch buffer for the voxel body (slice 20): 3 faces per
-    /// part is the max a camera-facing box ever shows.</summary>
-    private readonly VoxelBody.Face[] _voxelFacesBuffer =
-        new VoxelBody.Face[VoxelBody.PlayerModel.Length * 3];
+    // The player's voxel slab (built once from the player art PNGs) and the
+    // per-frame scratch buffer it projects into — one face in, one out.
+    private VoxelBody.LocalFace[]? _playerBody;
+    private VoxelBody.Face[] _voxelFacesBuffer = [];
+
+    /// <summary>The player's voxel slab, built on first use from body.png
+    /// plus its generated side/back views.</summary>
+    private VoxelBody.LocalFace[] PlayerBody()
+    {
+        if (_playerBody == null)
+        {
+            _playerBody = VoxelBody.BuildPlayerSlab(_spritesDir);
+            _voxelFacesBuffer = new VoxelBody.Face[_playerBody.Length];
+        }
+        return _playerBody;
+    }
     // Resource crossed-billboard halves (one shared rig: RenderResource
     // completes before the next drawable runs, same as the entity path).
     private readonly BillQuad[] _resourceHalves = new BillQuad[4];
@@ -1057,23 +1069,17 @@ public sealed class SpriteRenderer : IDisposable
 
             if (!swimming)
             {
-                // Voxel body: the player's static classic-3D figure — a
-                // stack of projected world-space boxes (VoxelBody) wearing
-                // the body.png palette, lean-pivoted about the projected
-                // ground point and sprint-sheared exactly like the paper
-                // doll it replaces. Faces sort back-to-front by view depth
-                // across ALL parts (arms tuck behind the torso honestly).
-                int nf = 0;
-                var model = VoxelBody.PlayerModel;
-                // BuildPart's lon+ frame runs anti-parallel to gait travel
-                // under the current camera yaw, so the model (eyes/nose at
-                // lon+) is passed the reversed direction to face along
-                // travel. 2026-10-13 up/down captures pinned the polarity.
-                for (int pi = 0; pi < model.Length; pi++)
-                    nf += VoxelBody.BuildPart(camera, player.WorldX, player.WorldY,
-                        elevation, -gdirX, -gdirY, model[pi], pi, _voxelFacesBuffer, nf);
+                // Voxel body: body.png projected on the slab's front face
+                // (Render/VoxelBody) — the art reads exactly as drawn, with
+                // the generated side/back views carrying the other surfaces.
+                // Lean-pivoted about the projected ground point and sprint-
+                // sheared like the paper doll it replaces; faces sort
+                // back-to-front by view depth.
+                var model = PlayerBody();
+                int nf = VoxelBody.Project(camera, player.WorldX, player.WorldY,
+                    elevation, gdirX, gdirY, model, _voxelFacesBuffer);
                 // Shared transforms: lean about the ground point, jump lift,
-                // sprint forward shear on top corners weighted by part top.
+                // sprint forward shear on top corners weighted by face top.
                 var ground = camera.WorldToScreen(player.WorldX, player.WorldY, elevation);
                 float lc = MathF.Cos(lean), ls = MathF.Sin(lean);
                 float shearX = 0f, shearY = 0f;
@@ -1089,7 +1095,7 @@ public sealed class SpriteRenderer : IDisposable
                         shearX = dxs * amt; shearY = dys * amt;
                     }
                 }
-                float modelTopPx = 30.9f; // PlayerModel silhouette top
+                float modelTopPx = VoxelBody.ModelTopPx;
                 (float X, float Y) Xform(float x, float y, bool top, float topFrac)
                 {
                     if (airborne) y -= jumpLift;
@@ -1104,24 +1110,30 @@ public sealed class SpriteRenderer : IDisposable
                 for (int i = 0; i < nf; i++)
                 {
                     ref var f = ref _voxelFacesBuffer[i];
-                    float topFrac = (model[f.PartIndex].Base + model[f.PartIndex].H) / modelTopPx;
+                    float topFrac = f.TopPx / modelTopPx;
                     (f.BLx, f.BLy) = Xform(f.BLx, f.BLy, false, 0f);
                     (f.BRx, f.BRy) = Xform(f.BRx, f.BRy, false, 0f);
                     (f.TRx, f.TRy) = Xform(f.TRx, f.TRy, true, topFrac);
                     (f.TLx, f.TLy) = Xform(f.TLx, f.TLy, true, topFrac);
                 }
-                Array.Sort(_voxelFacesBuffer, 0, nf, Comparer<VoxelBody.Face>.Create(
-                    static (a, b) => a.Depth.CompareTo(b.Depth)));
+                Array.Sort(_voxelFacesBuffer, 0, nf);
                 for (int i = 0; i < nf; i++)
                 {
                     ref var f = ref _voxelFacesBuffer[i];
-                    var part = model[f.PartIndex];
-                    float shade = f.Plane == 4 ? 1.12f : f.Plane is 0 or 2 ? 0.85f : 0.68f;
+                    // Front keeps the art's own colour; the generated side
+                    // and back views ride the brick-voxel shading per axis.
+                    float shade = f.Plane switch
+                    {
+                        4 => 1.12f,      // top: lit
+                        0 => 1f,         // front: the art as drawn
+                        2 or 3 => 0.86f, // lateral sides: mid
+                        _ => 0.78f,      // back
+                    };
                     batch.DrawScreenQuadCorners(
                         f.BLx, f.BLy, f.BRx, f.BRy, f.TRx, f.TRy, f.TLx, f.TLy,
-                        (byte)Math.Clamp(part.R * shade, 0, 255),
-                        (byte)Math.Clamp(part.G * shade, 0, 255),
-                        (byte)Math.Clamp(part.B * shade, 0, 255), 255);
+                        (byte)Math.Clamp(f.R * shade, 0, 255),
+                        (byte)Math.Clamp(f.G * shade, 0, 255),
+                        (byte)Math.Clamp(f.B * shade, 0, 255), 255);
                 }
             }
             else

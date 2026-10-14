@@ -155,20 +155,95 @@ def add_leaf_clustering(surface: pygame.Surface, cx: int, cy: int, radius: int, 
 
 # ── Player Sprites ────────────────────────────────────────────────────
 
+PLAYER_PALETTE = {
+    1: (139, 90, 43),    # Brown (hair, boots, belt)
+    2: (34, 139, 34),    # Green (tunic)
+    3: (255, 220, 180),  # Skin tone (face)
+    4: (60, 40, 30),     # Dark brown (hair details)
+    5: (20, 20, 20),     # Black (eyes)
+    6: (160, 120, 60),   # Light brown (belt buckle)
+}
+
+# Voxel-body views (Render/VoxelBody.cs). body.png — the legless figure
+# above — is projected on the voxel body's FRONT face, so the front art
+# stays exactly the art; these two grids carry the rest of the surface:
+#
+#   body_side.png : the body's cross-section per art row. A row's run of
+#                   opaque cells IS that row's depth: the leftmost cell sits
+#                   on the body's front plane, the rightmost on its back.
+#                   Hence hair over the crown and the back of the head, a
+#                   skin sliver at the front (the face's edge), green tunic
+#                   below, brown belt.
+#   body_back.png : the back face — body.png's silhouette with the face
+#                   read as hair (skin 3 and eyes 5 become browns), and a
+#                   plain belt (the buckle is a front detail).
+#
+# Same 16x16 grid, same palette, same primitive idiom as the frames above;
+# rows below the belt stay empty exactly like body.png, since the dome
+# boots are drawn procedurally and never baked into the art.
+PLAYER_SIDE_VIEW = [
+    "................",
+    ".....4444.......",
+    "....411114......",
+    "....4111114.....",
+    "....3111114.....",
+    "....3111114.....",
+    "....311114......",
+    "....31114.......",
+    ".....22222......",
+    ".....22222......",
+    ".....22222......",
+    ".....22222......",
+    ".....11111......",
+    "................",
+    "................",
+    "................",
+]
+
+PLAYER_BACK_VIEW = [
+    "................",
+    ".......41.......",
+    "......44411.....",
+    ".....444441.....",
+    ".....1444111....",
+    ".....1441141....",
+    "......11111.....",
+    "......11111.....",
+    "......2222......",
+    "......2222......",
+    "......2222......",
+    "......2222......",
+    "......1111......",
+    "................",
+    "................",
+    "................",
+]
+
+
+def _parse_view(rows: list[str]) -> list[list[int]]:
+    """Turn a view grid of palette digits ('.' = empty) into index rows."""
+    return [[0 if ch == "." else int(ch) for ch in row] for row in rows]
+
+
+def generate_player_body_views() -> None:
+    """Generate the voxel body's side (depth strip) and back views."""
+    print("\n=== Generating Player Body Views ===")
+    output_dir = os.path.join(OUTPUT_ROOT, "player")
+
+    for name, view in (("body_side", PLAYER_SIDE_VIEW), ("body_back", PLAYER_BACK_VIEW)):
+        surface = pygame.Surface((PLAYER_SIZE, PLAYER_SIZE), pygame.SRCALPHA)
+        draw_pixel_art(surface, _parse_view(view), PLAYER_PALETTE)
+        save_surface(os.path.join(output_dir, f"{name}.png"), surface)
+
+    print("  Generated 2 voxel-body views (body_side, body_back)")
+
+
 def generate_player_sprites() -> None:
     """Generate player idle and walk sprites."""
     print("\n=== Generating Player Sprites ===")
     output_dir = os.path.join(OUTPUT_ROOT, "player")
 
-    # Palette
-    PALETTE = {
-        1: (139, 90, 43),    # Brown (hair, boots, belt)
-        2: (34, 139, 34),    # Green (tunic)
-        3: (255, 220, 180),  # Skin tone (face)
-        4: (60, 40, 30),     # Dark brown (hair details)
-        5: (20, 20, 20),     # Black (eyes)
-        6: (160, 120, 60),   # Light brown (belt buckle)
-    }
+    PALETTE = PLAYER_PALETTE
 
     # Idle frame 0: Facing forward
     idle_0 = pygame.Surface((PLAYER_SIZE, PLAYER_SIZE), pygame.SRCALPHA)
@@ -5743,6 +5818,7 @@ def main() -> None:
     print("\nGenerating sprites for Don't Starve RuneScape...")
 
     generate_player_sprites()
+    generate_player_body_views()
     generate_tree_sprites()
     generate_rock_sprites()
     generate_world_sprites()
