@@ -1113,6 +1113,11 @@ public sealed class Game
         // Seasons
         SeasonSystem?.Tick(dt);
 
+        // Cave system: the surface-unguarded raid timer must tick in
+        // production too (previously only tests ticked it by hand — the
+        // raid consequence was inert in real play).
+        CaveWorlds?.Tick(dt);
+
         // Seasonal renderer sync
         if (SeasonalRenderer != null && SeasonSystem != null)
         {

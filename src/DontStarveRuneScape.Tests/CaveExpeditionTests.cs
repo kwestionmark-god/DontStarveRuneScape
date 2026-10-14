@@ -314,6 +314,8 @@ public class CaveExpeditionTests
         // unguarded, so the timer should advance every real update.
         h.CaveSystem.InteractWith(h.Surface.GetTile(5, 5)!);
         Assert.True(h.CaveSystem.IsInside);
+        // The system-tick block in Game.Update runs only while playing.
+        h.Game.SetState(DontStarveRuneScape.Core.GameState.Playing);
         float before = h.CaveSystem.SurfaceUnguardedTimer;
 
         h.Game.Update(1f);

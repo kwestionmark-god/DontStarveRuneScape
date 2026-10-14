@@ -81,16 +81,8 @@ public sealed class CaveWorldSystem
     /// (test helper; the real timer ticks in CaveWorldSystem.Tick).</summary>
     public void AdvanceSurfaceTimer(float seconds)
     {
-        bool inside = IsInside;
-        bool hasGuards = HasSurfaceGuards();
-        Console.WriteLine($"AdvanceSurfaceTimer: inside={inside}, hasGuards={hasGuards}, seconds={seconds}");
-        if (!inside || hasGuards) 
-        { 
-            Console.WriteLine($"AdvanceSurfaceTimer: SKIPPED - inside={inside}, hasGuards={hasGuards}");
-            return; 
-        }
+        if (!IsInside || HasSurfaceGuards()) return;
         _surfaceUnguardedTimer += seconds;
-        Console.WriteLine($"AdvanceSurfaceTimer: ADVANCED by {seconds}, timer={_surfaceUnguardedTimer}");
         TryRollRaid();
     }
 
