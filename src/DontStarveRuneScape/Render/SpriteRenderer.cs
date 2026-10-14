@@ -1881,6 +1881,33 @@ public sealed class SpriteRenderer : IDisposable
         return (int)Math.Clamp(darkness * 0.40f * 255f, 0f, 255f);
     }
 
+    /// <summary>Cave Stage 3 (depth palette): the player's normalized
+    /// depth 0–1 — 0 at the west-edge exit tile, 1 at the far wall,
+    /// clamped outside the basin.</summary>
+    public static float CaveDepth01(float tileX, int exitX, int width)
+    {
+        float span = Math.Max(1, width - 1 - exitX);
+        return Math.Clamp((tileX - exitX) / span, 0f, 1f);
+    }
+
+    /// <summary>Cave Stage 3 (depth palette): overlay alpha deepens with
+    /// depth — a gloomy 60 at the mouth, an oppressive 120 at the far
+    /// wall (under NightOverlayMaxAlpha, so cave dark never out-darks a
+    /// real midnight).</summary>
+    public static int CaveOverlayAlpha(float depth01)
+        => (int)Math.Clamp(60f + 60f * Math.Clamp(depth01, 0f, 1f), 0f, 255f);
+
+    /// <summary>Cave Stage 3 (depth palette): the overlay tint cools as it
+    /// darkens — violet (13,12,21) at the mouth, blue-black (6,8,26) at
+    /// the far wall. Blue rises while red and green fall.</summary>
+    public static (byte R, byte G, byte B) CaveOverlayColor(float depth01)
+    {
+        float d = Math.Clamp(depth01, 0f, 1f);
+        return ((byte)MathF.Round(13f + (6f - 13f) * d),
+                (byte)MathF.Round(12f + (8f - 12f) * d),
+                (byte)MathF.Round(21f + (26f - 21f) * d));
+    }
+
     // ─── Fire glow pool (slice 16) ──────────────────────────────────────
 
     private uint _glowTex;

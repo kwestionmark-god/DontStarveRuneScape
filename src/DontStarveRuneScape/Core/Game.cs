@@ -2285,9 +2285,18 @@ public sealed class Game
         float glowDarkness;
         if (World?.IsCave == true)
         {
+            // Depth palette: the overlay darkens and cools as the player
+            // pushes from the west-edge exit toward the far wall — light
+            // pools (below) brighten with it through glowDarkness.
+            float depth01 = Player != null
+                ? SpriteRenderer.CaveDepth01(Player.WorldX / Constants.TileSize,
+                    World.SpawnX, World.Width)
+                : 0f;
+            var (caveR, caveG, caveB) = SpriteRenderer.CaveOverlayColor(depth01);
+            byte caveAlpha = (byte)SpriteRenderer.CaveOverlayAlpha(depth01);
             batch.DrawScreenQuad(screenWidth * .5f, screenHeight * .5f,
-                screenWidth * .5f, screenHeight * .5f, 13, 12, 21, 78);
-            glowDarkness = 78f / Constants.NightOverlayMaxAlpha;
+                screenWidth * .5f, screenHeight * .5f, caveR, caveG, caveB, caveAlpha);
+            glowDarkness = caveAlpha / Constants.NightOverlayMaxAlpha;
         }
         else
         {
