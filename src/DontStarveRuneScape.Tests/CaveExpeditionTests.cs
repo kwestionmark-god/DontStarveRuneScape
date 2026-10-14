@@ -303,6 +303,59 @@ public class CaveExpeditionTests
     }
 
     [Fact]
+    public void ExpeditionGuard_EscortsThePlayerThroughTheCave()
+    {
+        // Escort UX: a guard brought underground should ESCORT — follow the
+        // player through the cave and post up ~2 tiles out — not stand at
+        // the entrance patrol anchor while the player mines alone in the
+        // dark. Today the guard teleport-lands at the cave spawn and never
+        // moves (its patrol anchor is the surface colony's home tile).
+        var h = new Harness();
+        h.SetupGame();
+        var guard = h.AddWorker("g1", 5, 5, "guard");
+        h.CaveSystem.InteractWith(h.Surface.GetTile(5, 5)!);
+        h.CaveSystem.BringGuard("g1");
+
+        // The player pushes deep into the cave, ~14 tiles east of the spawn.
+        h.Player.WorldX = (20 + 0.5f) * Constants.TileSize;
+        h.Player.WorldY = (32 + 0.5f) * Constants.TileSize;
+        h.Player.TargetX = h.Player.WorldX;
+        h.Player.TargetY = h.Player.WorldY;
+
+        // A minute of game time is plenty to close 12 tiles at guard pace.
+        for (int i = 0; i < 240; i++) h.Tick(1, 0.25f);
+
+        float dx = guard.WorldX - h.Player.WorldX;
+        float dy = guard.WorldY - h.Player.WorldY;
+        float distTiles = MathF.Sqrt(dx * dx + dy * dy) / Constants.TileSize;
+        Assert.True(distTiles < 4f,
+            $"expedition guard never followed (ended {distTiles:F1} tiles from the player at depth)");
+    }
+
+    [Fact]
+    public void ExpeditionGuard_PostsUpRatherThanStackingThePlayer()
+    {
+        // Escort follow should NOT stand on the player's tile: once within
+        // ~1.5 tiles the guard stops (companion-style posting up).
+        var h = new Harness();
+        h.SetupGame();
+        var guard = h.AddWorker("g1", 5, 5, "guard");
+        h.CaveSystem.InteractWith(h.Surface.GetTile(5, 5)!);
+        h.CaveSystem.BringGuard("g1");
+        h.Player.WorldX = (9 + 0.5f) * Constants.TileSize;
+        h.Player.WorldY = (32 + 0.5f) * Constants.TileSize;
+        h.Player.TargetX = h.Player.WorldX;
+        h.Player.TargetY = h.Player.WorldY;
+
+        for (int i = 0; i < 120; i++) h.Tick(1, 0.25f);
+
+        float dx = guard.WorldX - h.Player.WorldX;
+        float dy = guard.WorldY - h.Player.WorldY;
+        float distTiles = MathF.Sqrt(dx * dx + dy * dy) / Constants.TileSize;
+        Assert.InRange(distTiles, 1.0f, 3.5f);
+    }
+
+    [Fact]
     public void GameUpdate_AdvancesTheSurfaceUnguardedTimer()
     {
         // Production wiring pin: Game.Update must tick the cave system, or
