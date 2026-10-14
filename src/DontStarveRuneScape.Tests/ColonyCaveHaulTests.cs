@@ -107,17 +107,31 @@ public class ColonyCaveHaulTests
         worker.CarriedItemId = "copper_ore";
         worker.CarriedQuantity = 2;
 
-        h.Tick(1600); // walk + any rest detour, with margin
+        // Watch the deposit moment itself: after delivery the worker
+        // wanders on a time-seeded RNG, so any post-hoc position assert is
+        // inherently flaky. Record where the worker stood the tick the
+        // carry cleared and pin THAT to the exit (the "delivered at the
+        // exit, not the anchor" law).
+        float? depositX = null;
+        float? depositY = null;
+        for (int i = 0; i < 1600 && depositX == null; i++) // walk + any rest detour, with margin
+        {
+            h.Tick(1);
+            if (worker.CarriedItemId == null)
+            {
+                depositX = worker.WorldX;
+                depositY = worker.WorldY;
+            }
+        }
 
-        Assert.True(worker.CarriedItemId == null,
+        Assert.True(depositX.HasValue,
             $"worker still carrying after 1600 ticks: pos=({worker.WorldX:F0},{worker.WorldY:F0}) " +
             $"carried={worker.CarriedQuantity} status='{worker.CarryStatus}' need='{worker.ColonyNeedStatus}' " +
             $"rest={worker.ColonyRest:F0} hunger={worker.ColonyHunger:F0}");
         Assert.Equal(0, worker.CarriedQuantity);
         Assert.Equal(2, h.Colony.GetItemQuantity("copper_ore"));
-        // Delivered at the exit, not the anchor.
         float exitX = (3 + 0.5f) * Constants.TileSize;
-        Assert.InRange(MathF.Abs(worker.WorldX - exitX), 0f, Constants.TileSize * 2f);
+        Assert.InRange(MathF.Abs(depositX!.Value - exitX), 0f, Constants.TileSize * 2f);
     }
 
     [Fact]
